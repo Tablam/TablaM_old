@@ -8,7 +8,7 @@
 * Become a spiritual attempt at the dbase/foxpro family of database-oriented languages, in the sense manipulate data(bases) is natural and integrated.
 * Have an in-memory relational/column-oriented structure as the main object, and facilities to provide a relational interface for custom objects/data 
   (like for example, RDBMS, the file system, csv, json, etc).
-* Could be kind of similar to kdb+ but far less criptyc.
+* Could be kind of similar to kdb+ but far less cryptic.
 * Be good not only for developers but also for database end-users to explore and interface with data.
 * Work on OSX, Linux, Windows, iOS, Android
 * Easy to embeb in other languages?
