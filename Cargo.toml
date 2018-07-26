@@ -1,0 +1,6 @@
+[package]
+name = "tablam"
+version = "0.1.0"
+authors = ["MarioM", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+
+[dependencies]
