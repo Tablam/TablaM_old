@@ -1,6 +1,21 @@
 [package]
 name = "tablam"
 version = "0.1.0"
-authors = ["MarioM", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+authors = ["Mario Montoya <mamcx@elmalabarista.com>", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+repository = "https://bitbucket.org/tablam/tablam/"
+license = "MPL-2.0"
+readme = "README.md"
+homepage = "https://bitbucket.org/tablam/tablam/"
+keywords = ["database", "interpreter", "language", "relational", "columnar"]
+categories = ["database", "language", "relational"]
 
-[dependencies]
+[workspace]
+members = ["lang"]
+
+[lib]
+name = "drivers"
+path = "drivers/src/lib.rs"
+
+[[bin]]
+name = "table"
+path = "lang/src/main.rs"

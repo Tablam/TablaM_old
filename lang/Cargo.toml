@@ -1,0 +1,6 @@
+[package]
+name = "lang"
+version = "0.1.0"
+authors = ["Mario Montoya <mamcx@elmalabarista.com>"]
+
+[dependencies]

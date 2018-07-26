@@ -1,2 +1,5 @@
-^target/
-glob:*.rs.bk
+# use glob syntax
+syntax: glob
+
+target/
+*.rs.bk
