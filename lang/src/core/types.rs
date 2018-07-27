@@ -66,14 +66,14 @@ pub enum Compare {
     //Like(ColumnExp, ColumnExp),
 }
 
-pub type Data = Vec<Scalar>;
+pub type Row = Vec<Scalar>;
 pub type Names = Vec<String>;
 
 #[derive(Debug, Clone)]
-pub struct Relation {
+pub struct RelFrame {
     pub layout: Layout,
-	pub names: Names,
-    pub data:  Vec<Data>
+	pub names:  Names,
+    pub data:   Vec<Row>
 }
 
 pub type SelectColumns = Vec<ColumnExp>;
@@ -93,6 +93,14 @@ pub enum Algebra {
 #[derive(Debug, Clone)]
 pub struct QueryPlanner {
     pub ops: Vec<Algebra>,
+}
+
+pub trait Relation {
+    fn layout(&self) -> Layout;
+    fn count(&self) -> usize;
+    fn row(&self, pos:usize) -> Row;
+    fn col(&self, pos:usize) -> Column;
+    fn cell(&self, col:usize, row:usize) -> &Scalar;
 }
 
 fn encode_str(value:String) -> BytesMut {

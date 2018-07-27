@@ -1,4 +1,10 @@
-use self::types::*;
+extern crate bytes;
+
+use std::rc::Rc;
+
+use super::types::*;
+use std::slice::Iter;
+use self::bytes::*;
 
 /// Convert vectors to columns - erases the concrete type
 /// implement `std::convert::From` to get `std::convert::Into` for free
@@ -62,22 +68,5 @@ where
 
     fn as_slice<'b>(col: &'b Column) -> &'b [T] {
         T::as_slice(col)
-    }
-}
-
-impl Column {
-    /// Construct a column from a vector
-    pub fn from<T: ColumnType>(vec: Vec<T>) -> Column {
-        T::to_column(vec)
-    }
-
-    /// column.iter()
-    pub fn iter<T: ColumnType>(&self) -> Iter<T> {
-        T::iter(self)
-    }
-
-    /// column.as_slice()
-    pub fn as_slice<T: ColumnType>(&self) -> &[T] {
-        T::as_slice(self)
     }
 }
