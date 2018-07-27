@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Mario Montoya <mamcx@elmalabarista.com>"]
 
 [dependencies]
+time = "0.1.0"
+rand = "0.5"
+num = "*"
+bytes = "0.4"
