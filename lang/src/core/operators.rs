@@ -3,11 +3,13 @@ use std::ops::Add;
 
 use super::types::*;
 
-/// The ops in TablaM are columnar, and follow this patter:operators
+/// The ops in TablaM are columnar, and follow this pattern
 /// [1, 2, 3] +  [1, 2, 3] = [2, 4, 6]
 /// [1, 2, 3] +  1 = [1, 3, 4]
 /// 1 + [1, 2, 3] = [1, 3, 4]
 /// [1, 2, 3] +  [1, 2] = ERROR
+
+//TODO: Must automate the build of operators, and apply the above rules...
 fn _add(a: RVec<i64>, b: RVec<i64>) -> RVec<i64> {
     println!("Dot! {} {}", a.len(), b.len());
     if a.len() == b.len() {
