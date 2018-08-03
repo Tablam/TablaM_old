@@ -3,3 +3,4 @@ syntax: glob
 
 target/
 *.rs.bk
+*.idea

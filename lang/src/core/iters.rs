@@ -4,15 +4,6 @@ use std::rc::Rc;
 
 use super::types::*;
 use std::slice::Iter;
-use self::bytes::*;
-
-/// Convert vectors to columns - erases the concrete type
-/// implement `std::convert::From` to get `std::convert::Into` for free
-impl From<Vec<i64>> for Column {
-    fn from(vec: Vec<i64>) -> Self {
-        Column::I64(Rc::from(vec))
-    }
-}
 
 /// Recovers the elements type through iterators and slices
 pub trait ColumnIter: Value {
@@ -49,6 +40,7 @@ pub trait ColumnType: Value {
     fn to_column(Vec<Self>) -> Column;
     fn iter<'b>(&'b Column) -> Iter<'b, Self>;
     fn as_slice<'b>(&'b Column) -> &'b [Self];
+    fn as_value<'b>(&'b Column, pos:usize) -> &'b Self;
 }
 
 /// Implement `ColumnType` for each type that implements
@@ -69,4 +61,10 @@ where
     fn as_slice<'b>(col: &'b Column) -> &'b [T] {
         T::as_slice(col)
     }
+
+    fn as_value<'b>(col: &'b Column, pos:usize) -> &'b Self {
+       let value = T::as_slice(col)[pos];
+       &value
+    }
+
 }
