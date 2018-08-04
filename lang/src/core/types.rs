@@ -1,13 +1,19 @@
 #![allow(dead_code)]
-
+use std::fmt::Debug;
 use std::rc::Rc;
+use std::slice::Iter;
+use std::iter::Zip;
 
 extern crate bytes;
 
 use self::bytes::*;
+use super::iters::{IntoZipWith, ZipWith};
 
 pub type RVec<T> = Rc<Vec<T>>;
 pub type Names = Vec<String>;
+
+/// Marker trait for the values
+pub trait Value: Clone + Debug {}
 
 #[derive(Debug, Clone)]
 pub enum Layout {
@@ -58,6 +64,109 @@ pub enum Column {
     I64(RVec<i64>),
     UTF8(RVec<BytesMut>),    
     ROW(RVec<Column>),
+}
+
+impl Value for bool {}
+impl Value for i64 {}
+impl Value for BytesMut {}
+impl Value for Column {}
+
+/// Recovers the elements type through iterators and slices
+pub trait ColumnIter: Value {
+    fn as_slice<'b>(col: &'b Column) -> &'b [Self];
+    fn iter<'b>(col: &'b Column) -> Iter<'b, Self> {
+        Self::as_slice(col).iter()
+    }
+}
+
+impl ColumnIter for bool {
+    fn as_slice<'b>(col: &'b Column) -> &'b [bool] {
+        if let Column::BOOL(ref vec) = *col {
+            vec
+        } else {
+            panic!("Improper cast of {:?} to [bool]", col)
+        }
+    }
+}
+
+impl ColumnIter for BytesMut {
+    fn as_slice<'b>(col: &'b Column) -> &'b [BytesMut] {
+        if let Column::UTF8(ref vec) = *col {
+            vec
+        } else {
+            panic!("Improper cast of {:?} to [BytesMut]", col)
+        }
+    }
+}
+
+impl ColumnIter for Column {
+    fn as_slice<'b>(col: &'b Column) -> &'b [Column] {
+        if let Column::ROW(ref vec) = *col {
+            vec
+        } else {
+            panic!("Improper cast of {:?} to [Column]", col)
+        }
+    }
+}
+
+impl ColumnIter for i64 {
+    fn as_slice<'b>(col: &'b Column) -> &'b [i64] {
+        if let Column::I64(ref vec) = *col {
+            vec
+        } else {
+            panic!("Improper cast of {:?} to [i64]", col)
+        }
+    }
+}
+
+/// `ColumnType` is the type of the elements if the columns.
+/// It composes all column traits and is used as a type bound
+/// to bring all the dependencies at once
+pub trait ColumnType: Value {
+    fn to_column(Vec<Self>) -> Column;
+    fn iter<'b>(&'b Column) -> Iter<'b, Self>;
+    fn as_slice<'b>(&'b Column) -> &'b [Self];
+}
+
+/// Implement `ColumnType` for each type that implements
+/// `ColumnIter<Self>` and `From<Vec<Self>>` for `Column`
+impl<T> ColumnType for T
+    where
+        T: ColumnIter + Value,
+        Column: From<Vec<T>>,
+{
+    fn to_column(vec: Vec<T>) -> Column {
+        vec.into()
+    }
+
+    fn iter<'b>(col: &'b Column) -> Iter<'b, T> {
+        T::iter(col)
+    }
+
+    fn as_slice<'b>(col: &'b Column) -> &'b [T] {
+        T::as_slice(col)
+    }
+}
+
+impl Column {
+    /// Construct a column from a vector
+    pub fn from<T: ColumnType>(vec: Vec<T>) -> Column {
+        T::to_column(vec)
+    }
+
+    pub fn from_scalar<T: ColumnType>(value: T) -> Column {
+        T::to_column(vec!(value))
+    }
+
+    /// column.iter()
+    pub fn iter<T: ColumnType>(&self) -> Iter<T> {
+        T::iter(self)
+    }
+
+    /// column.as_slice()
+    pub fn as_slice<T: ColumnType>(&self) -> &[T] {
+        T::as_slice(self)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -117,7 +226,7 @@ pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
 }
 
-//TODO: Use a macro for automate conversions?
+//TODO: Use a macro for automate convertions?
 impl From<i64> for Column {
     fn from(vec: i64) -> Self {
         Column::I64(Rc::from(vec!(vec)))
@@ -154,6 +263,12 @@ impl From<Vec<BytesMut>> for Column {
     }
 }
 
+impl From<Vec<Column>> for Column {
+    fn from(vec: Vec<Column>) -> Self {
+        Column::ROW(Rc::from(vec))
+    }
+}
+
 pub fn len(of:&Column) -> usize {
     match of {
         Column::I64(data)  => data.len(),
@@ -165,15 +280,15 @@ pub fn len(of:&Column) -> usize {
 
 pub fn value(of:&Column, pos:usize) -> Column {
     match of {
-        Column::I64(data)  =>  Column::from(data[pos]),
-        Column::BOOL(data) => Column::from(data[pos]),
-        Column::UTF8(data) => Column::from(data[pos].clone()),
-        Column::ROW(data)  =>  Column::from(data[pos].clone()),
+        Column::I64(data)  => Column::from_scalar(data[pos]),
+        Column::BOOL(data) => Column::from_scalar(data[pos]),
+        Column::UTF8(data) => Column::from_scalar(data[pos].clone()),
+        Column::ROW(data)  => Column::from_scalar(data[pos].clone()),
     }        
 }
 
 pub fn row(of:&Vec<Column>, pos:usize) -> Vec<Column> {
-    let data = of.into_iter().map(| x | value(x, pos));
+    let data = of.as_slice().iter().map(| x | value(x, pos));
 
     data.collect()
 }
