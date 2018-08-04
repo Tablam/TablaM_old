@@ -22,7 +22,7 @@ fn _add(a: RVec<i64>, b: RVec<i64>) -> RVec<i64> {
 }
 
 //TODO: Use the Num crate for already implemented
-//polyphormic math
+//polymorphic math
 impl Add for Column {
     type Output = Column;
 
@@ -35,7 +35,7 @@ impl Add for Column {
     }
 }
 
-// TODO: The operatos follow this patterns:
+// TODO: The operators follow this patterns:
 // maps: ColumnExp & ColumnExp = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp = Column (+[1, 2] = 3)
 

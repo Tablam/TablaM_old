@@ -1,7 +1,10 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 mod core;
 
 use core::types::*;
-use core::operators::*;
+//use core::operators::*;
 
 fn main() {
     let nums1:Vec<i64> = (0..100).into_iter().collect();

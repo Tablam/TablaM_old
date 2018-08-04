@@ -1,6 +1,11 @@
 [package]
-name = "driver"
+name = "tablam-rdbms"
 version = "0.1.0"
 authors = ["Mario Alejandro Montoya Cortes <mamcx@elmalabarista.com>"]
+license = "MPL-2.0"
+keywords = ["database", "relational", "sqlite"]
+categories = ["database", "relational"]
 
-[dependencies]
+[lib]
+name = "drivers"
+path = "drivers/src/lib.rs"

@@ -23,7 +23,19 @@ pub enum DataType {
     None,
     Bool,
     Int32,
-    UTF8,
+    Int64,
+//    Planed:
+//    Decimal,
+//    Time,
+//    Date,
+//    DateTime,
+//    Char,
+//    UTF8,
+//    Byte,
+//    Sum(DataType), //enums
+//    Product(DataType), //struct
+//    Rel((String, DataType)), //Relations, Columns
+//    Function,
 }
 
 #[derive(Debug, Clone)]
@@ -56,8 +68,9 @@ pub struct Frame {
 
 #[derive(Debug, Clone)]
 pub enum ColumnExp {
-	Value(Scalar, String),
-    Colum(String),
+	Value(Scalar),
+    Name(String),
+    Pos(usize),
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +102,9 @@ pub struct QueryPlanner {
 }
 
 pub trait RelationRow {
+    fn row_count(&self) -> usize;
+    fn column_count(&self) -> usize;
+
     fn layout(&self) -> Layout {
        Layout::Row
     }
@@ -101,7 +117,7 @@ pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
 }
 
-//TODO: Use a macro for automate convertions?
+//TODO: Use a macro for automate conversions?
 impl From<i64> for Column {
     fn from(vec: i64) -> Self {
         Column::I64(Rc::from(vec!(vec)))
@@ -138,12 +154,21 @@ impl From<Vec<BytesMut>> for Column {
     }
 }
 
+pub fn len(of:&Column) -> usize {
+    match of {
+        Column::I64(data)  => data.len(),
+        Column::BOOL(data) => data.len(),
+        Column::UTF8(data) => data.len(),
+        Column::ROW(data)  =>  data.len(),
+    }
+}
+
 pub fn value(of:&Column, pos:usize) -> Column {
     match of {
-        Column::I64(data) =>  Column::from(data[pos]),
+        Column::I64(data)  =>  Column::from(data[pos]),
         Column::BOOL(data) => Column::from(data[pos]),
         Column::UTF8(data) => Column::from(data[pos].clone()),
-        Column::ROW(data) =>  Column::from(data[pos].clone()),
+        Column::ROW(data)  =>  Column::from(data[pos].clone()),
     }        
 }
 
@@ -159,6 +184,17 @@ pub trait RelationCol:RelationRow {
 }
 
 impl RelationRow for Frame {
+    fn row_count(&self) -> usize {
+        if self.column_count() > 0 {
+            return len(&self.data[0])
+        }
+        0
+    }
+
+    fn column_count(&self) -> usize {
+        self.data.len()
+    }
+
     fn layout(&self) -> Layout {
         Layout::Col
     }

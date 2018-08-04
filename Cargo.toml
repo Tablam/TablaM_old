@@ -10,13 +10,17 @@ keywords = ["database", "interpreter", "language", "relational", "columnar"]
 categories = ["database", "language", "relational"]
 
 [workspace]
-members = ["lang"]
+members = ["lang", "drivers"]
 
 [dependencies]
 time = "0.1.0"
 rand = "0.5"
 num = "*"
 bytes = "0.4"
+
+[dependencies.rusqlite]
+version = "0.13.0"
+features = ["bundled"]
 
 [lib]
 name = "drivers"
