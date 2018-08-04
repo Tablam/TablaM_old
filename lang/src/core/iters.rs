@@ -3,6 +3,7 @@ extern crate bytes;
 use std::rc::Rc;
 
 use super::types::*;
+use super::cursor::Cursor;
 use std::slice::Iter;
 
 /// Recovers the elements type through iterators and slices

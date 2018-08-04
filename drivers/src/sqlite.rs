@@ -13,18 +13,18 @@ impl From<Error> for DbErr {
 
 fn select(of:&SqliteDb, sql:&str, params:Option<DbRow>) -> RowResult {
     let mut stmt = of.conn.prepare(sql)?;
+//    let names = stmt.column_names(); //<-- This
 
-    let result = stmt.query_map(&[], |row| {
-        let mut result = DbRow::new();
-
-        result.insert("1".to_string(), Scalar::None);
-
-        result
-    })?;
+    let mut result = stmt.query(&[])?;
 
     let mut rows = Vec::new();
-    for name_result in result {
-        rows.push(name_result?);
+
+    while let Some(value) = result.next() {
+        let mut row = DbRow::new();
+//        for name in names {
+//            row.insert(name.to_string(), Scalar::None);
+//        }
+        rows.push(row)
     }
 
     Ok(rows)

@@ -1,7 +1,6 @@
 extern crate rusqlite;
 
 use std::collections::HashMap;
-use std::iter::*;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum DbErr {

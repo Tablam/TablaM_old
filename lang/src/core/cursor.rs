@@ -52,3 +52,44 @@ impl Cursor {
         self.pos as usize
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn navigate() {
+        let cursor = Cursor::new(0);
+        assert_eq!(cursor.eof(), true);
+
+        let mut cursor = Cursor::new(10);
+
+        assert_eq!(cursor.pos, 0);
+        assert_eq!(cursor.eof(), false);
+
+        assert_eq!(cursor.next(), true);
+        assert_eq!(cursor.next(), true);
+        assert_eq!(cursor.pos, 2);
+
+        assert_eq!(cursor.back(), true);
+        assert_eq!(cursor.back(), true);
+        assert_eq!(cursor.pos, 0);
+
+        cursor.last();
+        assert_eq!(cursor.pos, 10);
+        assert_eq!(cursor.eof(), true);
+        assert_eq!(cursor.next(), false);
+        assert_eq!(cursor.pos, 10);
+
+        cursor.first();
+        assert_eq!(cursor.eof(), false);
+        assert_eq!(cursor.pos, 0);
+
+        assert_eq!(cursor.skip(10), true);
+        assert_eq!(cursor.pos, 10);
+        assert_eq!(cursor.eof(), true);
+
+        assert_eq!(cursor.skip(-10), true);
+        assert_eq!(cursor.pos, 0);
+    }
+}
