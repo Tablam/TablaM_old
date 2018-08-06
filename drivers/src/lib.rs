@@ -14,7 +14,9 @@ pub enum Scalar {
     None,
     BOOL(bool),
     I64(i64),
+    F64(f64),
     UTF8(String),
+    Blob(Vec<u8>),
 }
 
 type DbRow = HashMap<String, Scalar>;

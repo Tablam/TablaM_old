@@ -2,12 +2,10 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::slice::Iter;
-use std::iter::Zip;
 
 extern crate bytes;
 
 use self::bytes::*;
-use super::iters::{IntoZipWith, ZipWith};
 
 pub type RVec<T> = Rc<Vec<T>>;
 pub type Names = Vec<String>;
@@ -42,12 +40,6 @@ pub enum DataType {
 //    Product(DataType), //struct
 //    Rel((String, DataType)), //Relations, Columns
 //    Function,
-}
-
-#[derive(Debug, Clone)]
-pub enum Ops {
-	Project,
-    Filter,
 }
 
 #[derive(Debug, Clone)]
@@ -178,17 +170,33 @@ pub struct Frame {
 #[derive(Debug, Clone)]
 pub enum ColumnExp {
 	Value(Scalar),
-    Name(String),
-    Pos(usize),
+    Name(Frame, String),
+    Pos(Frame, usize),
 }
 
 #[derive(Debug, Clone)]
-pub enum Compare {
-    Eq(ColumnExp, ColumnExp),
-    NotEq(ColumnExp, ColumnExp),
-    Less(ColumnExp, ColumnExp),
-    Bigger(ColumnExp, ColumnExp),
-    //Like(ColumnExp, ColumnExp),
+pub enum Operator {
+    //Compare
+    Eq,
+    NotEq,
+    Less,
+    Greater,
+    Not,
+    //Math
+    Add,
+    Minus,
+    Mul,
+    Div,
+    //Relational
+    Union,
+    Diff,
+}
+
+#[derive(Debug, Clone)]
+pub struct Compare {
+    pub op:Operator,
+    pub left:ColumnExp,
+    pub right:ColumnExp,
 }
 
 pub type SelectColumns = Vec<ColumnExp>;
@@ -220,6 +228,15 @@ pub trait RelationRow {
 
     fn names(&self) -> Names;
     fn row(&self, pos:usize) -> Frame;
+    fn col(&self, pos:usize) -> Column;
+    fn col_named(&self, name:&str) -> Column {
+        let pos = self.names().as_slice().iter().position(|r| r == name).unwrap();
+        self.col(pos)
+    }
+}
+
+pub trait RelationCol:RelationRow {
+    fn frame(&self) -> &Frame;
 }
 
 pub fn encode_str(value:&str) -> BytesMut {
@@ -293,11 +310,6 @@ pub fn row(of:&Vec<Column>, pos:usize) -> Vec<Column> {
     data.collect()
 }
 
-pub trait RelationCol:RelationRow {
-    fn frame(&self) -> &Frame;
-    fn col(&self, pos:usize) -> Column;
-}
-
 impl RelationRow for Frame {
     fn row_count(&self) -> usize {
         if self.column_count() > 0 {
@@ -325,14 +337,14 @@ impl RelationRow for Frame {
             data: Rc::new(row(&self.data, pos))
         }
     }
-}
-
-impl RelationCol for Frame {
-    fn frame(&self) -> &Frame {self}
 
     fn col(&self, pos:usize) -> Column {
         self.data[pos].clone()
     }
+}
+
+impl RelationCol for Frame {
+    fn frame(&self) -> &Frame {self}
 }
 
 pub fn to_i64(from:&Column) -> &RVec<i64> {

@@ -6,6 +6,10 @@ license = "MPL-2.0"
 keywords = ["database", "relational", "sqlite"]
 categories = ["database", "relational"]
 
+[dependencies.rusqlite]
+version = "0.13.0"
+features = ["bundled"]
+
 [lib]
 name = "drivers"
-path = "drivers/src/lib.rs"
+path = "src/lib.rs"

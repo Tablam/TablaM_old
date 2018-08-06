@@ -1,5 +1,6 @@
 use super::*;
 use rusqlite::{Connection, Error};
+use rusqlite::types::Value;
 
 struct SqliteDb {
     conn:Connection,
@@ -11,23 +12,37 @@ impl From<Error> for DbErr {
     }
 }
 
-fn select(of:&SqliteDb, sql:&str, params:Option<DbRow>) -> RowResult {
+impl From<Value> for Scalar {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Null     => Scalar::None,
+            Value::Integer(x) => Scalar::I64(x),
+            Value::Real(x)  => Scalar::F64(x),
+            Value::Text(x)  => Scalar::UTF8(x),
+            Value::Blob(x)  => Scalar::Blob(x),
+        }
+    }
+}
+
+fn select(of:&SqliteDb, sql:&str, _params:Option<DbRow>) -> RowResult {
     let mut stmt = of.conn.prepare(sql)?;
 
-    let result = stmt.query_map(&[], |row| {
-        let mut result = DbRow::new();
+    let names = stmt.column_names().into_iter().map(|s| String::from(s)).collect::<Vec<_>>();
+    let mut rows = stmt.query(&[]).unwrap();
 
-        result.insert("1".to_string(), Scalar::None);
+    let mut values = Vec::new();
+    while let Some(row) = rows.next() {
+        let row = row.unwrap();
+        let mut d = DbRow::new();
 
-        result
-    })?;
+        for name in names.iter() {
+            let value = Scalar::from(row.get::<_, Value>(name.as_ref()));
+            d.insert(name.clone(), value);
+        }
 
-    let mut rows = Vec::new();
-    for name_result in result {
-        rows.push(name_result?);
+        values.push(d);
     }
-
-    Ok(rows)
+    Ok(values)
 }
 
 impl Rdbms for SqliteDb {

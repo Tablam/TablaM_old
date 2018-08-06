@@ -21,6 +21,6 @@ fn main() {
     println!("Col1:  {:?}", to_i64(&f1));
     println!("Col2:  {:?}", to_i64(&f2));
     println!("Col1 == Col2:  {:?}", &f1 == &f2);
-    println!("Sum Dot:  {:?}", f2.clone() + f1.clone());
-    println!("Sum Scalar:  {:?}", f2.clone() + s1.clone());
+//    println!("Sum Dot:  {:?}", f2.clone() + f1.clone());
+//    println!("Sum Scalar:  {:?}", f2.clone() + s1.clone());
 }

@@ -1,5 +1,4 @@
-use std::rc::Rc;
-use std::ops::Add;
+use std::ops;
 
 use super::types::*;
 
@@ -7,117 +6,136 @@ use super::types::*;
 /// [1, 2, 3] +  [1, 2, 3] = [2, 4, 6]
 /// [1, 2, 3] +  1 = [1, 3, 4]
 /// 1 + [1, 2, 3] = [1, 3, 4]
-/// [1, 2, 3] +  [1, 2] = ERROR
-
-//TODO: Must automate the build of operators, and apply the above rules...
-fn _add(a: RVec<i64>, b: RVec<i64>) -> RVec<i64> {
-    println!("Dot! {} {}", a.len(), b.len());
-    if a.len() == b.len() {
-        println!("Dot!");
-        Rc::new(a.iter().zip(b.iter()).map(|(x, y)| x+y).collect())
-    } else {
-        println!("Scalar");
-        Rc::new(a.iter().map(|x| x + b[0]).collect())
-    }
-}
-
-//TODO: Use the Num crate for already implemented
-//polymorphic math
-impl Add for Column {
-    type Output = Column;
-
-    fn add(self, other: Column) -> Column {
-        match (self, other) {
-            //(Column::None, Column::None) => Column::None,
-            (Column::I64(x), Column::I64(y)) => Column::I64(_add(x, y)),
-            (x, y) => panic!("Type mismatch for + {:?} <> {:?} ", x, y)
-        }
-    }
-}
+/// [1, 2, 3] +  [1, 2] = ERROR must be same length
 
 // TODO: The operators follow this patterns:
 // maps: ColumnExp & ColumnExp = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp = Column (+[1, 2] = 3)
 
-type Apply = Box<Fn(&Frame) -> Column>;
-
-fn idx_for_name(name:&str, frame:&Frame) -> usize {
-    frame.names.iter().position(|&r| r == name).unwrap()
-}
-
-//select a single column
-fn select(col_pos: usize) -> Apply {
-    Box::new(move |frame: &Frame| -> Column { frame.data[col_pos].clone() })
-}
-
-fn _equal_scalar<T>(left:&[T], right:&T) -> Column
-    where
-        T:PartialEq
-{
-    let x:Vec<bool> = left.into_iter()
-        .map( |x| x == right)
-        .collect();
-    Column::from(x)
-}
-
-pub fn equal_scalar(left:&Column, right:&Scalar) -> Column {
-    match (left, right) {
-        (Column::I64(lhs), Scalar::I64(rhs))  => {
-            _equal_scalar(lhs.as_slice(), rhs)
-        }
-        (Column::UTF8(lhs), Scalar::UTF8(rhs)) => {
-            _equal_scalar(lhs.as_slice(), rhs)
-        }
-        (Column::BOOL(lhs), Scalar::BOOL(rhs))  =>{
-            _equal_scalar(lhs.as_slice(), rhs)
-        }
-        (x , y) => panic!("Improper cast of {:?} to {:?}", x, y)
-    }
-}
-
-fn _equal_both<T>(left:&[T], right:&[T]) -> Column
-    where T:PartialEq
+/// Comparing 2 columns
+#[inline]
+fn _compare_both<'r, 's, T, F>(left:&'r [T], right:&'s [T], mut apply:F) -> Column
+    where T: PartialEq,
+          F: FnMut(&'r T, &'s T) -> bool
 {
     let x:Vec<bool> = left.into_iter()
         .zip(right.into_iter())
-        .map( |(x, y)| x == y)
+        .map( |(x, y)| apply(x, y))
         .collect();
     Column::from(x)
 }
 
-pub fn equal_both(left:&Column, right:&Column) -> Column {
+/// Comparing a column with a scalar
+fn _compare_col_scalar<T, F>(left:&[T], right:&T, mut apply:F) -> Column
+    where T:PartialEq,
+          F: FnMut(&T, &T) -> bool
+{
+    let x:Vec<bool> = left.into_iter()
+        .map( | x | apply(x, right))
+        .collect();
+    Column::from(x)
+}
+
+/// Comparing 2 scalars
+fn _compare_scalar_scalar<T, F>(left:&T, right:&T, mut apply:F) -> Column
+    where T:PartialEq,
+          F: FnMut(&T, &T) -> bool
+{
+    let x:Vec<bool> = vec!(apply(left, right));
+    Column::from(x)
+}
+
+pub fn decode_both(left:&Column, right:&Column, op:Operator) -> Column {
     match (left, right) {
         (Column::I64(lhs), Column::I64(rhs))  => {
-            _equal_both(lhs.as_slice(), rhs.as_slice())
+            let apply =
+                match op {
+                    Operator::Eq => PartialEq::eq,
+                    Operator::NotEq => PartialEq::ne,
+                    _ => panic!(" Operator {:?} not boolean", op)
+                };
+
+            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
         }
         (Column::UTF8(lhs), Column::UTF8(rhs)) => {
-            _equal_both(lhs.as_slice(), rhs.as_slice())
+            let apply =
+                match op {
+                    Operator::Eq => PartialEq::eq,
+                    Operator::NotEq => PartialEq::ne,
+                    _ => panic!(" Operator {:?} not boolean", op)
+                };
+
+            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
         }
         (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
-            _equal_both(lhs.as_slice(), rhs.as_slice())
+            let apply =
+                match op {
+                    Operator::Eq => PartialEq::eq,
+                    Operator::NotEq => PartialEq::ne,
+                    _ => panic!(" Operator {:?} not boolean", op)
+                };
+
+            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
         }
         (Column::ROW(lhs), Column::ROW(rhs)) =>{
-            _equal_both(lhs.as_slice(), rhs.as_slice())
+            let apply =
+                match op {
+                    Operator::Eq => PartialEq::eq,
+                    Operator::NotEq => PartialEq::ne,
+                    _ => panic!(" Operator {:?} not boolean", op)
+                };
+
+            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
         }
-        (x , y) => panic!("Improper cast of {:?} to {:?}", x, y)
+        (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
     }
 }
 
-fn compare_eq(of:&Frame, left:ColumnExp, right:ColumnExp) -> Column {
-    match (left, right) {
-        //(ColumnExp::Value(lhs), ColumnExp::Value(rhs))  => Column::from_scalar(true),
-        (ColumnExp::Pos(lhs), ColumnExp::Pos(rhs))  =>
-
-            Column::from_scalar(true),
-        (x , y) => panic!("Improper cast of {:?} to {:?}", x, y)
-    }
+pub fn equal_both(left:&Column, right:&Column) -> Column {
+    decode_both(left, right, Operator::Eq)
+//    match (left, right) {
+//        (Column::I64(lhs), Column::I64(rhs))  => {
+//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
+//        }
+//        (Column::UTF8(lhs), Column::UTF8(rhs)) => {
+//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
+//        }
+//        (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
+//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
+//        }
+//        (Column::ROW(lhs), Column::ROW(rhs)) =>{
+//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
+//        }
+//        (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
+//    }
 }
 
-fn compare_dot(what:Compare) -> Column {
-    match what {
-        Compare::Eq(lhs, rhs)    => Column::from_scalar(true),
-        Compare::NotEq(lhs, rhs) => Column::from_scalar(true),
-        Compare::Less(lhs, rhs)  => Column::from_scalar(true),
-        Compare::Bigger(lhs, rhs)=> Column::from_scalar(true),
-    }
+pub fn not_equal_both(left:&Column, right:&Column) -> Column {
+    decode_both(left, right, Operator::NotEq)
 }
+
+pub fn less_both(left:&Column, right:&Column) -> Column
+{
+    decode_both(left, right, Operator::Less)
+}
+
+// Select column
+fn select_name(name:&str, of:&RelationRow) -> Column {
+    of.col_named(name)
+}
+
+//#[cfg(test)]
+//mod tests {
+//    use super::*;
+//
+//    #[test]
+//    fn math() {
+//
+//    }
+//
+//    #[test]
+//    fn compare() {
+//
+//    }
+//
+//}
