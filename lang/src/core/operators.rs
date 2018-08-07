@@ -46,47 +46,49 @@ fn _compare_scalar_scalar<T, F>(left:&T, right:&T, mut apply:F) -> Column
     Column::from(x)
 }
 
+fn lift_op_cmp<T>(op:Operator, x:&[T], y:&[T]) -> Column
+    where T:PartialEq,
+          T:PartialOrd
+{
+    match op {
+        Operator::Eq => {
+            return _compare_both(x, y, PartialEq::eq)
+        }
+        Operator::NotEq => {
+            return _compare_both(x, y, PartialEq::ne)
+        }
+        Operator::Less => {
+            return _compare_both(x, y, PartialOrd::lt)
+        }
+        Operator::LessEq => {
+            return _compare_both(x, y, PartialOrd::le)
+        }
+        Operator::Greater => {
+            return _compare_both(x, y, PartialOrd::gt)
+        }
+        Operator::GreaterEq => {
+            return _compare_both(x, y, PartialOrd::ge)
+        }
+        Operator::Not => {
+            return _compare_both(x, y, |x, y| !(x == y))
+        }
+        _ => panic!(" Operator {:?} not boolean", op)
+    };
+}
+
 pub fn decode_both(left:&Column, right:&Column, op:Operator) -> Column {
     match (left, right) {
         (Column::I64(lhs), Column::I64(rhs))  => {
-            let apply =
-                match op {
-                    Operator::Eq => PartialEq::eq,
-                    Operator::NotEq => PartialEq::ne,
-                    _ => panic!(" Operator {:?} not boolean", op)
-                };
-
-            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
+            lift_op_cmp(op, lhs, rhs)
         }
         (Column::UTF8(lhs), Column::UTF8(rhs)) => {
-            let apply =
-                match op {
-                    Operator::Eq => PartialEq::eq,
-                    Operator::NotEq => PartialEq::ne,
-                    _ => panic!(" Operator {:?} not boolean", op)
-                };
-
-            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
-        }
+            lift_op_cmp(op, lhs, rhs)
+       }
         (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
-            let apply =
-                match op {
-                    Operator::Eq => PartialEq::eq,
-                    Operator::NotEq => PartialEq::ne,
-                    _ => panic!(" Operator {:?} not boolean", op)
-                };
-
-            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
+            lift_op_cmp(op, lhs, rhs)
         }
         (Column::ROW(lhs), Column::ROW(rhs)) =>{
-            let apply =
-                match op {
-                    Operator::Eq => PartialEq::eq,
-                    Operator::NotEq => PartialEq::ne,
-                    _ => panic!(" Operator {:?} not boolean", op)
-                };
-
-            _compare_both(lhs.as_slice(), rhs.as_slice(), apply)
+            lift_op_cmp(op, lhs, rhs)
         }
         (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
     }
@@ -141,6 +143,7 @@ impl CompareRel {
     }
 }
 
+
 pub fn select(of:Rc<RelationRow>, pick:&ColumnExp) -> Column {
     match pick {
         ColumnExp::Name(x) => of.col_named(x.as_str()),
@@ -148,7 +151,24 @@ pub fn select(of:Rc<RelationRow>, pick:&ColumnExp) -> Column {
     }
 }
 
-fn filter(of: CompareRel) -> Column {
+pub fn deselect(of:Rc<RelationRow>, pick:&ColumnExp) -> Vec<Column> {
+    match pick {
+        ColumnExp::Name(x) =>  {
+            let mut names = of.names();
+
+            names.retain(|name| name != x);
+            names.iter().map(|x| of.col_named(&x)).collect()
+        }
+        ColumnExp::Pos(x) =>  {
+            let mut names = of.names();
+            names.remove(*x);
+
+            names.iter().map(|x| of.col_named(&x)).collect()
+        }
+    }
+}
+
+fn compare(of: CompareRel) -> Column {
     let op = of.op;
     let rel = of.rel;
 
@@ -191,26 +211,36 @@ mod tests {
     }
 
     #[test]
-    fn compare() {
+    fn test_select() {
         let nums1 = make_nums1();
         let f1 = make_rel1();
-        let pick1 = ColumnExp::Name("col1".to_string());
+
+        let pick1 = ColumnExp::Name("col0".to_string());
         let pick2 = col(1);
 
         let col3 = select(f1.clone(), &pick1);
         let nums3:Vec<i64> = col3.as_slice().into();
         assert_eq!(nums1, nums3);
 
+        let cols = deselect(f1.clone(), &pick1);
+        assert_eq!(cols.len(), 1);
+    }
+
+    fn test_compare() {
+        let nums1 = make_nums1();
+        let f1 = make_rel1();
+        let pick1 = ColumnExp::Name("col0".to_string());
+        let pick2 = col(1);
+
         let filter_eq = CompareRel::eq(f1.clone(), pick1, pick2);
         let filter_not_eq = CompareRel::noteq(f1.clone(), col(0), col(1));
 
-        let result_eq:Vec<bool> = filter(filter_eq).as_slice().into();
+        let result_eq:Vec<bool> = compare(filter_eq).as_slice().into();
         assert_eq!(result_eq, vec![false, true, true]);
 
-        let result_not_eq:Vec<bool> = filter(filter_not_eq).as_slice().into();
+        let result_not_eq:Vec<bool> = compare(filter_not_eq).as_slice().into();
         assert_eq!(result_not_eq, vec![true, false, false]);
     }
-
 
 //    #[test]
 //    fn math() {
