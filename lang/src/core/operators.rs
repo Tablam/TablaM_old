@@ -1,4 +1,5 @@
-use std::ops;
+//use std::ops;
+use std::rc::Rc;
 
 use super::types::*;
 
@@ -93,21 +94,10 @@ pub fn decode_both(left:&Column, right:&Column, op:Operator) -> Column {
 
 pub fn equal_both(left:&Column, right:&Column) -> Column {
     decode_both(left, right, Operator::Eq)
-//    match (left, right) {
-//        (Column::I64(lhs), Column::I64(rhs))  => {
-//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
-//        }
-//        (Column::UTF8(lhs), Column::UTF8(rhs)) => {
-//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
-//        }
-//        (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
-//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
-//        }
-//        (Column::ROW(lhs), Column::ROW(rhs)) =>{
-//            _compare_both(lhs.as_slice(), rhs.as_slice(), PartialEq::eq)
-//        }
-//        (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
-//    }
+}
+
+pub fn equal_col_scalar(left:&Column, right:&Column) -> Column {
+    decode_both(left, right, Operator::Eq)
 }
 
 pub fn not_equal_both(left:&Column, right:&Column) -> Column {
@@ -119,23 +109,111 @@ pub fn less_both(left:&Column, right:&Column) -> Column
     decode_both(left, right, Operator::Less)
 }
 
-// Select column
-fn select_name(name:&str, of:&RelationRow) -> Column {
-    of.col_named(name)
+pub fn greater_both(left:&Column, right:&Column) -> Column
+{
+    decode_both(left, right, Operator::Greater)
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
+#[derive(Clone)]
+pub struct CompareRel {
+    rel:Rc<RelationRow>,
+    pub op:Operator,
+    pub left:ColumnExp,
+    pub right:ColumnExp,
+}
+
+impl CompareRel {
+    fn eq(rel:Rc<RelationRow>, left:ColumnExp, right:ColumnExp) -> Self {
+        CompareRel {
+            rel,
+            op:Operator::Eq,
+            left,
+            right,
+        }
+    }
+    fn noteq(rel:Rc<RelationRow>, left:ColumnExp, right:ColumnExp) -> Self {
+        CompareRel {
+            rel,
+            op:Operator::NotEq,
+            left,
+            right,
+        }
+    }
+}
+
+pub fn select(of:Rc<RelationRow>, pick:&ColumnExp) -> Column {
+    match pick {
+        ColumnExp::Name(x) => of.col_named(x.as_str()),
+        ColumnExp::Pos(x) => of.col(*x),
+    }
+}
+
+fn filter(of: CompareRel) -> Column {
+    let op = of.op;
+    let rel = of.rel;
+
+    let col1 = select(rel.clone(), &of.left);
+    let col2 = select(rel.clone(), &of.right);
+
+    match op {
+        Operator::Eq        => equal_both(&col1, &col2),
+        Operator::NotEq     => not_equal_both(&col1, &col2),
+        Operator::Less      => less_both(&col1, &col2),
+        Operator::Greater   => greater_both(&col1, &col2),
+        _ => panic!(" Incompatible Operator {:?} in filter", op)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_nums1() -> Vec<i64> {
+        vec![1, 2, 3]
+    }
+
+    fn make_nums2() -> Vec<i64> {
+        vec![4, 2, 3]
+    }
+
+    fn col(pos:usize) -> ColumnExp {
+        ColumnExp::Pos(pos)
+    }
+
+    fn make_rel1() -> Rc<Frame> {
+        let nums1 = make_nums1();
+        let nums2 = make_nums2();
+
+        let col1 = Column::from(nums1);
+        let col2 = Column::from(nums2);
+
+        Rc::new(Frame::new(vec!(col1, col2)))
+    }
+
+    #[test]
+    fn compare() {
+        let nums1 = make_nums1();
+        let f1 = make_rel1();
+        let pick1 = ColumnExp::Name("col1".to_string());
+        let pick2 = col(1);
+
+        let col3 = select(f1.clone(), &pick1);
+        let nums3:Vec<i64> = col3.as_slice().into();
+        assert_eq!(nums1, nums3);
+
+        let filter_eq = CompareRel::eq(f1.clone(), pick1, pick2);
+        let filter_not_eq = CompareRel::noteq(f1.clone(), col(0), col(1));
+
+        let result_eq:Vec<bool> = filter(filter_eq).as_slice().into();
+        assert_eq!(result_eq, vec![false, true, true]);
+
+        let result_not_eq:Vec<bool> = filter(filter_not_eq).as_slice().into();
+        assert_eq!(result_not_eq, vec![true, false, false]);
+    }
+
+
 //    #[test]
 //    fn math() {
 //
 //    }
-//
-//    #[test]
-//    fn compare() {
-//
-//    }
-//
-//}
+}

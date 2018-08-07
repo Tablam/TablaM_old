@@ -167,11 +167,31 @@ pub struct Frame {
     pub data :RVec<Column>,
 }
 
+impl Frame {
+    pub fn empty() -> Self {
+        Frame {
+           names: Vec::new(),
+           data: Rc::new(Vec::new()),
+        }
+    }
+
+    pub fn new(columns: Vec<Column>) -> Self {
+        let total = 1..columns.len();
+        let names:Names = total.map(| x | format!("col{}", x).to_string() ).collect();
+
+        Frame {
+            names,
+            data: Rc::new(columns),
+        }
+    }
+
+}
 #[derive(Debug, Clone)]
 pub enum ColumnExp {
-	Value(Scalar),
-    Name(Frame, String),
-    Pos(Frame, usize),
+    //TODO: This complicate things. Support later constant values...
+	//Value(Scalar),
+    Name(String),
+    Pos(usize),
 }
 
 #[derive(Debug, Clone)]
@@ -190,6 +210,9 @@ pub enum Operator {
     //Relational
     Union,
     Diff,
+    //Utils
+    IndexByPos,
+    IndexByName,
 }
 
 #[derive(Debug, Clone)]
@@ -209,7 +232,7 @@ pub enum Algebra {
 	Filter(Compare), //aka: Select
 
     // Union,
-    // Interseccion,
+    // Intersection,
     // Difference,
 }
 
