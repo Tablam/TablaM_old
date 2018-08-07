@@ -8,6 +8,7 @@ readme = "README.md"
 homepage = "https://bitbucket.org/tablam/tablam/"
 keywords = ["database", "interpreter", "language", "relational", "columnar"]
 categories = ["database", "language", "relational"]
+build = "build.rs"
 
 [workspace]
 members = ["lang", "drivers"]
@@ -17,6 +18,15 @@ time = "0.1.0"
 rand = "0.5"
 num = "*"
 bytes = "0.4"
+
+# For parsing -- use master until 0.16 is released
+# This is due to some bullshit with the lalrpop_mod macro
+lalrpop-util = { git = "https://github.com/lalrpop/lalrpop.git" }
+regex = "0.2"
+
+[build-dependencies]
+# For parsing
+lalrpop = "0.15"
 
 [dependencies.rusqlite]
 version = "0.13.0"

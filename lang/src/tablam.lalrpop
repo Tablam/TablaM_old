@@ -1,0 +1,29 @@
+use std::str::FromStr;
+use core::ast::*;
+
+grammar;
+
+pub ScalarLiteral: Scalar = {
+    <n:NumLiteral> => n,
+    <b:BoolLiteral> => b,
+    <s:StringLiteral> => s,
+};
+
+NumLiteral: Scalar = {
+    <digits:r"[0-9]+"> "i64" =>
+        Scalar::I64(i64::from_str(digits).unwrap()),
+    <digits:r"[0-9]+"> "i32"? =>
+        Scalar::I32(i32::from_str(digits).unwrap()),
+};
+
+BoolLiteral: Scalar = {
+    <b:r"true|false"> =>
+        Scalar::BOOL(bool::from_str(b).unwrap()),
+};
+
+StringLiteral: Scalar = {
+    <s:r#""[^"]*""#> => {
+        let literal = &s[1..s.len()-1];
+        Scalar::UTF8(encode_str(literal))
+    },
+};
