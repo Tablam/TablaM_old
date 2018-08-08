@@ -24,23 +24,33 @@ Factor: Exp = {
 Term: Exp = {
     <s:ScalarLiteral> => Exp::Scalar(s),
     <c:ColumnLiteral> => Exp::Column(c),
+    <r:RangeLiteral> => Exp::Range(r),
     <n:Name> => Exp::Name(n),
     "(" <Expr> ")",
-};
-
-Name: String = {
-    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
-};
-
-ColumnLiteral: ColumnExp = {
-    "[" <name:Name> "," <ty:Name> ";" <es:(<Expr>)+> "]" =>
-        ColumnExp { name: name, ty: ty, es: es }
 };
 
 pub ScalarLiteral: Scalar = {
     <n:NumLiteral> => n,
     // <b:BoolLiteral> => b,
     <s:StringLiteral> => s,
+};
+
+pub ColumnLiteral: ColumnExp = {
+    "[" <name:Name> ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: Some(name), ty: Some(ty), es: es },
+    "[" ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: None, ty: Some(ty), es: es },
+    "[" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: None, ty: None, es: es },
+};
+
+pub RangeLiteral: RangeExp = {
+    "(" <start:Expr> ".." <end:Expr> ")" =>
+        RangeExp { start: start.into(), end: end.into() }
+};
+
+Name: String = {
+    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
 };
 
 NumLiteral: Scalar = {

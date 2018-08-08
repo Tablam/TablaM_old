@@ -12,8 +12,9 @@ pub enum BinOp {
 #[derive(Debug, PartialEq)]
 pub enum Exp {
     Scalar(Scalar),
-    Name(String),
     Column(ColumnExp),
+    Range(RangeExp),
+    Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     LetImm(String, Rc<Exp>),
     LetMut(String, Rc<Exp>),
@@ -21,9 +22,15 @@ pub enum Exp {
 
 #[derive(Debug, PartialEq)]
 pub struct ColumnExp {
-    pub name: String,
-    pub ty: String,
+    pub name: Option<String>,
+    pub ty: Option<String>,
     pub es: Vec<Exp>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct RangeExp {
+    pub start: Rc<Exp>,
+    pub end: Rc<Exp>,
 }
 
 //    let e = ExpAt {

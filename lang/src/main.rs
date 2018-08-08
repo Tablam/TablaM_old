@@ -98,14 +98,42 @@ fn tablam() {
                           Exp::Scalar(Scalar::I32(1)).into(),
                           Exp::Scalar(Scalar::I32(2)).into()));
 
-    assert!(ExprParser::new().parse("let x = [a,i; 1 2 3];").unwrap()
+    assert!(ColumnLiteralParser::new().parse("[name:string; \"hello\" \"world\"]").unwrap()
+            ==
+            ColumnExp {
+                name: Some("name".into()),
+                ty: Some("string".into()),
+                es: vec!(
+                    Exp::Scalar(Scalar::UTF8("hello".into())),
+                    Exp::Scalar(Scalar::UTF8("world".into())),
+                    )
+            });
+
+    assert!(ColumnLiteralParser::new().parse("[:string; \"hello\" \"world\"]").unwrap()
+            ==
+            ColumnExp {
+                name: None,
+                ty: Some("string".into()),
+                es: vec!(
+                    Exp::Scalar(Scalar::UTF8("hello".into())),
+                    Exp::Scalar(Scalar::UTF8("world".into())),
+                    )
+            });
+
+    assert!(ExprParser::new().parse("let x = [a:i; 1 2 3];").unwrap()
             ==
             Exp::LetImm("x".into(), Exp::Column(ColumnExp {
-                name: "a".into(),
-                ty: "i".into(),
+                name: Some("a".into()),
+                ty: Some("i".into()),
                 es: vec!(
                     Exp::Scalar(Scalar::I32(1)),
                     Exp::Scalar(Scalar::I32(2)),
                     Exp::Scalar(Scalar::I32(3)))
             }).into()));
+
+    assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
+            == RangeExp {
+                start: Exp::Scalar(Scalar::I32(1)).into(),
+                end: Exp::Name("llama_world".into()).into(),
+            });
 }
