@@ -15,6 +15,8 @@ pub enum Exp {
     Name(String),
     Column(ColumnExp),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
+    LetImm(String, Rc<Exp>),
+    LetMut(String, Rc<Exp>),
 }
 
 #[derive(Debug, PartialEq)]

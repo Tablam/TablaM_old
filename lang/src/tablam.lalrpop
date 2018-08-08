@@ -4,6 +4,12 @@ use core::ast::*;
 grammar;
 
 pub Expr: Exp = {
+    "let" <n:Name> "=" <e:Add> ";" => Exp::LetImm(n, e.into()),
+    "var" <n:Name> "=" <e:Add> ";" => Exp::LetMut(n, e.into()),
+    Add,
+}
+
+Add: Exp = {
     <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
     <l:Expr> "-" <r:Factor> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
     Factor,
@@ -38,10 +44,12 @@ pub ScalarLiteral: Scalar = {
 };
 
 NumLiteral: Scalar = {
-    <digits:r"[0-9]+"> "i64" =>
-        Scalar::I64(i64::from_str(digits).unwrap()),
-    <digits:r"[0-9]+"> "i32"? =>
+    <digits:r"[0-9]+"> =>
         Scalar::I32(i32::from_str(digits).unwrap()),
+    // <digits:r"[0-9]+"> "i64" =>
+    //     Scalar::I64(i64::from_str(digits).unwrap()),
+    // <digits:r"[0-9]+"> "i32"? =>
+    //     Scalar::I32(i32::from_str(digits).unwrap()),
 };
 
 // BoolLiteral: Scalar = {
