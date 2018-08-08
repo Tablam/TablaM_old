@@ -18,6 +18,8 @@ pub enum Exp {
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     LetImm(String, Rc<Exp>),
     LetMut(String, Rc<Exp>),
+    IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
+    If(Rc<Exp>, Rc<Exp>),
 }
 
 #[derive(Debug, PartialEq)]

@@ -4,10 +4,18 @@ use core::ast::*;
 grammar;
 
 pub Expr: Exp = {
-    "let" <n:Name> "=" <e:Add> ";" => Exp::LetImm(n, e.into()),
-    "var" <n:Name> "=" <e:Add> ";" => Exp::LetMut(n, e.into()),
-    Add,
+    "let" <n:Name> "=" <e:If> ";" => Exp::LetImm(n, e.into()),
+    "var" <n:Name> "=" <e:If> ";" => Exp::LetMut(n, e.into()),
+    If,
 }
+
+If: Exp = {
+    "if" <cond:Add> "then" <if_true:Add> "else" <if_false:Add> "end" =>
+        Exp::IfElse(cond.into(), if_true.into(), if_false.into()),
+    "if" <cond:Add> "then" <if_true:Add> "end" =>
+        Exp::If(cond.into(), if_true.into()),
+    Add,
+};
 
 Add: Exp = {
     <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),

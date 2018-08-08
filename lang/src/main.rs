@@ -136,4 +136,11 @@ fn tablam() {
                 start: Exp::Scalar(Scalar::I32(1)).into(),
                 end: Exp::Name("llama_world".into()).into(),
             });
+
+    assert!(ExprParser::new().parse("if true then 3 else 4 end").unwrap()
+            ==
+            Exp::IfElse(
+                Exp::Name("true".into()).into(),
+                Exp::Scalar(Scalar::I32(3)).into(),
+                Exp::Scalar(Scalar::I32(4)).into()));
 }
