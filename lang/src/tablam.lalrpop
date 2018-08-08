@@ -3,9 +3,44 @@ use core::ast::*;
 
 grammar;
 
+pub Expr: Exp = {
+    <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
+    <l:Expr> "-" <r:Factor> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
+    Factor,
+};
+
+Factor: Exp = {
+    <l:Factor> "*" <r:Term> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:Factor> "/" <r:Term> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    Term,
+};
+
+Term: Exp = {
+    <s:ScalarLiteral> => Exp::Scalar(s),
+    <c:ColumnLiteral> => Exp::Column(c),
+    <n:Name> => Exp::Name(n),
+    // "(" <Expr> ")",
+};
+
+Name: String = {
+    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
+};
+
+ColumnLiteral: ColumnExp = {
+    "[" <name:Name> "," <ty:ColumnTypeExpr> ";" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: name, ty: ty, es: es }
+};
+
+ColumnTypeExpr: ColumnType = {
+    "bool" => ColumnType::Builtin(BuiltinType::BOOL),
+    "i32" => ColumnType::Builtin(BuiltinType::I32),
+    "i64" => ColumnType::Builtin(BuiltinType::I64),
+    "utf8" => ColumnType::Builtin(BuiltinType::UTF8),
+};
+
 pub ScalarLiteral: Scalar = {
     <n:NumLiteral> => n,
-    <b:BoolLiteral> => b,
+    // <b:BoolLiteral> => b,
     <s:StringLiteral> => s,
 };
 
@@ -16,10 +51,10 @@ NumLiteral: Scalar = {
         Scalar::I32(i32::from_str(digits).unwrap()),
 };
 
-BoolLiteral: Scalar = {
-    <b:r"true|false"> =>
-        Scalar::BOOL(bool::from_str(b).unwrap()),
-};
+// BoolLiteral: Scalar = {
+//     <b:r"true|false"> =>
+//         Scalar::BOOL(bool::from_str(b).unwrap()),
+// };
 
 StringLiteral: Scalar = {
     <s:r#""[^"]*""#> => {
