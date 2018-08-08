@@ -19,7 +19,7 @@ Term: Exp = {
     <s:ScalarLiteral> => Exp::Scalar(s),
     <c:ColumnLiteral> => Exp::Column(c),
     <n:Name> => Exp::Name(n),
-    // "(" <Expr> ")",
+    "(" <Expr> ")",
 };
 
 Name: String = {
@@ -27,15 +27,8 @@ Name: String = {
 };
 
 ColumnLiteral: ColumnExp = {
-    "[" <name:Name> "," <ty:ColumnTypeExpr> ";" <es:(<Expr>)+> "]" =>
+    "[" <name:Name> "," <ty:Name> ";" <es:(<Expr>)+> "]" =>
         ColumnExp { name: name, ty: ty, es: es }
-};
-
-ColumnTypeExpr: ColumnType = {
-    "bool" => ColumnType::Builtin(BuiltinType::BOOL),
-    "i32" => ColumnType::Builtin(BuiltinType::I32),
-    "i64" => ColumnType::Builtin(BuiltinType::I64),
-    "utf8" => ColumnType::Builtin(BuiltinType::UTF8),
 };
 
 pub ScalarLiteral: Scalar = {

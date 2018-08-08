@@ -20,22 +20,8 @@ pub enum Exp {
 #[derive(Debug, PartialEq)]
 pub struct ColumnExp {
     pub name: String,
-    pub ty: ColumnType,
+    pub ty: String,
     pub es: Vec<Exp>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ColumnType {
-    Builtin(BuiltinType),
-    UserDefined,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum BuiltinType {
-    BOOL,
-    I32,
-    I64,
-    UTF8,
 }
 
 //    let e = ExpAt {
