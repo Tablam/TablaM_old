@@ -11,6 +11,7 @@ mod core;
 
 use core::types::*;
 use core::ast::*;
+use core::ast::ColumnExp;
 use std::io::{self, Write, BufRead};
 //use core::operators::*;
 
@@ -73,16 +74,6 @@ fn tablam() {
         );
 
     assert!(
-        ScalarLiteralParser::new().parse("12i64").unwrap()
-        == Scalar::I64(12)
-        );
-
-    assert!(
-        ScalarLiteralParser::new().parse("12i32").unwrap()
-        == Scalar::I32(12)
-        );
-
-    assert!(
         ExprParser::new().parse("true").unwrap()
         == Exp::Name("true".into())
         );
@@ -99,9 +90,6 @@ fn tablam() {
 
     assert!(ScalarLiteralParser::new().parse(r#""hello"#).is_err());
 
-    // assert!(TermParser::new().parse("1").unwrap()
-    //         == Exp::Scalar(Scalar::I32(1)));
-
     assert!(ScalarLiteralParser::new().parse("1").unwrap()
             == Scalar::I32(1));
 
@@ -109,4 +97,15 @@ fn tablam() {
             == Exp::BinOp(BinOp::Plus,
                           Exp::Scalar(Scalar::I32(1)).into(),
                           Exp::Scalar(Scalar::I32(2)).into()));
+
+    assert!(ExprParser::new().parse("let x = [a,i; 1 2 3];").unwrap()
+            ==
+            Exp::LetImm("x".into(), Exp::Column(ColumnExp {
+                name: "a".into(),
+                ty: "i".into(),
+                es: vec!(
+                    Exp::Scalar(Scalar::I32(1)),
+                    Exp::Scalar(Scalar::I32(2)),
+                    Exp::Scalar(Scalar::I32(3)))
+            }).into()));
 }
