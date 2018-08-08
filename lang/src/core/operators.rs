@@ -1,6 +1,9 @@
 //use std::ops;
 use std::rc::Rc;
 
+extern crate bit_vec;
+use self::bit_vec::BitVec;
+
 use super::types::*;
 
 /// The ops in TablaM are columnar, and follow this pattern
@@ -14,7 +17,6 @@ use super::types::*;
 // reduce: ColumnExp = Column (+[1, 2] = 3)
 
 /// Comparing 2 columns
-#[inline]
 fn _compare_both<'r, 's, T, F>(left:&'r [T], right:&'s [T], mut apply:F) -> Column
     where T: PartialEq,
           F: FnMut(&'r T, &'s T) -> bool
@@ -44,6 +46,31 @@ fn _compare_scalar_scalar<T, F>(left:&T, right:&T, mut apply:F) -> Column
 {
     let x:Vec<bool> = vec!(apply(left, right));
     Column::from(x)
+}
+
+/// filtering column
+fn _filter_scalar<'r, 's, T, F>(left:&'r [T], right:&'s T, mut apply:F) -> Column
+    where T: PartialEq,
+          T: Value,
+          F: FnMut(&'r T, &'s T) -> bool
+{
+    let x:Vec<_> = left.into_iter()
+        .map( | x | apply(x, right))
+        .collect();
+    Column::from(x)
+}
+
+fn _filter_selector<T>(left:&[T], right:&[bool]) -> Vec<T>
+    where T: PartialEq,
+          T: Value ,
+{
+    let mut values:Vec<T> = Vec::new();
+    for check in right.into_iter().enumerate() {
+        if *check.1 {
+            values.push(left[check.0].clone())
+        }
+    }
+    values
 }
 
 fn lift_op_cmp<T>(op:Operator, x:&[T], y:&[T]) -> Column
