@@ -1,0 +1,83 @@
+use std::str::FromStr;
+use core::ast::*;
+
+grammar;
+
+pub Expr: Exp = {
+    "let" <n:Name> "=" <e:If> ";" => Exp::LetImm(n, e.into()),
+    "var" <n:Name> "=" <e:If> ";" => Exp::LetMut(n, e.into()),
+    If,
+}
+
+If: Exp = {
+    "if" <cond:Add> "then" <if_true:Add> "else" <if_false:Add> "end" =>
+        Exp::IfElse(cond.into(), if_true.into(), if_false.into()),
+    "if" <cond:Add> "then" <if_true:Add> "end" =>
+        Exp::If(cond.into(), if_true.into()),
+    Add,
+};
+
+Add: Exp = {
+    <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
+    <l:Expr> "-" <r:Factor> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
+    Factor,
+};
+
+Factor: Exp = {
+    <l:Factor> "*" <r:Term> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:Factor> "/" <r:Term> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    Term,
+};
+
+Term: Exp = {
+    <s:ScalarLiteral> => Exp::Scalar(s),
+    <c:ColumnLiteral> => Exp::Column(c),
+    <r:RangeLiteral> => Exp::Range(r),
+    <n:Name> => Exp::Name(n),
+    "(" <Expr> ")",
+};
+
+pub ScalarLiteral: Scalar = {
+    <n:NumLiteral> => n,
+    // <b:BoolLiteral> => b,
+    <s:StringLiteral> => s,
+};
+
+pub ColumnLiteral: ColumnExp = {
+    "[" <name:Name> ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: Some(name), ty: Some(ty), es: es },
+    "[" ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: None, ty: Some(ty), es: es },
+    "[" <es:(<Expr>)+> "]" =>
+        ColumnExp { name: None, ty: None, es: es },
+};
+
+pub RangeLiteral: RangeExp = {
+    "(" <start:Expr> ".." <end:Expr> ")" =>
+        RangeExp { start: start.into(), end: end.into() }
+};
+
+Name: String = {
+    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
+};
+
+NumLiteral: Scalar = {
+    <digits:r"[0-9]+"> =>
+        Scalar::I32(i32::from_str(digits).unwrap()),
+    // <digits:r"[0-9]+"> "i64" =>
+    //     Scalar::I64(i64::from_str(digits).unwrap()),
+    // <digits:r"[0-9]+"> "i32"? =>
+    //     Scalar::I32(i32::from_str(digits).unwrap()),
+};
+
+// BoolLiteral: Scalar = {
+//     <b:r"true|false"> =>
+//         Scalar::BOOL(bool::from_str(b).unwrap()),
+// };
+
+StringLiteral: Scalar = {
+    <s:r#""[^"]*""#> => {
+        let literal = &s[1..s.len()-1];
+        Scalar::UTF8(encode_str(literal))
+    },
+};

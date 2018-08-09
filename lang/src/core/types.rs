@@ -42,10 +42,11 @@ pub enum DataType {
 //    Function,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
 	None, //null
     BOOL(bool),
+    I32(i32),
     I64(i64),
     UTF8(BytesMut),
 }
@@ -53,12 +54,14 @@ pub enum Scalar {
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Column {
     BOOL(RVec<bool>),
+    I32(RVec<i32>),
     I64(RVec<i64>),
     UTF8(RVec<BytesMut>),    
     ROW(RVec<Column>),
 }
 
 impl Value for bool {}
+impl Value for i32 {}
 impl Value for i64 {}
 impl Value for BytesMut {}
 impl Value for Column {}
@@ -97,6 +100,16 @@ impl ColumnIter for Column {
             vec
         } else {
             panic!("Improper cast of {:?} to [Column]", col)
+        }
+    }
+}
+
+impl ColumnIter for i32 {
+    fn as_slice<'b>(col: &'b Column) -> &'b [i32] {
+        if let Column::I32(ref vec) = *col {
+            vec
+        } else {
+            panic!("Improper cast of {:?} to [i32]", col)
         }
     }
 }
@@ -275,6 +288,18 @@ pub fn encode_str(value:&str) -> BytesMut {
 }
 
 //TODO: Use a macro for automate convertions?
+impl From<i32> for Column {
+    fn from(vec: i32) -> Self {
+        Column::I32(Rc::from(vec!(vec)))
+    }
+}
+
+impl From<Vec<i32>> for Column {
+    fn from(vec: Vec<i32>) -> Self {
+        Column::I32(Rc::from(vec))
+    }
+}
+
 impl From<i64> for Column {
     fn from(vec: i64) -> Self {
         Column::I64(Rc::from(vec!(vec)))
@@ -319,6 +344,7 @@ impl From<Vec<Column>> for Column {
 
 pub fn len(of:&Column) -> usize {
     match of {
+        Column::I32(data)  => data.len(),
         Column::I64(data)  => data.len(),
         Column::BOOL(data) => data.len(),
         Column::UTF8(data) => data.len(),
@@ -328,6 +354,7 @@ pub fn len(of:&Column) -> usize {
 
 pub fn value(of:&Column, pos:usize) -> Column {
     match of {
+        Column::I32(data)  => Column::from_scalar(data[pos]),
         Column::I64(data)  => Column::from_scalar(data[pos]),
         Column::BOOL(data) => Column::from_scalar(data[pos]),
         Column::UTF8(data) => Column::from_scalar(data[pos].clone()),
