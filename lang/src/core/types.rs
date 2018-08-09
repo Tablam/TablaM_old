@@ -159,6 +159,12 @@ impl Column {
     pub fn as_slice<T: ColumnType>(&self) -> &[T] {
         T::as_slice(self)
     }
+
+    /// column.len()
+    pub fn len<T: ColumnType>(&self) -> usize {
+        T::as_slice(self).len()
+    }
+
 }
 
 #[derive(Debug, Clone)]

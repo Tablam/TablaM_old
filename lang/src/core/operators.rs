@@ -16,48 +16,168 @@ use super::types::*;
 // maps: ColumnExp & ColumnExp = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp = Column (+[1, 2] = 3)
 
-/// Comparing 2 columns
-fn _compare_both<'r, 's, T, F>(left:&'r [T], right:&'s [T], mut apply:F) -> Column
-    where T: PartialEq,
-          F: FnMut(&'r T, &'s T) -> bool
+pub struct FilterTwo
 {
-    let x:Vec<bool> = left.into_iter()
-        .zip(right.into_iter())
-        .map( |(x, y)| apply(x, y))
-        .collect();
-    Column::from(x)
+    left: Column,
+    right:Column,
+    count:usize,
 }
 
-/// Comparing a column with a scalar
-fn _compare_col_scalar<T, F>(left:&[T], right:&T, mut apply:F) -> Column
-    where T:PartialEq,
-          F: FnMut(&T, &T) -> bool
+pub struct CompareTwo
 {
-    let x:Vec<bool> = left.into_iter()
-        .map( | x | apply(x, right))
-        .collect();
-    Column::from(x)
+    left: Column,
+    right:Column,
+    result:BitVec,
 }
 
-/// Comparing 2 scalars
-fn _compare_scalar_scalar<T, F>(left:&T, right:&T, mut apply:F) -> Column
-    where T:PartialEq,
-          F: FnMut(&T, &T) -> bool
+impl CompareTwo
 {
-    let x:Vec<bool> = vec!(apply(left, right));
-    Column::from(x)
+    pub fn new(left:Column, right:Column, size:usize) -> Self {
+        CompareTwo{
+            left,
+            right,
+            result:BitVec::from_elem(size, false)
+        }
+    }
+
+    fn scan<'a, T, F>(&self, left: &'a [T], right: &'a [T], apply: &'a F ) -> impl Iterator<Item = bool> + 'a
+        where
+            T: PartialEq + PartialOrd,
+            F:  Fn(&T, &T) -> bool
+    {
+        let scan = left.into_iter()
+            .zip(right.into_iter())
+            .map(move |(x, y)|  {
+                let r:bool = apply(x, y);
+                r
+            });
+        scan
+    }
+
+    pub fn apply<T, F>(&mut self, left:&[T], right:&[T], apply:F)
+        where
+            T: PartialEq + PartialOrd,
+            F: Fn(&T, &T) -> bool
+    {
+        let scan = self.scan(left, right, &apply)
+            .enumerate();
+
+        for  (pos, ok) in scan {
+            self.result.set(pos, ok)
+        }
+    }
+
+    fn lift_op_cmp<T>(&mut self, op:Operator, x:&[T], y:&[T])
+        where T:PartialEq,
+              T:PartialOrd
+    {
+        match op {
+            Operator::Eq => {
+                return self.apply(x, y, PartialEq::eq)
+            }
+            Operator::NotEq => {
+                return self.apply(x, y, PartialEq::ne)
+            }
+            Operator::Less => {
+                return self.apply(x, y, PartialOrd::lt)
+            }
+            Operator::LessEq => {
+                return self.apply(x, y, PartialOrd::le)
+            }
+            Operator::Greater => {
+                return self.apply(x, y, PartialOrd::gt)
+            }
+            Operator::GreaterEq => {
+                return self.apply(x, y, PartialOrd::ge)
+            }
+            Operator::Not => {
+                return self.apply(x, y, |x, y| !(x == y))
+            }
+            _ => panic!(" Operator {:?} not boolean", op)
+        };
+    }
+
+    pub fn decode_both(&mut self, op:Operator) {
+        match (self.left.clone(), self.right.clone()) {
+            (Column::I64(lhs), Column::I64(rhs))  => {
+                self.lift_op_cmp(op, lhs.as_slice(), rhs.as_slice())
+            }
+            (Column::UTF8(lhs), Column::UTF8(rhs)) => {
+                self.lift_op_cmp(op, lhs.as_slice(), rhs.as_slice())
+            }
+            (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
+                self.lift_op_cmp(op, lhs.as_slice(), rhs.as_slice())
+            }
+            (Column::ROW(lhs), Column::ROW(rhs)) =>{
+                self.lift_op_cmp(op, lhs.as_slice(), rhs.as_slice())
+            }
+            (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
+        }
+    }
+
+    pub fn filter_value<T>(&mut self, of:&[T]) -> Vec<T>
+    where  T:Clone
+    {
+        let index = self.result.iter()
+            .enumerate()
+            .filter_map(|(pos, x)| {
+                if x {
+                    Some(pos)
+                } else {
+                    None
+                }
+            });
+        let mut result = Vec::new();
+
+        for pos in index {
+            let r = &of[pos];
+            result.push(r.clone())
+        }
+        result
+    }
+
+    pub fn materialize<T>(&mut self, of:&[T], index:&[usize]) -> Column
+        where  T:Clone + Value + ColumnIter + ColumnType
+    {
+        let mut result = Vec::new();
+
+        for pos in index {
+            let r = &of[*pos];
+            result.push(r.clone())
+        }
+
+        Column::from(result)
+    }
+
+    pub fn filter(&mut self) -> Column {
+        match self.left.clone() {
+            Column::I64(lhs) => {
+                let r:Vec<_> = self.filter_value(lhs.as_slice());
+                Column::from(r)
+            }
+            Column::UTF8(lhs) => {
+                let r:Vec<_> = self.filter_value(lhs.as_slice());
+                Column::from(r)
+            }
+            Column::BOOL(lhs) =>{
+                let r:Vec<_> = self.filter_value(lhs.as_slice());
+                Column::from(r)
+            }
+            Column::ROW(lhs) =>{
+                let r:Vec<_> = self.filter_value(lhs.as_slice());
+                Column::from(r)
+            }
+            x => panic!(" Incompatible {:?} ", x)
+        }
+    }
+
+    pub fn drain_result(&self) -> BitVec {
+        self.result.clone()
+    }
 }
 
-/// filtering column
-fn _filter_scalar<'r, 's, T, F>(left:&'r [T], right:&'s T, mut apply:F) -> Column
-    where T: PartialEq,
-          T: Value,
-          F: FnMut(&'r T, &'s T) -> bool
-{
-    let x:Vec<_> = left.into_iter()
-        .map( | x | apply(x, right))
-        .collect();
-    Column::from(x)
+pub fn drain_vec(of:&BitVec) -> Vec<bool> {
+    of.iter().map(|x| x).collect()
 }
 
 fn _filter_selector<T>(left:&[T], right:&[bool]) -> Vec<T>
@@ -71,76 +191,6 @@ fn _filter_selector<T>(left:&[T], right:&[bool]) -> Vec<T>
         }
     }
     values
-}
-
-fn lift_op_cmp<T>(op:Operator, x:&[T], y:&[T]) -> Column
-    where T:PartialEq,
-          T:PartialOrd
-{
-    match op {
-        Operator::Eq => {
-            return _compare_both(x, y, PartialEq::eq)
-        }
-        Operator::NotEq => {
-            return _compare_both(x, y, PartialEq::ne)
-        }
-        Operator::Less => {
-            return _compare_both(x, y, PartialOrd::lt)
-        }
-        Operator::LessEq => {
-            return _compare_both(x, y, PartialOrd::le)
-        }
-        Operator::Greater => {
-            return _compare_both(x, y, PartialOrd::gt)
-        }
-        Operator::GreaterEq => {
-            return _compare_both(x, y, PartialOrd::ge)
-        }
-        Operator::Not => {
-            return _compare_both(x, y, |x, y| !(x == y))
-        }
-        _ => panic!(" Operator {:?} not boolean", op)
-    };
-}
-
-pub fn decode_both(left:&Column, right:&Column, op:Operator) -> Column {
-    match (left, right) {
-        (Column::I64(lhs), Column::I64(rhs))  => {
-            lift_op_cmp(op, lhs, rhs)
-        }
-        (Column::UTF8(lhs), Column::UTF8(rhs)) => {
-            lift_op_cmp(op, lhs, rhs)
-       }
-        (Column::BOOL(lhs), Column::BOOL(rhs))  =>{
-            lift_op_cmp(op, lhs, rhs)
-        }
-        (Column::ROW(lhs), Column::ROW(rhs)) =>{
-            lift_op_cmp(op, lhs, rhs)
-        }
-        (x , y) => panic!(" Incompatible {:?} and {:?}", x, y)
-    }
-}
-
-pub fn equal_both(left:&Column, right:&Column) -> Column {
-    decode_both(left, right, Operator::Eq)
-}
-
-pub fn equal_col_scalar(left:&Column, right:&Column) -> Column {
-    decode_both(left, right, Operator::Eq)
-}
-
-pub fn not_equal_both(left:&Column, right:&Column) -> Column {
-    decode_both(left, right, Operator::NotEq)
-}
-
-pub fn less_both(left:&Column, right:&Column) -> Column
-{
-    decode_both(left, right, Operator::Less)
-}
-
-pub fn greater_both(left:&Column, right:&Column) -> Column
-{
-    decode_both(left, right, Operator::Greater)
 }
 
 #[derive(Clone)]
@@ -195,22 +245,30 @@ pub fn deselect(of:Rc<RelationRow>, pick:&ColumnExp) -> Vec<Column> {
     }
 }
 
-fn compare(of: CompareRel) -> Column {
+fn compare(of: CompareRel) -> BitVec {
     let op = of.op;
     let rel = of.rel;
 
     let col1 = select(rel.clone(), &of.left);
     let col2 = select(rel.clone(), &of.right);
+    let mut cmp = CompareTwo::new(col1, col2, rel.row_count());
 
-    match op {
-        Operator::Eq        => equal_both(&col1, &col2),
-        Operator::NotEq     => not_equal_both(&col1, &col2),
-        Operator::Less      => less_both(&col1, &col2),
-        Operator::Greater   => greater_both(&col1, &col2),
-        _ => panic!(" Incompatible Operator {:?} in filter", op)
-    }
+    cmp.decode_both(op);
+    cmp.drain_result()
 }
 
+
+fn filter(of: CompareRel) -> Column {
+    let op = of.op;
+    let rel = of.rel;
+
+    let col1 = select(rel.clone(), &of.left);
+    let col2 = select(rel.clone(), &of.right);
+    let mut cmp = CompareTwo::new(col1, col2, rel.row_count());
+
+    cmp.decode_both(op);
+    cmp.filter()
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +283,13 @@ mod tests {
 
     fn col(pos:usize) -> ColumnExp {
         ColumnExp::Pos(pos)
+    }
+
+    fn columns() -> (ColumnExp, ColumnExp) {
+        let pick1 = ColumnExp::Name("col0".to_string());
+        let pick2 = col(1);
+
+        (pick1, pick2)
     }
 
     fn make_rel1() -> Rc<Frame> {
@@ -242,8 +307,7 @@ mod tests {
         let nums1 = make_nums1();
         let f1 = make_rel1();
 
-        let pick1 = ColumnExp::Name("col0".to_string());
-        let pick2 = col(1);
+        let (pick1, pick2) = columns();
 
         let col3 = select(f1.clone(), &pick1);
         let nums3:Vec<i64> = col3.as_slice().into();
@@ -253,22 +317,39 @@ mod tests {
         assert_eq!(cols.len(), 1);
     }
 
+    #[test]
     fn test_compare() {
-        let nums1 = make_nums1();
         let f1 = make_rel1();
-        let pick1 = ColumnExp::Name("col0".to_string());
-        let pick2 = col(1);
+        let (pick1, pick2) = columns();
 
         let filter_eq = CompareRel::eq(f1.clone(), pick1, pick2);
         let filter_not_eq = CompareRel::noteq(f1.clone(), col(0), col(1));
 
-        let result_eq:Vec<bool> = compare(filter_eq).as_slice().into();
-        assert_eq!(result_eq, vec![false, true, true]);
+        let result_eq = drain_vec(&compare(filter_eq));
+        println!("= {:?}", result_eq);
+        assert_eq!(result_eq, [false, true, true]);
 
-        let result_not_eq:Vec<bool> = compare(filter_not_eq).as_slice().into();
-        assert_eq!(result_not_eq, vec![true, false, false]);
+        let result_not_eq =  drain_vec(&compare(filter_not_eq));
+        println!("<> {:?}", result_eq);
+        assert_eq!(result_not_eq, [true, false, false]);
     }
 
+    #[test]
+    fn test_filter() {
+        let f1 = make_rel1();
+        let (pick1, pick2) = columns();
+
+        let filter_eq = CompareRel::eq(f1.clone(), pick1, pick2);
+        let filter_not_eq = CompareRel::noteq(f1.clone(), col(0), col(1));
+
+        let result_eq = filter(filter_eq);
+        println!("= {:?}", result_eq);
+//        assert_eq!(result_eq, [false, true, true]);
+
+        let result_not_eq =   filter(filter_not_eq);
+        println!("<> {:?}", result_eq);
+//        assert_eq!(result_not_eq, [true, false, false]);
+    }
 //    #[test]
 //    fn math() {
 //
