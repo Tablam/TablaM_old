@@ -1,7 +1,7 @@
 pub use core::types::*;
 pub use std::rc::Rc;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
     Plus,
     Minus,
@@ -9,7 +9,7 @@ pub enum BinOp {
     Divide,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
     If(Rc<Exp>, Rc<Exp>),
@@ -17,30 +17,37 @@ pub enum Stmt {
     Exp(Exp),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LetKind {
     Imm, Mut,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Exp {
     Unit,
     Scalar(Scalar),
     Column(ColumnExp),
+    Row(RowExp),
     Range(RangeExp),
     Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ColumnExp {
     pub name: Option<String>,
     pub ty: Option<String>,
     pub es: Vec<Exp>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct RowExp {
+    pub names: Option<Vec<String>>,
+    pub es: Vec<Exp>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct RangeExp {
     pub start: Rc<Exp>,
     pub end: Rc<Exp>,

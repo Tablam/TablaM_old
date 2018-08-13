@@ -3,6 +3,13 @@ use core::ast::*;
 
 grammar;
 
+Sep<E,S>: Vec<E> =
+    <v0:(<E> S)*> <e1:E?> =>
+        v0.into_iter().chain(e1).collect();
+
+Comma<E>: Vec<E> = Sep<E, ",">;
+Semi<E>: Vec<E> = Sep<E, ";">;
+
 pub Statement: Stmt = {
     "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
     "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
@@ -35,11 +42,10 @@ Term: Exp = {
     <r:RangeLiteral> => Exp::Range(r),
     <n:Name> => Exp::Name(n),
     <BlockExpr> => <>,
-    "(" <Expr> ")",
 };
 
 BlockExpr: Exp = {
-    "{" <ss:Statement*> <eo:Expr?> "}" => match eo {
+    "(" <ss:Statement*> <eo:Expr?> ")" => match eo {
         Some(e) => Exp::Block(ss, e.into()),
         None => Exp::Block(ss, Exp::Unit.into()),
     },
@@ -63,6 +69,23 @@ pub ColumnLiteral: ColumnExp = {
 pub RangeLiteral: RangeExp = {
     "(" <start:Expr> ".." <end:Expr> ")" =>
         RangeExp { start: start.into(), end: end.into() }
+};
+
+pub RowLiteral: RowExp = {
+    "{" <row:Semi<RowAssignment>> "}" => {
+        // let (names, exps) = row.iter().cloned().unzip()
+        // let tr: Vec<(_, _)> = row;
+        let (names, exps) = row.iter().cloned().unzip();
+        RowExp { names: Some(names), es: exps }
+    },
+
+    // TODO: This has a conflict for a reason I cannot immediately identify.
+    // "{" <row:Semi<Expr>> "}" =>
+    //     RowExp { names: None, es: row },
+};
+
+RowAssignment: (String, Exp) = {
+    <n:Name> "=" <e:Expr> => (n, e),
 };
 
 Name: String = {

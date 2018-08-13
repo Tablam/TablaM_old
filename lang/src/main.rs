@@ -144,7 +144,7 @@ fn tablam() {
                 Exp::Scalar(Scalar::I32(3)).into(),
                 Exp::Scalar(Scalar::I32(4)).into()));
 
-    assert!(ExprParser::new().parse("{true; 1; 3}").unwrap()
+    assert!(ExprParser::new().parse("(true; 1; 3)").unwrap()
             ==
             Exp::Block(
                 vec![
@@ -153,4 +153,11 @@ fn tablam() {
                 ],
                 Exp::Scalar(Scalar::I32(3)).into()
                 ));
+
+    assert!(RowLiteralParser::new().parse("{hello=1; world=true}").unwrap()
+            ==
+            RowExp {
+                names: Some(vec!["hello".into(), "world".into()]),
+                es: vec![Exp::Scalar(Scalar::I32(1)), Exp::Name("true".into())],
+            });
 }
