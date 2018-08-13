@@ -175,4 +175,6 @@ fn tablam() {
                     Exp::BinOp(BinOp::Plus, Rc::new(4i32.into()), Rc::new(5i32.into())),
                 ]
             });
+
+    assert!(ExprParser::new().parse("()").unwrap() == Exp::Unit);
 }

@@ -48,6 +48,7 @@ GroupLiteral: Exp = {
 };
 
 pub Term: Exp = {
+    "(" ")" => Exp::Unit,
     <n:NumLiteral> => Exp::Scalar(n),
     <s:StringLiteral> => Exp::Scalar(s),
     <n:Name> => Exp::Name(n),
