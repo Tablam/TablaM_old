@@ -180,4 +180,11 @@ fn tablam() {
 
     assert!(TypeParser::new().parse("Int").unwrap()
             == Ty::Star("Int".into()));
+
+    assert!(TypeParser::new().parse("Int -> String -> Float").unwrap()
+            == Ty::Arrow(vec!(
+                    Ty::Star("Int".into()),
+                    Ty::Star("String".into()),
+                    Ty::Star("Float".into())
+                    )));
 }
