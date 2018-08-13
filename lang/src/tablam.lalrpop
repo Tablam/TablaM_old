@@ -39,6 +39,7 @@ Factor: Exp = {
 Term: Exp = {
     <s:ScalarLiteral> => Exp::Scalar(s),
     <c:ColumnLiteral> => Exp::Column(c),
+    <r:RowLiteral> => Exp::Row(r),
     <r:RangeLiteral> => Exp::Range(r),
     <n:Name> => Exp::Name(n),
     <BlockExpr> => <>,
