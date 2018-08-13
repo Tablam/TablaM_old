@@ -13,6 +13,7 @@ pub enum BinOp {
 pub enum Stmt {
     IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
     If(Rc<Exp>, Rc<Exp>),
+    While(Rc<Exp>, Rc<Exp>),
     Let(LetKind, String, Rc<Exp>),
     Exp(Exp),
 }

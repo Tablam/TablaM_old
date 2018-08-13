@@ -17,6 +17,8 @@ pub Statement: Stmt = {
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
     "if" <cond:Expr> "then" <if_true:Expr> "end" =>
         Stmt::If(cond.into(), if_true.into()),
+    "while" <cond:Expr> <body:Expr> =>
+        Stmt::While(cond.into(), body.into()),
     <Expr> ";" => Stmt::Exp(<>),
 };
 
@@ -47,6 +49,10 @@ Term: Exp = {
 
 BlockExpr: Exp = {
     "(" <ss:Statement*> <eo:Expr?> ")" => match eo {
+        Some(e) => Exp::Block(ss, e.into()),
+        None => Exp::Block(ss, Exp::Unit.into()),
+    },
+    "do" <ss:Statement*> <eo:Expr?> "end" => match eo {
         Some(e) => Exp::Block(ss, e.into()),
         None => Exp::Block(ss, Exp::Unit.into()),
     },

@@ -153,4 +153,13 @@ fn tablam() {
                 names: Some(vec!["hello".into(), "world".into()]),
                 es: vec![1i32.into(), true.into()],
             });
+
+    assert!(StatementParser::new().parse("while true do hello; end").unwrap()
+            ==
+            Stmt::While(
+                Rc::new(true.into()),
+                Exp::Block(
+                    vec![Stmt::Exp(Exp::Name("hello".into()))],
+                    Exp::Unit.into()
+                ).into()));
 }
