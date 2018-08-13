@@ -24,12 +24,13 @@ pub enum LetKind {
 
 #[derive(Debug, PartialEq)]
 pub enum Exp {
+    Unit,
     Scalar(Scalar),
     Column(ColumnExp),
     Range(RangeExp),
     Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
-    Block(Vec<Stmt>),
+    Block(Vec<Stmt>, Rc<Exp>),
 }
 
 #[derive(Debug, PartialEq)]

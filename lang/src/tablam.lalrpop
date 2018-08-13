@@ -6,7 +6,6 @@ grammar;
 pub Statement: Stmt = {
     "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
     "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
-    // If => <>,
     "if" <cond:Expr> "then" <if_true:Expr> "else" <if_false:Expr> "end" =>
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
     "if" <cond:Expr> "then" <if_true:Expr> "end" =>
@@ -35,8 +34,15 @@ Term: Exp = {
     <c:ColumnLiteral> => Exp::Column(c),
     <r:RangeLiteral> => Exp::Range(r),
     <n:Name> => Exp::Name(n),
+    <BlockExpr> => <>,
     "(" <Expr> ")",
-    "{" <Statement*> "}" => Exp::Block(<>),
+};
+
+BlockExpr: Exp = {
+    "{" <ss:Statement*> <eo:Expr?> "}" => match eo {
+        Some(e) => Exp::Block(ss, e.into()),
+        None => Exp::Block(ss, Exp::Unit.into()),
+    },
 };
 
 pub ScalarLiteral: Scalar = {
