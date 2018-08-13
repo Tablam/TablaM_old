@@ -3,17 +3,18 @@ use core::ast::*;
 
 grammar;
 
-pub Expr: Exp = {
-    "let" <n:Name> "=" <e:If> ";" => Exp::LetImm(n, e.into()),
-    "var" <n:Name> "=" <e:If> ";" => Exp::LetMut(n, e.into()),
-    If,
-}
+pub Statement: Stmt = {
+    "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
+    "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
+    // If => <>,
+    "if" <cond:Expr> "then" <if_true:Expr> "else" <if_false:Expr> "end" =>
+        Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
+    "if" <cond:Expr> "then" <if_true:Expr> "end" =>
+        Stmt::If(cond.into(), if_true.into()),
+    <Expr> ";" => Stmt::Exp(<>),
+};
 
-If: Exp = {
-    "if" <cond:Add> "then" <if_true:Add> "else" <if_false:Add> "end" =>
-        Exp::IfElse(cond.into(), if_true.into(), if_false.into()),
-    "if" <cond:Add> "then" <if_true:Add> "end" =>
-        Exp::If(cond.into(), if_true.into()),
+pub Expr: Exp = {
     Add,
 };
 
@@ -35,6 +36,7 @@ Term: Exp = {
     <r:RangeLiteral> => Exp::Range(r),
     <n:Name> => Exp::Name(n),
     "(" <Expr> ")",
+    "{" <Statement*> "}" => Exp::Block(<>),
 };
 
 pub ScalarLiteral: Scalar = {

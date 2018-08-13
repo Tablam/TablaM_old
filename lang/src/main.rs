@@ -53,7 +53,7 @@ fn main() -> io::Result<()> {
         print!("> ");
         std::io::stdout().flush().unwrap();
         for line in stdin.lock().lines() {
-            let parser = ExprParser::new();
+            let parser = StatementParser::new();
             match parser.parse(&line.unwrap()) {
                 Ok(ast) => println!("ok: {:?}", ast),
                 Err(err) => println!("error: {:?}", err),
@@ -120,9 +120,9 @@ fn tablam() {
                     )
             });
 
-    assert!(ExprParser::new().parse("let x = [a:i; 1 2 3];").unwrap()
+    assert!(StatementParser::new().parse("let x = [a:i; 1 2 3];").unwrap()
             ==
-            Exp::LetImm("x".into(), Exp::Column(ColumnExp {
+            Stmt::Let(LetKind::Imm, "x".into(), Exp::Column(ColumnExp {
                 name: Some("a".into()),
                 ty: Some("i".into()),
                 es: vec!(
@@ -137,9 +137,9 @@ fn tablam() {
                 end: Exp::Name("llama_world".into()).into(),
             });
 
-    assert!(ExprParser::new().parse("if true then 3 else 4 end").unwrap()
+    assert!(StatementParser::new().parse("if true then 3 else 4 end").unwrap()
             ==
-            Exp::IfElse(
+            Stmt::IfElse(
                 Exp::Name("true".into()).into(),
                 Exp::Scalar(Scalar::I32(3)).into(),
                 Exp::Scalar(Scalar::I32(4)).into()));

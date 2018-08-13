@@ -10,16 +10,26 @@ pub enum BinOp {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Stmt {
+    IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
+    If(Rc<Exp>, Rc<Exp>),
+    Let(LetKind, String, Rc<Exp>),
+    Exp(Exp),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LetKind {
+    Imm, Mut,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Exp {
     Scalar(Scalar),
     Column(ColumnExp),
     Range(RangeExp),
     Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
-    LetImm(String, Rc<Exp>),
-    LetMut(String, Rc<Exp>),
-    IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
-    If(Rc<Exp>, Rc<Exp>),
+    Block(Vec<Stmt>),
 }
 
 #[derive(Debug, PartialEq)]
