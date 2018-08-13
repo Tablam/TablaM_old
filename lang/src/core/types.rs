@@ -279,6 +279,20 @@ pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
 }
 
+/* BEGIN easy From for testing */
+impl From<i32> for Scalar {
+    fn from(i: i32) -> Self {
+        Scalar::I32(i)
+    }
+}
+
+impl From<i64> for Scalar {
+    fn from(i: i64) -> Self {
+        Scalar::I64(i)
+    }
+}
+/* END easy From for testing */
+
 //TODO: Use a macro for automate convertions?
 impl From<i32> for Column {
     fn from(vec: i32) -> Self {

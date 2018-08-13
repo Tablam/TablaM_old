@@ -33,6 +33,25 @@ pub enum Exp {
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),
 }
+/* BEGIN easy From for testing */
+impl From<i32> for Exp {
+    fn from(i: i32) -> Self {
+        Exp::Scalar(i.into())
+    }
+}
+
+impl From<i64> for Exp {
+    fn from(i: i64) -> Self {
+        Exp::Scalar(i.into())
+    }
+}
+
+impl From<Exp> for Stmt {
+    fn from(e: Exp) -> Self {
+        Stmt::Exp(e)
+    }
+}
+/* END easy From for testing */
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnExp {

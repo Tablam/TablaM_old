@@ -70,8 +70,7 @@ fn tablam() {
 
     assert!(
         ScalarLiteralParser::new().parse("12").unwrap()
-        == Scalar::I32(12)
-        );
+        == 12i32.into());
 
     assert!(
         ExprParser::new().parse("true").unwrap()
@@ -91,12 +90,10 @@ fn tablam() {
     assert!(ScalarLiteralParser::new().parse(r#""hello"#).is_err());
 
     assert!(ScalarLiteralParser::new().parse("1").unwrap()
-            == Scalar::I32(1));
+            == 1i32.into());
 
     assert!(ExprParser::new().parse("1 + 2").unwrap()
-            == Exp::BinOp(BinOp::Plus,
-                          Exp::Scalar(Scalar::I32(1)).into(),
-                          Exp::Scalar(Scalar::I32(2)).into()));
+            == Exp::BinOp(BinOp::Plus, Rc::new(1.into()), Rc::new(2.into())));
 
     assert!(ColumnLiteralParser::new().parse("[name:string; \"hello\" \"world\"]").unwrap()
             ==
@@ -125,15 +122,12 @@ fn tablam() {
             Stmt::Let(LetKind::Imm, "x".into(), Exp::Column(ColumnExp {
                 name: Some("a".into()),
                 ty: Some("i".into()),
-                es: vec!(
-                    Exp::Scalar(Scalar::I32(1)),
-                    Exp::Scalar(Scalar::I32(2)),
-                    Exp::Scalar(Scalar::I32(3)))
+                es: vec![1i32.into(), 2i32.into(), 3i32.into()],
             }).into()));
 
     assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
             == RangeExp {
-                start: Exp::Scalar(Scalar::I32(1)).into(),
+                start: Rc::new(1i32.into()),
                 end: Exp::Name("llama_world".into()).into(),
             });
 
@@ -141,23 +135,23 @@ fn tablam() {
             ==
             Stmt::IfElse(
                 Exp::Name("true".into()).into(),
-                Exp::Scalar(Scalar::I32(3)).into(),
-                Exp::Scalar(Scalar::I32(4)).into()));
+                Rc::new(3i32.into()),
+                Rc::new(4i32.into())));
 
     assert!(ExprParser::new().parse("(true; 1; 3)").unwrap()
             ==
             Exp::Block(
                 vec![
-                Stmt::Exp(Exp::Name("true".into()).into()),
-                Stmt::Exp(Exp::Scalar(Scalar::I32(1)).into()),
+                    Stmt::Exp(Exp::Name("true".into()).into()),
+                    Stmt::Exp(1i32.into()),
                 ],
-                Exp::Scalar(Scalar::I32(3)).into()
+                Rc::new(3i32.into())
                 ));
 
     assert!(RowLiteralParser::new().parse("{hello=1; world=true}").unwrap()
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
-                es: vec![Exp::Scalar(Scalar::I32(1)), Exp::Name("true".into())],
+                es: vec![1i32.into(), Exp::Name("true".into())],
             });
 }
