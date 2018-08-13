@@ -10,6 +10,40 @@ Sep<E,S>: Vec<E> =
 Comma<E>: Vec<E> = Sep<E, ",">;
 Semi<E>: Vec<E> = Sep<E, ";">;
 
+pub Program: Prog = {
+    <FunctionDefinition*> => Prog { functions: <> },
+};
+
+pub FunctionDefinition: FunDef = {
+    "fun" <name:Name> "[" <params:Comma<FunctionParam>> "]" ":" <ret_ty:Type> "=" <body:Expr> =>
+        FunDef { name: name, params: params, ret_ty: ret_ty, body: body }
+};
+
+FunctionParam: (String, Ty) = {
+    <n:Name> ":" <t:Type> => (n, t),
+};
+
+pub Type: Ty = {
+    // TODO: this is dirty -- fix
+    <ty:Sep<SimpleType, "->">> => {
+        if ty.len() == 1 {
+            ty[0].clone()
+        }
+        else {
+            Ty::Arrow(ty)
+        }
+    }
+};
+
+SimpleType: Ty = {
+    <TypeName> => Ty::Star(<>),
+    "(" <Type> ")" => <>,
+};
+
+TypeName: String = {
+    r"[A-Z][_a-zA-Z0-9]*" => <>.into()
+};
+
 pub Statement: Stmt = {
     "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
     "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
@@ -99,7 +133,7 @@ RowAssignment: (String, Exp) = {
 };
 
 Name: String = {
-    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
+    r"[a-z][_a-zA-Z0-9]*" => <>.into()
 };
 
 NumLiteral: Scalar = {

@@ -177,4 +177,7 @@ fn tablam() {
             });
 
     assert!(ExprParser::new().parse("()").unwrap() == Exp::Unit);
+
+    assert!(TypeParser::new().parse("Int").unwrap()
+            == Ty::Star("Int".into()));
 }

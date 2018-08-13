@@ -10,6 +10,25 @@ pub enum BinOp {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Prog {
+    pub functions: Vec<FunDef>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FunDef {
+    pub name: String,
+    pub params: Vec<(String, Ty)>,
+    pub ret_ty: Ty,
+    pub body: Exp,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Ty {
+    Star(String),
+    Arrow(Vec<Ty>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
     If(Rc<Exp>, Rc<Exp>),
