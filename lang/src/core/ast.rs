@@ -53,7 +53,44 @@ pub enum Exp {
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     Apply(Rc<Exp>, Vec<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),
+    Query(Rc<Exp>, Vec<FilterExp>),
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ColumnExp {
+    pub name: Option<String>,
+    pub ty: Option<String>,
+    pub es: Vec<Exp>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct RowExp {
+    pub names: Option<Vec<String>>,
+    pub es: Vec<Exp>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct RangeExp {
+    pub start: Rc<Exp>,
+    pub end: Rc<Exp>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum RelOp {
+    Equals,
+    Greater,
+    Less,
+    GreaterEquals,
+    LessEquals,
+    NotEquals,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum FilterExp {
+    RelOp(RelOp, String, Rc<Exp>),
+}
+
+
 /* BEGIN easy From for testing */
 impl From<bool> for Exp {
     fn from(b: bool) -> Self {
@@ -83,24 +120,6 @@ impl From<Exp> for Stmt {
 }
 /* END easy From for testing */
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct ColumnExp {
-    pub name: Option<String>,
-    pub ty: Option<String>,
-    pub es: Vec<Exp>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct RowExp {
-    pub names: Option<Vec<String>>,
-    pub es: Vec<Exp>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct RangeExp {
-    pub start: Rc<Exp>,
-    pub end: Rc<Exp>,
-}
 
 //    let e = ExpAt {
 //        line: 5,

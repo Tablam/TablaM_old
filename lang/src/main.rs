@@ -187,4 +187,19 @@ fn tablam() {
                     Ty::Star("String".into()),
                     Ty::Star("Float".into())
                     )));
+
+    assert!(QueryParser::new().parse("a ? # name = \"Max\" # your != mom").unwrap()
+            == Exp::Query(
+                Exp::Name("a".into()).into(),
+                vec!(
+                    FilterExp::RelOp(
+                        RelOp::Equals,
+                        "name".into(),
+                        Exp::Scalar(Scalar::UTF8("Max".into())).into()),
+                    FilterExp::RelOp(
+                        RelOp::NotEquals,
+                        "your".into(),
+                        Exp::Name("mom".into()).into())
+                    )));
+
 }

@@ -59,7 +59,21 @@ pub Statement: Stmt = {
 pub Expr: Exp = {
     // Function application
     <f:Add> "(" <es:Comma<Add>> ")" => Exp::Apply(f.into(), es),
+    Query,
+};
+
+pub Query: Exp = {
+    <rel:GroupLiteral> "?" <fs:FilterList> => Exp::Query(rel.into(), fs),
     Add,
+};
+
+FilterList: Vec<FilterExp> = {
+    <("#" <Filter>)+> => <>
+};
+
+Filter: FilterExp = {
+    <field:Name> "=" <e:Term> => FilterExp::RelOp(RelOp::Equals, field, e.into()),
+    <field:Name> "!=" <e:Term> => FilterExp::RelOp(RelOp::NotEquals, field, e.into()),
 };
 
 Add: Exp = {
