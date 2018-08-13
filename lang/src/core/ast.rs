@@ -34,6 +34,15 @@ pub enum Exp {
     Block(Vec<Stmt>, Rc<Exp>),
 }
 /* BEGIN easy From for testing */
+impl From<bool> for Exp {
+    fn from(b: bool) -> Self {
+        match b {
+            true => Exp::Name("true".into()),
+            false => Exp::Name("false".into()),
+        }
+    }
+}
+
 impl From<i32> for Exp {
     fn from(i: i32) -> Self {
         Exp::Scalar(i.into())

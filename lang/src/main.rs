@@ -74,12 +74,12 @@ fn tablam() {
 
     assert!(
         ExprParser::new().parse("true").unwrap()
-        == Exp::Name("true".into())
+        == true.into()
         );
 
     assert!(
         ExprParser::new().parse("false").unwrap()
-        == Exp::Name("false".into())
+        == false.into()
         );
 
     assert!(
@@ -134,7 +134,7 @@ fn tablam() {
     assert!(StatementParser::new().parse("if true then 3 else 4 end").unwrap()
             ==
             Stmt::IfElse(
-                Exp::Name("true".into()).into(),
+                Rc::new(true.into()),
                 Rc::new(3i32.into()),
                 Rc::new(4i32.into())));
 
@@ -142,7 +142,7 @@ fn tablam() {
             ==
             Exp::Block(
                 vec![
-                    Stmt::Exp(Exp::Name("true".into()).into()),
+                    Stmt::Exp(true.into()),
                     Stmt::Exp(1i32.into()),
                 ],
                 Rc::new(3i32.into())
@@ -152,6 +152,6 @@ fn tablam() {
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
-                es: vec![1i32.into(), Exp::Name("true".into())],
+                es: vec![1i32.into(), true.into()],
             });
 }
