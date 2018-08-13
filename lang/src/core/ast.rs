@@ -32,6 +32,7 @@ pub enum Exp {
     Range(RangeExp),
     Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
+    Apply(Rc<Exp>, Vec<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),
 }
 /* BEGIN easy From for testing */

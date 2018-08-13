@@ -68,7 +68,7 @@ fn tablam() {
     use core::ast::{ColumnExp, *};
 
     assert!(
-        ScalarLiteralParser::new().parse("12").unwrap()
+        TermParser::new().parse("12").unwrap()
         == 12i32.into());
 
     assert!(
@@ -82,13 +82,13 @@ fn tablam() {
         );
 
     assert!(
-        ScalarLiteralParser::new().parse(r#""hello""#).unwrap()
-        == Scalar::UTF8(encode_str("hello"))
+        TermParser::new().parse(r#""hello""#).unwrap()
+        == Exp::Scalar(Scalar::UTF8(encode_str("hello")))
         );
 
-    assert!(ScalarLiteralParser::new().parse(r#""hello"#).is_err());
+    assert!(TermParser::new().parse(r#""hello"#).is_err());
 
-    assert!(ScalarLiteralParser::new().parse("1").unwrap()
+    assert!(TermParser::new().parse("1").unwrap()
             == 1i32.into());
 
     assert!(ExprParser::new().parse("1 + 2").unwrap()
@@ -162,4 +162,17 @@ fn tablam() {
                     vec![Stmt::Exp(Exp::Name("hello".into()))],
                     Exp::Unit.into()
                 ).into()));
+
+    assert!(ColumnLiteralParser::new().parse("[1 2 3 (4+5)]").unwrap()
+            ==
+            ColumnExp {
+                name: None,
+                ty: None,
+                es: vec![
+                    1i32.into(),
+                    2i32.into(),
+                    3i32.into(),
+                    Exp::BinOp(BinOp::Plus, Rc::new(4i32.into()), Rc::new(5i32.into())),
+                ]
+            });
 }

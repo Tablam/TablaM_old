@@ -13,16 +13,18 @@ Semi<E>: Vec<E> = Sep<E, ";">;
 pub Statement: Stmt = {
     "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
     "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
-    "if" <cond:Expr> "then" <if_true:Expr> "else" <if_false:Expr> "end" =>
+    "if" <cond:Term> "then" <if_true:Term> "else" <if_false:Term> "end" =>
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
-    "if" <cond:Expr> "then" <if_true:Expr> "end" =>
+    "if" <cond:Term> "then" <if_true:Term> "end" =>
         Stmt::If(cond.into(), if_true.into()),
-    "while" <cond:Expr> <body:Expr> =>
+    "while" <cond:Term> <body:Term> =>
         Stmt::While(cond.into(), body.into()),
     <Expr> ";" => Stmt::Exp(<>),
 };
 
 pub Expr: Exp = {
+    // Function application
+    <f:Add> "(" <es:Comma<Add>> ")" => Exp::Apply(f.into(), es),
     Add,
 };
 
@@ -33,22 +35,28 @@ Add: Exp = {
 };
 
 Factor: Exp = {
-    <l:Factor> "*" <r:Term> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
-    <l:Factor> "/" <r:Term> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
-    Term,
+    <l:Factor> "*" <r:GroupLiteral> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:Factor> "/" <r:GroupLiteral> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    GroupLiteral,
 };
 
-Term: Exp = {
-    <s:ScalarLiteral> => Exp::Scalar(s),
+GroupLiteral: Exp = {
     <c:ColumnLiteral> => Exp::Column(c),
     <r:RowLiteral> => Exp::Row(r),
     <r:RangeLiteral> => Exp::Range(r),
+    Term,
+};
+
+pub Term: Exp = {
+    <n:NumLiteral> => Exp::Scalar(n),
+    <s:StringLiteral> => Exp::Scalar(s),
     <n:Name> => Exp::Name(n),
     <BlockExpr> => <>,
+    "(" <Expr> ")" => <>,
 };
 
 BlockExpr: Exp = {
-    "(" <ss:Statement*> <eo:Expr?> ")" => match eo {
+    "(" <ss:Statement+> <eo:Expr?> ")" => match eo {
         Some(e) => Exp::Block(ss, e.into()),
         None => Exp::Block(ss, Exp::Unit.into()),
     },
@@ -58,23 +66,17 @@ BlockExpr: Exp = {
     },
 };
 
-pub ScalarLiteral: Scalar = {
-    <n:NumLiteral> => n,
-    // <b:BoolLiteral> => b,
-    <s:StringLiteral> => s,
-};
-
 pub ColumnLiteral: ColumnExp = {
-    "[" <name:Name> ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+    "[" <name:Name> ":" <ty:Name> ";" <es:Term+> "]" =>
         ColumnExp { name: Some(name), ty: Some(ty), es: es },
-    "[" ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
+    "[" ":" <ty:Name> ";" <es:Term+> "]" =>
         ColumnExp { name: None, ty: Some(ty), es: es },
-    "[" <es:(<Expr>)+> "]" =>
+    "[" <es:Term+> "]" =>
         ColumnExp { name: None, ty: None, es: es },
 };
 
 pub RangeLiteral: RangeExp = {
-    "(" <start:Expr> ".." <end:Expr> ")" =>
+    "(" <start:Term> ".." <end:Term> ")" =>
         RangeExp { start: start.into(), end: end.into() }
 };
 
