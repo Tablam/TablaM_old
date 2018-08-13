@@ -1,8 +1,13 @@
 [package]
-name = "lang"
+name = "tablam-lang"
 version = "0.1.0"
-authors = ["Mario Montoya <mamcx@elmalabarista.com>"]
+authors = ["Mario Montoya <mamcx@elmalabarista.com>", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+repository = "https://bitbucket.org/tablam/tablam/"
+homepage = "https://bitbucket.org/tablam/tablam/"
+license = "MPL-2.0"
 build = "build.rs"
+keywords = ["database", "interpreter", "language", "relational", "columnar"]
+categories = ["database", "language", "relational"]
 
 [dependencies]
 time = "0.1.0"
@@ -17,3 +22,7 @@ regex = "0.2"
 [build-dependencies]
 # For parsing
 lalrpop = "0.15"
+
+[[bin]]
+name = "table"
+path = "src/main.rs"
