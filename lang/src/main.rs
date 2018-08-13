@@ -143,4 +143,14 @@ fn tablam() {
                 Exp::Name("true".into()).into(),
                 Exp::Scalar(Scalar::I32(3)).into(),
                 Exp::Scalar(Scalar::I32(4)).into()));
+
+    assert!(ExprParser::new().parse("{true; 1; 3}").unwrap()
+            ==
+            Exp::Block(
+                vec![
+                Stmt::Exp(Exp::Name("true".into()).into()),
+                Stmt::Exp(Exp::Scalar(Scalar::I32(1)).into()),
+                ],
+                Exp::Scalar(Scalar::I32(3)).into()
+                ));
 }
