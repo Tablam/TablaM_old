@@ -9,9 +9,7 @@ lalrpop_mod!(pub tablam);
 
 mod core;
 
-use core::types::*;
-use core::ast::*;
-use core::ast::ColumnExp;
+use core::ast::{ColumnExp, *};
 use std::io::{self, Write, BufRead};
 //use core::operators::*;
 
