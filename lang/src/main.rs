@@ -9,9 +9,8 @@ lalrpop_mod!(pub tablam);
 
 mod core;
 
-use core::ast::{ColumnExp, *};
 use std::io::{self, Write, BufRead};
-//use core::operators::*;
+// use core::operators::*;
 
 fn main() -> io::Result<()> {
     // let nums1:Vec<i64> = (0..100).into_iter().collect();
@@ -65,6 +64,8 @@ fn main() -> io::Result<()> {
 #[test]
 fn tablam() {
     use tablam::*;
+    // It is unclear why I have to import both ColumnExp and * ... ???
+    use core::ast::{ColumnExp, *};
 
     assert!(
         ScalarLiteralParser::new().parse("12").unwrap()
