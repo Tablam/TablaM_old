@@ -148,7 +148,7 @@ fn tablam() {
                 Rc::new(3i32.into())
                 ));
 
-    assert!(RowLiteralParser::new().parse("{hello=1; world=true}").unwrap()
+    assert!(RowLiteralParser::new().parse("{hello=1, world=true}").unwrap()
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),

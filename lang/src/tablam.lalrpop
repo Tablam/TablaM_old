@@ -73,7 +73,7 @@ pub RangeLiteral: RangeExp = {
 };
 
 pub RowLiteral: RowExp = {
-    "{" <row:Semi<RowAssignment>> "}" => {
+    "{" <row:Comma<RowAssignment>> "}" => {
         // let (names, exps) = row.iter().cloned().unzip()
         // let tr: Vec<(_, _)> = row;
         let (names, exps) = row.iter().cloned().unzip();
@@ -81,7 +81,7 @@ pub RowLiteral: RowExp = {
     },
 
     // TODO: This has a conflict for a reason I cannot immediately identify.
-    // "{" <row:Semi<Expr>> "}" =>
+    // "{" <row:Comma<Expr>> "}" =>
     //     RowExp { names: None, es: row },
 };
 
