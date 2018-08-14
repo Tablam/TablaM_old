@@ -107,7 +107,7 @@ fn tablam() {
                     ))
             );
 
-    assert!(ExprParser::new().parse("{1; 2; 3}").unwrap()
+    assert!(ExprParser::new().parse("do 1; 2; 3 end").unwrap()
             ==
             Exp::Block(
                 vec!(Stmt::Exp(1.into()), Stmt::Exp(2.into())),
@@ -174,22 +174,12 @@ fn tablam() {
                 end: Exp::Name("llama_world".into()).into(),
             });
 
-    assert!(StatementParser::new().parse("if true then 3 else 4 end").unwrap()
+    assert!(StatementParser::new().parse("if true 3 else 4").unwrap()
             ==
             Stmt::IfElse(
                 Rc::new(true.into()),
                 Rc::new(3i32.into()),
                 Rc::new(4i32.into())));
-
-    assert!(ExprParser::new().parse("{true; 1; 3}").unwrap()
-            ==
-            Exp::Block(
-                vec![
-                    Stmt::Exp(true.into()),
-                    Stmt::Exp(1i32.into()),
-                ],
-                Rc::new(3i32.into())
-                ));
 
     assert!(RowLiteralParser::new().parse("{hello=1, world=true}").unwrap()
             ==
@@ -198,7 +188,7 @@ fn tablam() {
                 es: vec![1i32.into(), true.into()],
             });
 
-    assert!(RowLiteralParser::new().parse("{r 1, true}").unwrap()
+    assert!(RowLiteralParser::new().parse("{1, true}").unwrap()
             ==
             RowExp {
                 names: None,
@@ -252,7 +242,7 @@ fn tablam() {
                         Exp::Name("mom".into()).into())
                     )));
 
-    assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = { 1 + 2 }").unwrap()
+    assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
             ==
             FunDef {
                 name: "test".into(),

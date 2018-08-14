@@ -52,9 +52,9 @@ pub Statement: Stmt = {
     "var" <n:Name> "=" <e:Expr> ";" =>
         Stmt::Let(LetKind::Mut, n, None, e.into()),
 
-    "if" <cond:Term> "then" <if_true:Term> "else" <if_false:Term> "end" =>
+    "if" <cond:Term> <if_true:Term> "else" <if_false:Term> =>
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
-    "if" <cond:Term> "then" <if_true:Term> "end" =>
+    "if" <cond:Term> <if_true:Term> =>
         Stmt::If(cond.into(), if_true.into()),
 
     "while" <cond:Term> <body:Statement> =>
@@ -119,15 +119,11 @@ Term: Exp = {
     <s:StringLiteral> => Exp::Scalar(s),
     <n:Name> => Exp::Name(n),
     "(" <Expr> ")" => <>,
-    Block,
-};
-
-Block: Exp = {
-    <BlockExpr> => <>,
+    BlockExpr,
 };
 
 BlockExpr: Exp = {
-    "{" <ss:Statement*> <e:Expr> "}" => Exp::Block(ss, e.into()),
+    // "{" <ss:Statement*> <e:Expr> "}" => Exp::Block(ss, e.into()),
     "do" <ss:Statement*> <e:Expr> "end" => Exp::Block(ss, e.into()),
 };
 
@@ -150,7 +146,7 @@ pub RowLiteral: RowExp = {
     },
 
     // TODO: fix -- without r, gets confused with block
-    "{r" <row:NonEmptySep<Term, ",">> "}" =>
+    "{" <row:NonEmptySep<Term, ",">> "}" =>
         RowExp { names: None, es: row },
 };
 
