@@ -141,24 +141,29 @@ pub RangeLiteral: RangeExp = {
 
 pub RowLiteral: RowExp = {
     "{" <row:NonEmptySep<RowAssignment, ",">> "}" => {
-        let (names, exps) = row.iter().cloned().unzip();
-        RowExp { names: Some(names), es: exps }
+        let (names_types, exps): (Vec<(_, _)>, _) =
+            row.iter().cloned().unzip();
+        let (names, types) =
+            names_types.iter().cloned().unzip();
+        RowExp { names: Some(names), types: types, es: exps }
     },
 
-    // TODO: fix -- without r, gets confused with block
     "{" <row:NonEmptySep<Term, ",">> "}" =>
-        RowExp { names: None, es: row },
+        RowExp { names: None, types: vec![None; row.len()], es: row },
 };
 
-RowAssignment: (String, Exp) = {
-    <n:Name> "=" <e:Term> => (n, e),
+RowAssignment: ((String, Option<Ty>), Exp) = {
+    // Per-field optional types
+    <n:Name> <ty:(":" <Type>)?> "=" <e:Term> => ((n, ty), e),
 };
 
 pub RelationLiteral: RelationExp = {
+    // TODO: add types
     // Row format
     "[<" <names:Comma<Name>> ";" <data:Semi<Term+>> ">]" =>
         RelationExp { rel_type: RelType::Row, names: names, data: data },
 
+    // TODO: add types
     // Col format
     "[|" <cols:Semi<ColAssignment>> "|]" => {
         let (names, data) = cols.iter().cloned().unzip();

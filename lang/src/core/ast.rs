@@ -67,8 +67,8 @@ pub struct ColumnExp {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RowExp {
-    // TODO: add types
     pub names: Option<Vec<String>>,
+    pub types: Vec<Option<Ty>>,
     pub es: Vec<Exp>,
 }
 

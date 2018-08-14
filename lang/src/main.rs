@@ -193,6 +193,15 @@ fn tablam() {
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
+                types: vec!(None, None),
+                es: vec![1i32.into(), true.into()],
+            });
+
+    assert!(RowLiteralParser::new().parse("{hello:Int=1, world=true}").unwrap()
+            ==
+            RowExp {
+                names: Some(vec!["hello".into(), "world".into()]),
+                types: vec!(Some(Ty::Star("Int".into())), None),
                 es: vec![1i32.into(), true.into()],
             });
 
@@ -200,6 +209,7 @@ fn tablam() {
             ==
             RowExp {
                 names: None,
+                types: vec!(None, None),
                 es: vec![1i32.into(), true.into()],
             });
 
