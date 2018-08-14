@@ -68,11 +68,11 @@ fn tablam() {
     use core::ast::{ColumnExp, *};
 
     assert!(
-        TermParser::new().parse("12").unwrap()
+        ExprParser::new().parse("12").unwrap()
         == 12i32.into());
 
     assert!(
-        TermParser::new().parse("12i64").unwrap()
+        ExprParser::new().parse("12i64").unwrap()
         == 12i64.into());
 
     assert!(
@@ -86,13 +86,13 @@ fn tablam() {
         );
 
     assert!(
-        TermParser::new().parse(r#""hello""#).unwrap()
+        ExprParser::new().parse(r#""hello""#).unwrap()
         == Exp::Scalar(Scalar::UTF8(encode_str("hello")))
         );
 
-    assert!(TermParser::new().parse(r#""hello"#).is_err());
+    assert!(ExprParser::new().parse(r#""hello"#).is_err());
 
-    assert!(TermParser::new().parse("1").unwrap()
+    assert!(ExprParser::new().parse("1").unwrap()
             == 1i32.into());
 
     assert!(ExprParser::new().parse("1 + 2").unwrap()
@@ -115,33 +115,33 @@ fn tablam() {
                 )
             );
 
-    assert!(ColumnLiteralParser::new().parse("[name:string; \"hello\" \"world\"]").unwrap()
+    assert!(ColumnLiteralParser::new().parse("[name:String; \"hello\" \"world\"]").unwrap()
             ==
             ColumnExp {
                 name: Some("name".into()),
-                ty: Some("string".into()),
+                ty: Some(Ty::Star("String".into())),
                 es: vec!(
                     Exp::Scalar(Scalar::UTF8("hello".into())),
                     Exp::Scalar(Scalar::UTF8("world".into())),
                     )
             });
 
-    assert!(ColumnLiteralParser::new().parse("[:string; \"hello\" \"world\"]").unwrap()
+    assert!(ColumnLiteralParser::new().parse("[String; \"hello\" \"world\"]").unwrap()
             ==
             ColumnExp {
                 name: None,
-                ty: Some("string".into()),
+                ty: Some(Ty::Star("String".into())),
                 es: vec!(
                     Exp::Scalar(Scalar::UTF8("hello".into())),
                     Exp::Scalar(Scalar::UTF8("world".into())),
                     )
             });
 
-    assert!(StatementParser::new().parse("let x = [a:i; 1 2 3];").unwrap()
+    assert!(StatementParser::new().parse("let x = [a:Ty; 1 2 3];").unwrap()
             ==
             Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {
                 name: Some("a".into()),
-                ty: Some("i".into()),
+                ty: Some(Ty::Star("Ty".into())),
                 es: vec![1i32.into(), 2i32.into(), 3i32.into()],
             }).into()));
 
@@ -238,7 +238,7 @@ fn tablam() {
                     Ty::Star("Float".into())
                     )));
 
-    assert!(QueryParser::new().parse("a ? # name = \"Max\" # your != mom").unwrap()
+    assert!(ExprParser::new().parse("a ? # name = \"Max\" # your != mom").unwrap()
             == Exp::Query(
                 Exp::Name("a".into()).into(),
                 vec!(

@@ -61,12 +61,13 @@ pub enum Exp {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnExp {
     pub name: Option<String>,
-    pub ty: Option<String>,
+    pub ty: Option<Ty>,
     pub es: Vec<Exp>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RowExp {
+    // TODO: add types
     pub names: Option<Vec<String>>,
     pub es: Vec<Exp>,
 }

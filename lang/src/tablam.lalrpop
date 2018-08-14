@@ -7,6 +7,14 @@ Sep<E,S>: Vec<E> =
     <v0:(<E> S)*> <e1:E?> =>
         v0.into_iter().chain(e1).collect();
 
+NonEmptySep<E,S>: Vec<E> =
+    <e0:E> <e1:(S <E>)*> =>
+        vec!(e0).into_iter().chain(e1).collect();
+
+AtLeast2Sep<E,S>: Vec<E> =
+    <e0:E> <e1:(S <E>)+> =>
+        vec!(e0).into_iter().chain(e1).collect();
+
 Comma<E>: Vec<E> = Sep<E, ",">;
 Semi<E>: Vec<E> = Sep<E, ";">;
 
@@ -24,15 +32,8 @@ FunctionParam: (String, Ty) = {
 };
 
 pub Type: Ty = {
-    // TODO: this is dirty -- fix
-    <ty:Sep<SimpleType, "->">> => {
-        if ty.len() == 1 {
-            ty[0].clone()
-        }
-        else {
-            Ty::Arrow(ty)
-        }
-    }
+    <ty:AtLeast2Sep<SimpleType, "->">> => Ty::Arrow(ty),
+    SimpleType,
 };
 
 SimpleType: Ty = {
@@ -73,7 +74,7 @@ pub Expr: Exp = {
     Query,
 };
 
-pub Query: Exp = {
+Query: Exp = {
     <rel:GroupLiteral> "?" <fs:FilterList> => Exp::Query(rel.into(), fs),
     Add,
 };
@@ -112,7 +113,7 @@ GroupLiteral: Exp = {
     Term,
 };
 
-pub Term: Exp = {
+Term: Exp = {
     "(" ")" => Exp::Unit,
     <n:NumLiteral> => Exp::Scalar(n),
     <s:StringLiteral> => Exp::Scalar(s),
@@ -131,7 +132,7 @@ BlockExpr: Exp = {
 };
 
 pub ColumnLiteral: ColumnExp = {
-    "[" <name:Name?> ":" <ty:Name> ";" <es:Term+> "]" =>
+    "[" <name:(<Name> ":")?> <ty:Type> ";" <es:Term+> "]" =>
         ColumnExp { name: name, ty: Some(ty), es: es },
     "[" <es:Term+> "]" =>
         ColumnExp { name: None, ty: None, es: es },
@@ -143,15 +144,13 @@ pub RangeLiteral: RangeExp = {
 };
 
 pub RowLiteral: RowExp = {
-    "{" <row:Comma<RowAssignment>> "}" => {
+    "{" <row:NonEmptySep<RowAssignment, ",">> "}" => {
         let (names, exps) = row.iter().cloned().unzip();
         RowExp { names: Some(names), es: exps }
     },
 
-    // TODO: This has a conflict for a reason I cannot immediately identify.
-    // "{" <row:Comma<Term>> "}" =>
-    //     RowExp { names: None, es: row },
-    "{r" <row:Comma<Term>> "}" =>
+    // TODO: fix -- without r, gets confused with block
+    "{r" <row:NonEmptySep<Term, ",">> "}" =>
         RowExp { names: None, es: row },
 };
 
