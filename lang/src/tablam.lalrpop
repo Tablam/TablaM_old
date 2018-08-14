@@ -175,12 +175,10 @@ Name: String = {
 };
 
 NumLiteral: Scalar = {
-    <digits:r"[0-9]+"> =>
+    <digits:r"[0-9]+"> "i32"? =>
         Scalar::I32(i32::from_str(digits).unwrap()),
     <digits:r"[0-9]+"> "i64" =>
         Scalar::I64(i64::from_str(digits).unwrap()),
-    // <digits:r"[0-9]+"> "i32"? =>
-    //     Scalar::I32(i32::from_str(digits).unwrap()),
 };
 
 // BoolLiteral: Scalar = {
