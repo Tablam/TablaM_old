@@ -56,9 +56,15 @@ pub Statement: Stmt = {
     "if" <cond:Term> "then" <if_true:Term> "end" =>
         Stmt::If(cond.into(), if_true.into()),
 
-    "while" <cond:Term> <body:Term> =>
+    "while" <cond:Term> <body:Statement> =>
         Stmt::While(cond.into(), body.into()),
     <Expr> ";" => Stmt::Exp(<>),
+    BlockStatement,
+};
+
+BlockStatement: Stmt = {
+    "{" <ss:Statement+> "}" => Stmt::Block(ss),
+    "do" <ss:Statement+> "end" => Stmt::Block(ss),
 };
 
 pub Expr: Exp = {
@@ -120,14 +126,8 @@ Block: Exp = {
 };
 
 BlockExpr: Exp = {
-    "{" <ss:Statement+> <eo:Expr?> "}" => match eo {
-        Some(e) => Exp::Block(ss, e.into()),
-        None => Exp::Block(ss, Exp::Unit.into()),
-    },
-    "do" <ss:Statement*> <eo:Expr?> "end" => match eo {
-        Some(e) => Exp::Block(ss, e.into()),
-        None => Exp::Block(ss, Exp::Unit.into()),
-    },
+    "{" <ss:Statement*> <e:Expr> "}" => Exp::Block(ss, e.into()),
+    "do" <ss:Statement*> <e:Expr> "end" => Exp::Block(ss, e.into()),
 };
 
 pub ColumnLiteral: ColumnExp = {

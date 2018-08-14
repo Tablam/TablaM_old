@@ -98,6 +98,23 @@ fn tablam() {
     assert!(ExprParser::new().parse("1 + 2").unwrap()
             == Exp::BinOp(BinOp::Plus, Rc::new(1.into()), Rc::new(2.into())));
 
+    assert!(StatementParser::new().parse("{1; 2; 3;}").unwrap()
+            ==
+            Stmt::Block(vec!(
+                    Stmt::Exp(1.into()),
+                    Stmt::Exp(2.into()),
+                    Stmt::Exp(3.into()),
+                    ))
+            );
+
+    assert!(ExprParser::new().parse("{1; 2; 3}").unwrap()
+            ==
+            Exp::Block(
+                vec!(Stmt::Exp(1.into()), Stmt::Exp(2.into())),
+                Rc::new(3.into())
+                )
+            );
+
     assert!(ColumnLiteralParser::new().parse("[name:string; \"hello\" \"world\"]").unwrap()
             ==
             ColumnExp {
@@ -192,9 +209,8 @@ fn tablam() {
             ==
             Stmt::While(
                 Rc::new(true.into()),
-                Exp::Block(
+                Stmt::Block(
                     vec![Stmt::Exp(Exp::Name("hello".into()))],
-                    Exp::Unit.into()
                 ).into()));
 
     assert!(ColumnLiteralParser::new().parse("[1 2 3 (4+5)]").unwrap()
@@ -235,5 +251,17 @@ fn tablam() {
                         "your".into(),
                         Exp::Name("mom".into()).into())
                     )));
+
+    assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = { 1 + 2 }").unwrap()
+            ==
+            FunDef {
+                name: "test".into(),
+                params: vec!(
+                    ("a".into(), Ty::Star("Int".into())),
+                    ("b".into(), Ty::Star("String".into()))
+                    ),
+                ret_ty: Ty::Star("Int".into()),
+                body: Exp::Block(vec!(), Rc::new(Exp::BinOp(BinOp::Plus, Rc::new(1.into()), Rc::new(2.into()))))
+            });
 
 }
