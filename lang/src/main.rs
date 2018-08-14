@@ -49,11 +49,16 @@ fn main() -> io::Result<()> {
         let stdin = io::stdin();
         print!("> ");
         std::io::stdout().flush().unwrap();
-        for line in stdin.lock().lines() {
+        for line_r in stdin.lock().lines() {
+            let line = line_r.unwrap();
             let parser = StatementParser::new();
-            match parser.parse(&line.unwrap()) {
-                Ok(ast) => println!("ok: {:?}", ast),
-                Err(err) => println!("error: {:?}", err),
+            let eparser = ExprParser::new();
+            match parser.parse(&line.clone()) {
+                Ok(ast) => println!("ok(S): {:?}", ast),
+                Err(err) => match eparser.parse(&line.clone()) {
+                    Ok(ast) => println!("ok(E): {:?}", ast),
+                    Err(err) => println!("error: {:?}", err),
+                }
             }
             print!("> ");
             std::io::stdout().flush().unwrap();

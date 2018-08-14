@@ -70,7 +70,7 @@ BlockStatement: Stmt = {
 
 pub Expr: Exp = {
     // Function application
-    <f:Add> "(" <es:Comma<Add>> ")" => Exp::Apply(f.into(), es),
+    <f:Term> "(" <es:Comma<Expr>> ")" => Exp::Apply(f.into(), es),
     Query,
 };
 
