@@ -55,7 +55,8 @@ pub enum Exp {
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     Apply(Rc<Exp>, Vec<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),
-    Query(Rc<Exp>, Vec<FilterExp>),
+    QueryFilter(Rc<Exp>, Vec<FilterExp>),
+    QuerySelect(Rc<Exp>, Rc<Exp>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

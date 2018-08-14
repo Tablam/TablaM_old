@@ -251,7 +251,7 @@ fn tablam() {
                     )));
 
     assert!(ExprParser::new().parse("a ? # name = \"Max\" # your != mom").unwrap()
-            == Exp::Query(
+            == Exp::QueryFilter(
                 Exp::Name("a".into()).into(),
                 vec!(
                     FilterExp::RelOp(
@@ -263,6 +263,20 @@ fn tablam() {
                         "your".into(),
                         name("mom").into()),
                     )));
+
+    assert!(ExprParser::new().parse("[1 2 3] # 1").unwrap()
+            ==
+            Exp::QuerySelect(
+                Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
+                Rc::new(1.into())
+                ));
+
+    assert!(ExprParser::new().parse("[1 2 3] # [1 2]").unwrap()
+            ==
+            Exp::QuerySelect(
+                Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
+                Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }).into(),
+                ));
 
     assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
             ==

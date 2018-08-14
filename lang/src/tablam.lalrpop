@@ -75,7 +75,11 @@ pub Expr: Exp = {
 };
 
 Query: Exp = {
-    <rel:GroupLiteral> "?" <fs:FilterList> => Exp::Query(rel.into(), fs),
+    // Query by filtering
+    <rel:GroupLiteral> "?" <fs:FilterList> => Exp::QueryFilter(rel.into(), fs),
+
+    // Query by selecting
+    <rel:GroupLiteral> "#" <fs:GroupLiteral> => Exp::QuerySelect(rel.into(), fs.into()),
     Add,
 };
 
