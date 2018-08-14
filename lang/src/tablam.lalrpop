@@ -45,12 +45,17 @@ TypeName: String = {
 };
 
 pub Statement: Stmt = {
-    "let" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Imm, n, e.into()),
-    "var" <n:Name> "=" <e:Expr> ";" => Stmt::Let(LetKind::Mut, n, e.into()),
+    // TODO: fix "warning: literal out of range for i8"
+    "let" <n:Name> <ty:(":" <Type>)?> "=" <e:Expr> ";" =>
+        Stmt::Let(LetKind::Imm, n, ty, e.into()),
+    "var" <n:Name> "=" <e:Expr> ";" =>
+        Stmt::Let(LetKind::Mut, n, None, e.into()),
+
     "if" <cond:Term> "then" <if_true:Term> "else" <if_false:Term> "end" =>
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
     "if" <cond:Term> "then" <if_true:Term> "end" =>
         Stmt::If(cond.into(), if_true.into()),
+
     "while" <cond:Term> <body:Term> =>
         Stmt::While(cond.into(), body.into()),
     <Expr> ";" => Stmt::Exp(<>),
@@ -72,8 +77,13 @@ FilterList: Vec<FilterExp> = {
 };
 
 Filter: FilterExp = {
-    <field:Name> "=" <e:Term> => FilterExp::RelOp(RelOp::Equals, field, e.into()),
-    <field:Name> "!=" <e:Term> => FilterExp::RelOp(RelOp::NotEquals, field, e.into()),
+    <field:Name> <op:RelOp> <e:Term> =>
+        FilterExp::RelOp(op, field, e.into()),
+};
+
+RelOp: RelOp = {
+    "=" => RelOp::Equals,
+    "!=" => RelOp::NotEquals,
 };
 
 Add: Exp = {
@@ -91,6 +101,7 @@ Factor: Exp = {
 GroupLiteral: Exp = {
     <c:ColumnLiteral> => Exp::Column(c),
     <r:RowLiteral> => Exp::Row(r),
+    <r:RelationLiteral> => Exp::Relation(r),
     <r:RangeLiteral> => Exp::Range(r),
     Term,
 };
@@ -100,12 +111,16 @@ pub Term: Exp = {
     <n:NumLiteral> => Exp::Scalar(n),
     <s:StringLiteral> => Exp::Scalar(s),
     <n:Name> => Exp::Name(n),
-    <BlockExpr> => <>,
     "(" <Expr> ")" => <>,
+    Block,
+};
+
+Block: Exp = {
+    <BlockExpr> => <>,
 };
 
 BlockExpr: Exp = {
-    "(" <ss:Statement+> <eo:Expr?> ")" => match eo {
+    "{" <ss:Statement+> <eo:Expr?> "}" => match eo {
         Some(e) => Exp::Block(ss, e.into()),
         None => Exp::Block(ss, Exp::Unit.into()),
     },
@@ -116,10 +131,8 @@ BlockExpr: Exp = {
 };
 
 pub ColumnLiteral: ColumnExp = {
-    "[" <name:Name> ":" <ty:Name> ";" <es:Term+> "]" =>
-        ColumnExp { name: Some(name), ty: Some(ty), es: es },
-    "[" ":" <ty:Name> ";" <es:Term+> "]" =>
-        ColumnExp { name: None, ty: Some(ty), es: es },
+    "[" <name:Name?> ":" <ty:Name> ";" <es:Term+> "]" =>
+        ColumnExp { name: name, ty: Some(ty), es: es },
     "[" <es:Term+> "]" =>
         ColumnExp { name: None, ty: None, es: es },
 };
@@ -131,19 +144,35 @@ pub RangeLiteral: RangeExp = {
 
 pub RowLiteral: RowExp = {
     "{" <row:Comma<RowAssignment>> "}" => {
-        // let (names, exps) = row.iter().cloned().unzip()
-        // let tr: Vec<(_, _)> = row;
         let (names, exps) = row.iter().cloned().unzip();
         RowExp { names: Some(names), es: exps }
     },
 
     // TODO: This has a conflict for a reason I cannot immediately identify.
-    // "{" <row:Comma<Expr>> "}" =>
+    // "{" <row:Comma<Term>> "}" =>
     //     RowExp { names: None, es: row },
+    "{r" <row:Comma<Term>> "}" =>
+        RowExp { names: None, es: row },
 };
 
 RowAssignment: (String, Exp) = {
-    <n:Name> "=" <e:Expr> => (n, e),
+    <n:Name> "=" <e:Term> => (n, e),
+};
+
+pub RelationLiteral: RelationExp = {
+    // Row format
+    "[<" <names:Comma<Name>> ";" <data:Semi<Term+>> ">]" =>
+        RelationExp { rel_type: RelType::Row, names: names, data: data },
+
+    // Col format
+    "[|" <cols:Semi<ColAssignment>> "|]" => {
+        let (names, data) = cols.iter().cloned().unzip();
+        RelationExp { rel_type: RelType::Col, names: names, data: data }
+    },
+};
+
+ColAssignment: (String, Vec<Exp>) = {
+    <n:Name> "=" <es:Term+> => (n, es),
 };
 
 Name: String = {
@@ -153,8 +182,8 @@ Name: String = {
 NumLiteral: Scalar = {
     <digits:r"[0-9]+"> =>
         Scalar::I32(i32::from_str(digits).unwrap()),
-    // <digits:r"[0-9]+"> "i64" =>
-    //     Scalar::I64(i64::from_str(digits).unwrap()),
+    <digits:r"[0-9]+"> "i64" =>
+        Scalar::I64(i64::from_str(digits).unwrap()),
     // <digits:r"[0-9]+"> "i32"? =>
     //     Scalar::I32(i32::from_str(digits).unwrap()),
 };

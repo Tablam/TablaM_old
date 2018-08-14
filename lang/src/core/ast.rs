@@ -33,7 +33,7 @@ pub enum Stmt {
     IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
     If(Rc<Exp>, Rc<Exp>),
     While(Rc<Exp>, Rc<Exp>),
-    Let(LetKind, String, Rc<Exp>),
+    Let(LetKind, String, Option<Ty>, Rc<Exp>),
     Exp(Exp),
 }
 
@@ -48,6 +48,7 @@ pub enum Exp {
     Scalar(Scalar),
     Column(ColumnExp),
     Row(RowExp),
+    Relation(RelationExp),
     Range(RangeExp),
     Name(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
@@ -67,6 +68,18 @@ pub struct ColumnExp {
 pub struct RowExp {
     pub names: Option<Vec<String>>,
     pub es: Vec<Exp>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct RelationExp {
+    pub rel_type: RelType,
+    pub names: Vec<String>,
+    pub data: Vec<Vec<Exp>>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum RelType {
+    Row, Col
 }
 
 #[derive(Debug, PartialEq, Clone)]

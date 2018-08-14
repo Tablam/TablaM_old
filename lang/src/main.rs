@@ -72,6 +72,10 @@ fn tablam() {
         == 12i32.into());
 
     assert!(
+        TermParser::new().parse("12i64").unwrap()
+        == 12i64.into());
+
+    assert!(
         ExprParser::new().parse("true").unwrap()
         == true.into()
         );
@@ -118,11 +122,34 @@ fn tablam() {
 
     assert!(StatementParser::new().parse("let x = [a:i; 1 2 3];").unwrap()
             ==
-            Stmt::Let(LetKind::Imm, "x".into(), Exp::Column(ColumnExp {
+            Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {
                 name: Some("a".into()),
                 ty: Some("i".into()),
                 es: vec![1i32.into(), 2i32.into(), 3i32.into()],
             }).into()));
+
+    assert!(RelationLiteralParser::new().parse(r#"[<id, name; 1 "1"; 2 "2" >]"#).unwrap()
+            ==
+            RelationExp {
+                rel_type: RelType::Row,
+                names: vec!("id".into(), "name".into()),
+                data: vec!(
+                    vec!(1.into(), Exp::Scalar(Scalar::UTF8("1".into()))),
+                    vec!(2.into(), Exp::Scalar(Scalar::UTF8("2".into())))
+                    )
+            });
+
+    assert!(RelationLiteralParser::new().parse(r#"[| id= 1 2; name= "1" "2" |]"#).unwrap()
+            ==
+            RelationExp {
+                rel_type: RelType::Col,
+                names: vec!("id".into(), "name".into()),
+                data: vec!(
+                    vec!(1.into(), 2.into()),
+                    vec!(Exp::Scalar(Scalar::UTF8("1".into())),
+                         Exp::Scalar(Scalar::UTF8("2".into())))
+                    )
+            });
 
     assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
             == RangeExp {
@@ -137,7 +164,7 @@ fn tablam() {
                 Rc::new(3i32.into()),
                 Rc::new(4i32.into())));
 
-    assert!(ExprParser::new().parse("(true; 1; 3)").unwrap()
+    assert!(ExprParser::new().parse("{true; 1; 3}").unwrap()
             ==
             Exp::Block(
                 vec![
@@ -151,6 +178,13 @@ fn tablam() {
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
+                es: vec![1i32.into(), true.into()],
+            });
+
+    assert!(RowLiteralParser::new().parse("{r 1, true}").unwrap()
+            ==
+            RowExp {
+                names: None,
                 es: vec![1i32.into(), true.into()],
             });
 
