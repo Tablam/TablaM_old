@@ -66,6 +66,16 @@ fn main() -> io::Result<()> {
     }
 }
 
+use core::ast::Exp;
+fn name(s: &str) -> Exp {
+    Exp::Name(s.into())
+}
+
+fn stringlit(s: &str) -> Exp {
+    use core::types::{Scalar, encode_str};
+    Exp::Scalar(Scalar::UTF8(encode_str(s)))
+}
+
 #[test]
 fn tablam() {
     use tablam::*;
@@ -92,7 +102,7 @@ fn tablam() {
 
     assert!(
         ExprParser::new().parse(r#""hello""#).unwrap()
-        == Exp::Scalar(Scalar::UTF8(encode_str("hello")))
+        == stringlit("hello")
         );
 
     assert!(ExprParser::new().parse(r#""hello"#).is_err());
@@ -125,10 +135,7 @@ fn tablam() {
             ColumnExp {
                 name: Some("name".into()),
                 ty: Some(Ty::Star("String".into())),
-                es: vec!(
-                    Exp::Scalar(Scalar::UTF8("hello".into())),
-                    Exp::Scalar(Scalar::UTF8("world".into())),
-                    )
+                es: vec!(stringlit("hello"), stringlit("world")),
             });
 
     assert!(ColumnLiteralParser::new().parse("[String; \"hello\" \"world\"]").unwrap()
@@ -136,10 +143,7 @@ fn tablam() {
             ColumnExp {
                 name: None,
                 ty: Some(Ty::Star("String".into())),
-                es: vec!(
-                    Exp::Scalar(Scalar::UTF8("hello".into())),
-                    Exp::Scalar(Scalar::UTF8("world".into())),
-                    )
+                es: vec!(stringlit("hello"), stringlit("world")),
             });
 
     assert!(StatementParser::new().parse("let x = [a:Ty; 1 2 3];").unwrap()
@@ -156,8 +160,8 @@ fn tablam() {
                 rel_type: RelType::Row,
                 names: vec!("id".into(), "name".into()),
                 data: vec!(
-                    vec!(1.into(), Exp::Scalar(Scalar::UTF8("1".into()))),
-                    vec!(2.into(), Exp::Scalar(Scalar::UTF8("2".into())))
+                    vec!(1.into(), stringlit("1")),
+                    vec!(2.into(), stringlit("2")),
                     )
             });
 
@@ -168,15 +172,14 @@ fn tablam() {
                 names: vec!("id".into(), "name".into()),
                 data: vec!(
                     vec!(1.into(), 2.into()),
-                    vec!(Exp::Scalar(Scalar::UTF8("1".into())),
-                         Exp::Scalar(Scalar::UTF8("2".into())))
+                    vec!(stringlit("1"), stringlit("2")),
                     )
             });
 
     assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
             == RangeExp {
                 start: Rc::new(1i32.into()),
-                end: Exp::Name("llama_world".into()).into(),
+                end: name("llama_world").into(),
             });
 
     assert!(StatementParser::new().parse("if true 3 else 4").unwrap()
@@ -205,7 +208,7 @@ fn tablam() {
             Stmt::While(
                 Rc::new(true.into()),
                 Stmt::Block(
-                    vec![Stmt::Exp(Exp::Name("hello".into()))],
+                    vec![Stmt::Exp(name("hello"))],
                 ).into()));
 
     assert!(ColumnLiteralParser::new().parse("[1 2 3 (4+5)]").unwrap()
@@ -217,7 +220,11 @@ fn tablam() {
                     1i32.into(),
                     2i32.into(),
                     3i32.into(),
-                    Exp::BinOp(BinOp::Plus, Rc::new(4i32.into()), Rc::new(5i32.into())),
+                    Exp::BinOp(
+                        BinOp::Plus,
+                        Rc::new(4i32.into()),
+                        Rc::new(5i32.into())
+                    ),
                 ]
             });
 
@@ -240,11 +247,11 @@ fn tablam() {
                     FilterExp::RelOp(
                         RelOp::Equals,
                         "name".into(),
-                        Exp::Scalar(Scalar::UTF8("Max".into())).into()),
+                        stringlit("Max").into()),
                     FilterExp::RelOp(
                         RelOp::NotEquals,
                         "your".into(),
-                        Exp::Name("mom".into()).into())
+                        name("mom").into()),
                     )));
 
     assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
@@ -256,7 +263,20 @@ fn tablam() {
                     ("b".into(), Ty::Star("String".into()))
                     ),
                 ret_ty: Ty::Star("Int".into()),
-                body: Exp::Block(vec!(), Rc::new(Exp::BinOp(BinOp::Plus, Rc::new(1.into()), Rc::new(2.into()))))
+                body: Exp::Block(
+                    vec!(),
+                    Rc::new(Exp::BinOp(
+                            BinOp::Plus,
+                            Rc::new(1.into()),
+                            Rc::new(2.into()))))
             });
 
+    assert!(ExprParser::new().parse("print(a(b), c(d))").unwrap()
+            ==
+            Exp::Apply(
+                name("print").into(),
+                vec!(
+                    Exp::Apply(name("a").into(), vec!(name("b"))),
+                    Exp::Apply(name("c").into(), vec!(name("d"))),
+                    )));
 }
