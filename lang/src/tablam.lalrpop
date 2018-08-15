@@ -137,6 +137,8 @@ Term: Exp = {
     <Name> => Exp::Name(<>),
     CONSTANT => Exp::Constant(<>.into()),
     LPAREN <Expr> RPAREN => <>,
+    <g:GroupLiteral> DOT <n:Name> =>
+        Exp::ColumnSelect(g.into(), n),
     BlockExpr,
 };
 
@@ -236,6 +238,7 @@ match {
     "*" => TIMES,
     "/" => DIVIDE,
     ".." => DOTDOT,
+    "." => DOT,
     "[<" => LROW,
     ">]" => RROW,
     "[|" => LCOL,

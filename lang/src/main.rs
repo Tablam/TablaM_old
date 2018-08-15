@@ -163,6 +163,18 @@ fn tablam() {
                 ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }
                 ));
 
+    assert!(ExprParser::new().parse("a.b.c.d").unwrap()
+            ==
+                Exp::ColumnSelect(
+                    Exp::ColumnSelect(
+                        Exp::ColumnSelect(
+                            name("a").into(),
+                            "b".into()
+                        ).into(),
+                        "c".into()
+                    ).into(),
+                "d".into()));
+
     assert!(StatementParser::new().parse("let x = [a:Ty; 1 2 3];").unwrap()
             ==
             Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {

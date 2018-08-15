@@ -48,6 +48,7 @@ pub enum Exp {
     Unit,
     Scalar(Scalar),
     Container(Ty, ColumnExp),
+    ColumnSelect(Rc<Exp>, String),
     Column(ColumnExp),
     Row(RowExp),
     Relation(RelationExp),
