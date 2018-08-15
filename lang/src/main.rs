@@ -315,4 +315,18 @@ fn tablam() {
                     Exp::Apply(name("a").into(), vec!(name("b"))),
                     Exp::Apply(name("c").into(), vec!(name("d"))),
                     )));
+
+    assert!(ExprParser::new().parse("a | b | c").unwrap()
+            ==
+            Exp::Apply(
+                name("c").into(),
+                vec!(Exp::Apply(
+                        name("b").into(),
+                        vec!(name("a").into())))));
+
+    assert!(ExprParser::new().parse("1 + 2 | print").unwrap()
+            ==
+            Exp::Apply(
+                name("print").into(),
+                vec!(Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())))));
 }

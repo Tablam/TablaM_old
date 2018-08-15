@@ -68,7 +68,15 @@ BlockStatement: Stmt = {
     "do" <ss:Statement+> "end" => Stmt::Block(ss),
 };
 
-pub Expr: Exp = {
+pub Expr: Exp = Pipe;
+
+Pipe: Exp = {
+    // Function application
+    <e:Pipe> "|" <f:App> => Exp::Apply(f.into(), vec!(e)),
+    App,
+};
+
+App: Exp = {
     // Function application
     <f:Term> "(" <es:Comma<Expr>> ")" => Exp::Apply(f.into(), es),
     Query,
@@ -98,14 +106,14 @@ RelOp: RelOp = {
 };
 
 Add: Exp = {
-    <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
-    <l:Expr> "-" <r:Factor> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
+    <l:Factor> "+" <r:Add> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
+    <l:Factor> "-" <r:Add> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
     Factor,
 };
 
 Factor: Exp = {
-    <l:Factor> "*" <r:GroupLiteral> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
-    <l:Factor> "/" <r:GroupLiteral> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    <l:GroupLiteral> "*" <r:Factor> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:GroupLiteral> "/" <r:Factor> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
     GroupLiteral,
 };
 
