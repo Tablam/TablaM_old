@@ -80,11 +80,11 @@ App: Exp = {
 
 Query: Exp = {
     // Query by filtering
-    <rel:GroupLiteral> QMARK <fs:FilterList> =>
+    <rel:ContainerLiteral> QMARK <fs:FilterList> =>
         Exp::QueryFilter(rel.into(), fs),
 
     // Query by selecting
-    <rel:GroupLiteral> HASH <fs:GroupLiteral> =>
+    <rel:ContainerLiteral> HASH <fs:GroupLiteral> =>
         Exp::QuerySelect(rel.into(), fs.into()),
     Add,
 };
@@ -110,10 +110,15 @@ Add: Exp = {
 };
 
 Factor: Exp = {
-    <l:GroupLiteral> TIMES <r:Factor> =>
+    <l:ContainerLiteral> TIMES <r:Factor> =>
         Exp::BinOp(BinOp::Times, l.into(), r.into()),
-    <l:GroupLiteral> DIVIDE <r:Factor> =>
+    <l:ContainerLiteral> DIVIDE <r:Factor> =>
         Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    ContainerLiteral,
+};
+
+ContainerLiteral: Exp = {
+    <ty:TYPENAME> <c:ColumnLiteral> => Exp::Container(Ty::Star(ty.into()), c),
     GroupLiteral,
 };
 

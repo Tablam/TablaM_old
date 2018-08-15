@@ -47,6 +47,7 @@ pub enum LetKind {
 pub enum Exp {
     Unit,
     Scalar(Scalar),
+    Container(Ty, ColumnExp),
     Column(ColumnExp),
     Row(RowExp),
     Relation(RelationExp),

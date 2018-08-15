@@ -156,6 +156,13 @@ fn tablam() {
                 es: vec!(stringlit("hello"), stringlit("world")),
             });
 
+    assert!(ExprParser::new().parse("List[1 2]").unwrap()
+            ==
+            Exp::Container(
+                Ty::Star("List".into()),
+                ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }
+                ));
+
     assert!(StatementParser::new().parse("let x = [a:Ty; 1 2 3];").unwrap()
             ==
             Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {
