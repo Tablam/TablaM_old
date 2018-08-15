@@ -33,6 +33,7 @@ pub enum Stmt {
     IfElse(Rc<Exp>, Rc<Exp>, Rc<Exp>),
     If(Rc<Exp>, Rc<Exp>),
     While(Rc<Exp>, Rc<Stmt>),
+    For(String, Rc<Exp>, Rc<Stmt>),
     Let(LetKind, String, Option<Ty>, Rc<Exp>),
     Block(Vec<Stmt>),
     Exp(Exp),

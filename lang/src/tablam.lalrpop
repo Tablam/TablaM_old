@@ -53,8 +53,12 @@ pub Statement: Stmt = {
     KIF <cond:Term> <if_true:Term> =>
         Stmt::If(cond.into(), if_true.into()),
 
-    KWHILE <cond:Term> <body:Statement> =>
+    KWHILE <cond:Expr> <body:BlockStatement> =>
         Stmt::While(cond.into(), body.into()),
+
+    KFOR <n:Name> KIN <e:Expr> <body:BlockStatement> =>
+        Stmt::For(n, e.into(), body.into()),
+
     <Expr> SEMICOLON => Stmt::Exp(<>),
     BlockStatement,
 };
@@ -255,8 +259,10 @@ match {
     "if" => KIF,
     "else" => KELSE,
     "while" => KWHILE,
+    "for" => KFOR,
     "do" => KDO,
     "end" => KEND,
+    "in" => KIN,
     r"[0-9]+" => DIGITS,
     r"[A-Z][A-Z0-9_]+" => CONSTANT,
     "i32" => I32SUFFIX,

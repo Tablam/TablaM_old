@@ -365,4 +365,24 @@ fn tablam() {
             Exp::Apply(
                 name("print").into(),
                 vec!(Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())))));
+
+    assert!(StatementParser::new().parse(r#"
+                for row in city ? #name == "new york" do
+                    row | print;
+                end"#).unwrap()
+            ==
+            Stmt::For(
+                "row".into(),
+                Exp::QueryFilter(
+                    name("city").into(),
+                    vec!(FilterExp::RelOp(
+                            RelOp::Equals,
+                            "name".into(),
+                            stringlit("new york").into()))
+                ).into(),
+                Stmt::Block(
+                    vec!(
+                        Stmt::Exp(Exp::Apply(name("print").into(), vec!(name("row").into())))
+                    )
+                ).into()));
 }
