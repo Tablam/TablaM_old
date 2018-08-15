@@ -76,6 +76,11 @@ fn stringlit(s: &str) -> Exp {
     Exp::Scalar(Scalar::UTF8(encode_str(s)))
 }
 
+use std::rc::Rc;
+fn rc<T>(s: T) -> Rc<T> {
+    Rc::new(s)
+}
+
 #[test]
 fn tablam() {
     use tablam::*;
@@ -111,7 +116,7 @@ fn tablam() {
             == 1i32.into());
 
     assert!(ExprParser::new().parse("1 + 2").unwrap()
-            == Exp::BinOp(BinOp::Plus, Rc::new(1.into()), Rc::new(2.into())));
+            == Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())));
 
     assert!(StatementParser::new().parse("{1; 2; 3;}").unwrap()
             ==
@@ -126,7 +131,7 @@ fn tablam() {
             ==
             Exp::Block(
                 vec!(Stmt::Exp(1.into()), Stmt::Exp(2.into())),
-                Rc::new(3.into())
+                rc(3.into())
                 )
             );
 
@@ -178,16 +183,16 @@ fn tablam() {
 
     assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
             == RangeExp {
-                start: Rc::new(1i32.into()),
+                start: rc(1i32.into()),
                 end: name("llama_world").into(),
             });
 
     assert!(StatementParser::new().parse("if true 3 else 4").unwrap()
             ==
             Stmt::IfElse(
-                Rc::new(true.into()),
-                Rc::new(3i32.into()),
-                Rc::new(4i32.into())));
+                rc(true.into()),
+                rc(3i32.into()),
+                rc(4i32.into())));
 
     assert!(RowLiteralParser::new().parse("{hello=1, world=true}").unwrap()
             ==
@@ -216,7 +221,7 @@ fn tablam() {
     assert!(StatementParser::new().parse("while true do hello; end").unwrap()
             ==
             Stmt::While(
-                Rc::new(true.into()),
+                rc(true.into()),
                 Stmt::Block(
                     vec![Stmt::Exp(name("hello"))],
                 ).into()));
@@ -232,8 +237,8 @@ fn tablam() {
                     3i32.into(),
                     Exp::BinOp(
                         BinOp::Plus,
-                        Rc::new(4i32.into()),
-                        Rc::new(5i32.into())
+                        rc(4i32.into()),
+                        rc(5i32.into())
                     ),
                 ]
             });
@@ -268,7 +273,7 @@ fn tablam() {
             ==
             Exp::QuerySelect(
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
-                Rc::new(1.into())
+                rc(1.into())
                 ));
 
     assert!(ExprParser::new().parse("[1 2 3] # [1 2]").unwrap()
@@ -276,6 +281,13 @@ fn tablam() {
             Exp::QuerySelect(
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }).into(),
+                ));
+
+    assert!(ExprParser::new().parse("[1 2 3] # (1..2)").unwrap()
+            ==
+            Exp::QuerySelect(
+                Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
+                Exp::Range(RangeExp { start: rc(1.into()), end: rc(2.into()) }).into(),
                 ));
 
     assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
@@ -289,10 +301,10 @@ fn tablam() {
                 ret_ty: Ty::Star("Int".into()),
                 body: Exp::Block(
                     vec!(),
-                    Rc::new(Exp::BinOp(
+                    rc(Exp::BinOp(
                             BinOp::Plus,
-                            Rc::new(1.into()),
-                            Rc::new(2.into()))))
+                            rc(1.into()),
+                            rc(2.into()))))
             });
 
     assert!(ExprParser::new().parse("print(a(b), c(d))").unwrap()
