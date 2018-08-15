@@ -11,7 +11,13 @@ pub enum BinOp {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prog {
-    pub functions: Vec<FunDef>,
+    pub blocks: Vec<ProgBlock>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ProgBlock {
+    Function(FunDef),
+    Constant(String, Ty, Rc<Exp>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

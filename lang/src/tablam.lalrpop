@@ -19,12 +19,14 @@ Comma<E>: Vec<E> = Sep<E, COMMA>;
 Semi<E>: Vec<E> = Sep<E, SEMICOLON>;
 
 pub Program: Prog = {
-    <FunctionDefinition*> => Prog { functions: <> },
+    <ProgBlock*> => Prog { blocks: <> },
 };
 
-pub FunctionDefinition: FunDef = {
+pub ProgBlock: ProgBlock = {
     KFUN <name:Name> LBRACK <params:Comma<FunctionParam>> RBRACK COLON <ret_ty:Type> EQ <body:Expr> =>
-        FunDef { name: name, params: params, ret_ty: ret_ty, body: body }
+        ProgBlock::Function(FunDef { name: name, params: params, ret_ty: ret_ty, body: body }),
+    <n:CONSTANT> COLON <ty:Type> EQ <e:Expr> =>
+        ProgBlock::Constant(n.into(), ty, e.into()),
 };
 
 FunctionParam: (String, Ty) = {

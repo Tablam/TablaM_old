@@ -326,9 +326,9 @@ fn tablam() {
                 Exp::Range(RangeExp { start: rc(1.into()), end: rc(2.into()) }).into(),
                 ));
 
-    assert!(FunctionDefinitionParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
+    assert!(ProgBlockParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
             ==
-            FunDef {
+            ProgBlock::Function(FunDef {
                 name: "test".into(),
                 params: vec!(
                     ("a".into(), Ty::Star("Int".into())),
@@ -341,7 +341,7 @@ fn tablam() {
                             BinOp::Plus,
                             rc(1.into()),
                             rc(2.into()))))
-            });
+            }));
 
     assert!(ExprParser::new().parse("print(a(b), c(d))").unwrap()
             ==
@@ -385,4 +385,8 @@ fn tablam() {
                         Stmt::Exp(Exp::Apply(name("print").into(), vec!(name("row").into())))
                     )
                 ).into()));
+
+    assert!(ProgBlockParser::new().parse("HELLO:Int = 123").unwrap()
+            ==
+            ProgBlock::Constant("HELLO".into(), Ty::Star("Int".into()), rc(123.into())));
 }
