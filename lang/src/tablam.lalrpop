@@ -118,24 +118,18 @@ Factor: Exp = {
 };
 
 GroupLiteral: Exp = {
-    <c:ColumnLiteral> => Exp::Column(c),
-    <r:RowLiteral> => Exp::Row(r),
-    <r:RelationLiteral> => Exp::Relation(r),
-    <r:RangeLiteral> => Exp::Range(r),
+    <ColumnLiteral> => Exp::Column(<>),
+    <RowLiteral> => Exp::Row(<>),
+    <RelationLiteral> => Exp::Relation(<>),
+    <RangeLiteral> => Exp::Range(<>),
     Term,
 };
 
 Term: Exp = {
     LPAREN RPAREN => Exp::Unit,
-    <n:NumLiteral> => Exp::Scalar(n),
-    <s:StringLiteral> => Exp::Scalar(s),
-    <n:Name> => {
-        // /* Constants are all uppercase. */
-        // if n == n.to_uppercase() { Exp::Constant(<>.into()) }
-        // /* Everything else is a variable. */
-        // else { Exp::Name(n) }
-        Exp::Name(n)
-    },
+    <NumLiteral> => Exp::Scalar(<>),
+    <StringLiteral> => Exp::Scalar(<>),
+    <Name> => Exp::Name(<>),
     CONSTANT => Exp::Constant(<>.into()),
     LPAREN <Expr> RPAREN => <>,
     BlockExpr,
