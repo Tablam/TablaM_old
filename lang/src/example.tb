@@ -1,3 +1,5 @@
+HELLO : Int = 123
+
 fun main(): Int = do
     let nums = (1..10);
     let city = {name:String = "New York", population = 100000};
@@ -12,5 +14,26 @@ fun main(): Int = do
 
     let cityRows = [<id, name; 1 "1"; 2 "2" >];
     let cityCols = [| id= 1 2; num= "1" "2" |];
+
+    if true do
+        print("hello")
+    end else do
+        print("bye")
+    end
+
+    for row in city ? #name == "new york" do
+        row | print;
+    end
+
+    for i in 1 do
+    end
+
+    while true do
+        pass;
+    end
+
+    [1 2 3] # 1;
+    [1 2 3] # (1..2);
+
     3
 end

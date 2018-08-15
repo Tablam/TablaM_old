@@ -66,8 +66,8 @@ pub Statement: Stmt = {
 };
 
 BlockStatement: Stmt = {
-    LBRACE <ss:Statement+> RBRACE => Stmt::Block(ss),
-    KDO <ss:Statement+> KEND => Stmt::Block(ss),
+    LBRACE <ss:Statement*> RBRACE => Stmt::Block(ss),
+    KDO <ss:Statement*> KEND => Stmt::Block(ss),
 };
 
 pub Expr: Exp = Pipe;
@@ -155,7 +155,7 @@ Term: Exp = {
 };
 
 BlockExpr: Exp = {
-    // "{" <ss:Statement*> <e:Expr> "}" => Exp::Block(ss, e.into()),
+    // LBRACE <ss:Statement*> <e:Expr> RBRACE => Exp::Block(ss, e.into()),
     KDO <ss:Statement*> <e:Expr> KEND => Exp::Block(ss, e.into()),
 };
 
