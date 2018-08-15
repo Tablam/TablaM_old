@@ -96,6 +96,11 @@ fn tablam() {
         == 12i64.into());
 
     assert!(
+        ExprParser::new().parse("LLAMA").unwrap()
+        == Exp::Constant("LLAMA".into())
+        );
+
+    assert!(
         ExprParser::new().parse("true").unwrap()
         == true.into()
         );
@@ -255,7 +260,7 @@ fn tablam() {
                     Ty::Star("Float".into())
                     )));
 
-    assert!(ExprParser::new().parse("a ? # name = \"Max\" # your != mom").unwrap()
+    assert!(ExprParser::new().parse("a ? # name == \"Max\" # your != mom").unwrap()
             == Exp::QueryFilter(
                 Exp::Name("a".into()).into(),
                 vec!(

@@ -52,6 +52,7 @@ pub enum Exp {
     Relation(RelationExp),
     Range(RangeExp),
     Name(String),
+    Constant(String),
     BinOp(BinOp, Rc<Exp>, Rc<Exp>),
     Apply(Rc<Exp>, Vec<Exp>),
     Block(Vec<Stmt>, Rc<Exp>),

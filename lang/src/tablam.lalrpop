@@ -15,84 +15,82 @@ AtLeast2Sep<E,S>: Vec<E> =
     <e0:E> <e1:(S <E>)+> =>
         vec!(e0).into_iter().chain(e1).collect();
 
-Comma<E>: Vec<E> = Sep<E, ",">;
-Semi<E>: Vec<E> = Sep<E, ";">;
+Comma<E>: Vec<E> = Sep<E, COMMA>;
+Semi<E>: Vec<E> = Sep<E, SEMICOLON>;
 
 pub Program: Prog = {
     <FunctionDefinition*> => Prog { functions: <> },
 };
 
 pub FunctionDefinition: FunDef = {
-    "fun" <name:Name> "[" <params:Comma<FunctionParam>> "]" ":" <ret_ty:Type> "=" <body:Expr> =>
+    KFUN <name:Name> LBRACK <params:Comma<FunctionParam>> RBRACK COLON <ret_ty:Type> EQ <body:Expr> =>
         FunDef { name: name, params: params, ret_ty: ret_ty, body: body }
 };
 
 FunctionParam: (String, Ty) = {
-    <n:Name> ":" <t:Type> => (n, t),
+    <n:Name> COLON <t:Type> => (n, t),
 };
 
 pub Type: Ty = {
-    <ty:AtLeast2Sep<SimpleType, "->">> => Ty::Arrow(ty),
+    <ty:AtLeast2Sep<SimpleType, ARROW>> => Ty::Arrow(ty),
     SimpleType,
 };
 
 SimpleType: Ty = {
-    <TypeName> => Ty::Star(<>),
-    "(" <Type> ")" => <>,
-};
-
-TypeName: String = {
-    r"[A-Z][_a-zA-Z0-9]*" => <>.into()
+    TYPENAME => Ty::Star(<>.into()),
+    LPAREN <Type> RPAREN => <>,
 };
 
 pub Statement: Stmt = {
     // TODO: fix "warning: literal out of range for i8"
-    "let" <n:Name> <ty:(":" <Type>)?> "=" <e:Expr> ";" =>
+    KLET <n:Name> <ty:(COLON <Type>)?> EQ <e:Expr> SEMICOLON =>
         Stmt::Let(LetKind::Imm, n, ty, e.into()),
-    "var" <n:Name> "=" <e:Expr> ";" =>
+    KVAR <n:Name> EQ <e:Expr> SEMICOLON =>
         Stmt::Let(LetKind::Mut, n, None, e.into()),
 
-    "if" <cond:Term> <if_true:Term> "else" <if_false:Term> =>
+    KIF <cond:Term> <if_true:Term> KELSE <if_false:Term> =>
         Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
-    "if" <cond:Term> <if_true:Term> =>
+    KIF <cond:Term> <if_true:Term> =>
         Stmt::If(cond.into(), if_true.into()),
 
-    "while" <cond:Term> <body:Statement> =>
+    KWHILE <cond:Term> <body:Statement> =>
         Stmt::While(cond.into(), body.into()),
-    <Expr> ";" => Stmt::Exp(<>),
+    <Expr> SEMICOLON => Stmt::Exp(<>),
     BlockStatement,
 };
 
 BlockStatement: Stmt = {
-    "{" <ss:Statement+> "}" => Stmt::Block(ss),
-    "do" <ss:Statement+> "end" => Stmt::Block(ss),
+    LBRACE <ss:Statement+> RBRACE => Stmt::Block(ss),
+    KDO <ss:Statement+> KEND => Stmt::Block(ss),
 };
 
 pub Expr: Exp = Pipe;
 
 Pipe: Exp = {
     // Function application
-    <e:Pipe> "|" <f:App> => Exp::Apply(f.into(), vec!(e)),
+    <e:Pipe> PIPE <f:App> => Exp::Apply(f.into(), vec!(e)),
     App,
 };
 
 App: Exp = {
     // Function application
-    <f:Term> "(" <es:Comma<Expr>> ")" => Exp::Apply(f.into(), es),
+    <f:Term> LPAREN <es:Comma<Expr>> RPAREN => Exp::Apply(f.into(), es),
     Query,
 };
 
 Query: Exp = {
     // Query by filtering
-    <rel:GroupLiteral> "?" <fs:FilterList> => Exp::QueryFilter(rel.into(), fs),
+    <rel:GroupLiteral> QMARK <fs:FilterList> =>
+        Exp::QueryFilter(rel.into(), fs),
 
     // Query by selecting
-    <rel:GroupLiteral> "#" <fs:GroupLiteral> => Exp::QuerySelect(rel.into(), fs.into()),
+    <rel:GroupLiteral> HASH <fs:GroupLiteral> =>
+        Exp::QuerySelect(rel.into(), fs.into()),
     Add,
 };
 
 FilterList: Vec<FilterExp> = {
-    <("#" <Filter>)+> => <>
+    <(HASH <Filter>)+> => <>
 };
 
 Filter: FilterExp = {
@@ -101,19 +99,21 @@ Filter: FilterExp = {
 };
 
 RelOp: RelOp = {
-    "=" => RelOp::Equals,
-    "!=" => RelOp::NotEquals,
+    EQUALS => RelOp::Equals,
+    NOTEQUALS => RelOp::NotEquals,
 };
 
 Add: Exp = {
-    <l:Factor> "+" <r:Add> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
-    <l:Factor> "-" <r:Add> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
+    <l:Factor> PLUS <r:Add> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
+    <l:Factor> MINUS <r:Add> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
     Factor,
 };
 
 Factor: Exp = {
-    <l:GroupLiteral> "*" <r:Factor> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
-    <l:GroupLiteral> "/" <r:Factor> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    <l:GroupLiteral> TIMES <r:Factor> =>
+        Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:GroupLiteral> DIVIDE <r:Factor> =>
+        Exp::BinOp(BinOp::Divide, l.into(), r.into()),
     GroupLiteral,
 };
 
@@ -126,33 +126,40 @@ GroupLiteral: Exp = {
 };
 
 Term: Exp = {
-    "(" ")" => Exp::Unit,
+    LPAREN RPAREN => Exp::Unit,
     <n:NumLiteral> => Exp::Scalar(n),
     <s:StringLiteral> => Exp::Scalar(s),
-    <n:Name> => Exp::Name(n),
-    "(" <Expr> ")" => <>,
+    <n:Name> => {
+        // /* Constants are all uppercase. */
+        // if n == n.to_uppercase() { Exp::Constant(<>.into()) }
+        // /* Everything else is a variable. */
+        // else { Exp::Name(n) }
+        Exp::Name(n)
+    },
+    CONSTANT => Exp::Constant(<>.into()),
+    LPAREN <Expr> RPAREN => <>,
     BlockExpr,
 };
 
 BlockExpr: Exp = {
     // "{" <ss:Statement*> <e:Expr> "}" => Exp::Block(ss, e.into()),
-    "do" <ss:Statement*> <e:Expr> "end" => Exp::Block(ss, e.into()),
+    KDO <ss:Statement*> <e:Expr> KEND => Exp::Block(ss, e.into()),
 };
 
 pub ColumnLiteral: ColumnExp = {
-    "[" <name:(<Name> ":")?> <ty:Type> ";" <es:Term+> "]" =>
+    LBRACK <name:(<Name> COLON)?> <ty:Type> SEMICOLON <es:Term+> RBRACK =>
         ColumnExp { name: name, ty: Some(ty), es: es },
-    "[" <es:Term+> "]" =>
+    LBRACK <es:Term+> RBRACK =>
         ColumnExp { name: None, ty: None, es: es },
 };
 
 pub RangeLiteral: RangeExp = {
-    "(" <start:Term> ".." <end:Term> ")" =>
+    LPAREN <start:Term> DOTDOT <end:Term> RPAREN =>
         RangeExp { start: start.into(), end: end.into() }
 };
 
 pub RowLiteral: RowExp = {
-    "{" <row:NonEmptySep<RowAssignment, ",">> "}" => {
+    LBRACE <row:NonEmptySep<RowAssignment, COMMA>> RBRACE => {
         let (names_types, exps): (Vec<(_, _)>, _) =
             row.iter().cloned().unzip();
         let (names, types) =
@@ -160,42 +167,40 @@ pub RowLiteral: RowExp = {
         RowExp { names: Some(names), types: types, es: exps }
     },
 
-    "{" <row:NonEmptySep<Term, ",">> "}" =>
+    LBRACE <row:NonEmptySep<Term, COMMA>> RBRACE =>
         RowExp { names: None, types: vec![None; row.len()], es: row },
 };
 
 RowAssignment: ((String, Option<Ty>), Exp) = {
     // Per-field optional types
-    <n:Name> <ty:(":" <Type>)?> "=" <e:Term> => ((n, ty), e),
+    <n:Name> <ty:(COLON <Type>)?> EQ <e:Term> => ((n, ty), e),
 };
 
 pub RelationLiteral: RelationExp = {
     // TODO: add types
     // Row format
-    "[<" <names:Comma<Name>> ";" <data:Semi<Term+>> ">]" =>
+    LROW <names:Comma<Name>> SEMICOLON <data:Semi<Term+>> RROW =>
         RelationExp { rel_type: RelType::Row, names: names, data: data },
 
     // TODO: add types
     // Col format
-    "[|" <cols:Semi<ColAssignment>> "|]" => {
+    LCOL <cols:Semi<ColAssignment>> RCOL => {
         let (names, data) = cols.iter().cloned().unzip();
         RelationExp { rel_type: RelType::Col, names: names, data: data }
     },
 };
 
 ColAssignment: (String, Vec<Exp>) = {
-    <n:Name> "=" <es:Term+> => (n, es),
+    <n:Name> EQ <es:Term+> => (n, es),
 };
 
 Name: String = {
-    r"[a-z][_a-zA-Z0-9]*" => <>.into()
+    NAME => <>.into(),
 };
 
 NumLiteral: Scalar = {
-    <digits:r"[0-9]+"> "i32"? =>
-        Scalar::I32(i32::from_str(digits).unwrap()),
-    <digits:r"[0-9]+"> "i64" =>
-        Scalar::I64(i64::from_str(digits).unwrap()),
+    <DIGITS> I32SUFFIX? => Scalar::I32(i32::from_str(<>).unwrap()),
+    <DIGITS> I64SUFFIX => Scalar::I64(i64::from_str(<>).unwrap()),
 };
 
 // BoolLiteral: Scalar = {
@@ -204,8 +209,52 @@ NumLiteral: Scalar = {
 // };
 
 StringLiteral: Scalar = {
-    <s:r#""[^"]*""#> => {
+    <s:STRINGLITERAL> => {
         let literal = &s[1..s.len()-1];
         Scalar::UTF8(encode_str(literal))
     },
 };
+
+match {
+    "[" => LBRACK,
+    "]" => RBRACK,
+    "{" => LBRACE,
+    "}" => RBRACE,
+    "(" => LPAREN,
+    ")" => RPAREN,
+    ":" => COLON,
+    ";" => SEMICOLON,
+    "," => COMMA,
+    "=" => EQ,
+    "->" => ARROW,
+    "==" => EQUALS,
+    "!=" => NOTEQUALS,
+    "|" => PIPE,
+    "?" => QMARK,
+    "#" => HASH,
+    "+" => PLUS,
+    "-" => MINUS,
+    "*" => TIMES,
+    "/" => DIVIDE,
+    ".." => DOTDOT,
+    "[<" => LROW,
+    ">]" => RROW,
+    "[|" => LCOL,
+    "|]" => RCOL,
+    "fun" => KFUN,
+    "let" => KLET,
+    "var" => KVAR,
+    "if" => KIF,
+    "else" => KELSE,
+    "while" => KWHILE,
+    "do" => KDO,
+    "end" => KEND,
+    r"[0-9]+" => DIGITS,
+    r"[A-Z][A-Z0-9_]+" => CONSTANT,
+    "i32" => I32SUFFIX,
+    "i64" => I64SUFFIX,
+    r#""[^"]*""# => STRINGLITERAL,
+} else {
+    r"[a-z][_a-zA-Z0-9]*" => NAME,
+    r"[A-Z][_a-zA-Z0-9]*" => TYPENAME,
+}
