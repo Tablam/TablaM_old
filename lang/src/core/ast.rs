@@ -48,7 +48,7 @@ pub enum Exp {
     Unit,
     Scalar(Scalar),
     Container(Ty, ColumnExp),
-    ColumnSelect(Rc<Exp>, String),
+    ColumnSelect(Rc<Exp>, ColumnSelector),
     Column(ColumnExp),
     Row(RowExp),
     Relation(RelationExp),
@@ -60,6 +60,12 @@ pub enum Exp {
     Block(Vec<Stmt>, Rc<Exp>),
     QueryFilter(Rc<Exp>, Vec<FilterExp>),
     QuerySelect(Rc<Exp>, Rc<Exp>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ColumnSelector {
+    Name(String),
+    Num(u32),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -129,6 +135,18 @@ impl From<i32> for Exp {
 impl From<i64> for Exp {
     fn from(i: i64) -> Self {
         Exp::Scalar(i.into())
+    }
+}
+
+impl<'a> From<&'a str> for ColumnSelector {
+    fn from(s: &'a str) -> Self {
+        ColumnSelector::Name(s.to_owned())
+    }
+}
+
+impl From<u32> for ColumnSelector {
+    fn from(s: u32) -> Self {
+        ColumnSelector::Num(s)
     }
 }
 

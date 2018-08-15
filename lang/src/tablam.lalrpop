@@ -137,8 +137,14 @@ Term: Exp = {
     <Name> => Exp::Name(<>),
     CONSTANT => Exp::Constant(<>.into()),
     LPAREN <Expr> RPAREN => <>,
+
+    // Used for selecting named fields in a row
     <g:GroupLiteral> DOT <n:Name> =>
-        Exp::ColumnSelect(g.into(), n),
+        Exp::ColumnSelect(g.into(), ColumnSelector::Name(n)),
+
+    // Used for selecting indices in unnamed fields in a row
+    <g:GroupLiteral> DOT <n:DIGITS> =>
+        Exp::ColumnSelect(g.into(), ColumnSelector::Num(u32::from_str(n).unwrap())),
     BlockExpr,
 };
 
