@@ -326,7 +326,7 @@ fn tablam() {
                 Exp::Range(RangeExp { start: rc(1.into()), end: rc(2.into()) }).into(),
                 ));
 
-    assert!(ProgBlockParser::new().parse("fun test[a:Int, b:String]: Int = do 1 + 2 end").unwrap()
+    assert!(ProgBlockParser::new().parse("fun test(a:Int, b:String): Int = do 1 + 2 end").unwrap()
             ==
             ProgBlock::Function(FunDef {
                 name: "test".into(),
