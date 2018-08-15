@@ -87,6 +87,12 @@ fn tablam() {
     // It is unclear why I have to import both ColumnExp and * ... ???
     use core::ast::{ColumnExp, *};
 
+    let contents = include_str!("example.tb");
+    match ProgramParser::new().parse(&contents) {
+        Ok(ast) => (),
+        Err(err) => panic!(format!("{:?}", err)),
+    };
+
     assert!(
         ExprParser::new().parse("12").unwrap()
         == 12i32.into());

@@ -1,0 +1,16 @@
+fun main(): Int = do
+    let nums = (1..10);
+    let city = {name:String = "New York", population = 100000};
+    let ny:String = city.name;
+    
+    let myarr = [1 2 3 4];
+    var typedarr = [Int; 1 2 3 4];
+    [hello:String; "hello" "world"];
+    let list = List[1 3 4];
+    let set = Set[Any; 1 "A" true];
+    let row = {1, "2"};
+
+    let cityRows = [<id, name; 1 "1"; 2 "2" >];
+    let cityCols = [| id= 1 2; num= "1" "2" |];
+    3
+end
