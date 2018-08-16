@@ -18,6 +18,7 @@ pub struct Prog {
 pub enum ProgBlock {
     Function(FunDef),
     Constant(String, Ty, Rc<Exp>),
+    TypeDeclaration(String, Vec<String>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

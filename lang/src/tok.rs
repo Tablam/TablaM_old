@@ -65,6 +65,7 @@ pub enum Tok {
     KDO,
     KEND,
     KIN,
+    KTYPE,
 
     DIGITS(String),
     I32SUFFIX,
@@ -152,6 +153,7 @@ lazy_static! {
         kws.insert("do", Tok::KDO);
         kws.insert("end", Tok::KEND);
         kws.insert("in", Tok::KIN);
+        kws.insert("type", Tok::KTYPE);
         kws.insert("i32", Tok::I32SUFFIX);
         kws.insert("i64", Tok::I64SUFFIX);
         kws

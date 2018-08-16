@@ -28,6 +28,8 @@ pub ProgBlock: ProgBlock = {
         ProgBlock::Function(FunDef { name: name, params: params, ret_ty: ret_ty, body: body }),
     <n:"CONSTANT"> "COLON" <ty:Type> "EQ" <e:Expr> =>
         ProgBlock::Constant(n.into(), ty, e.into()),
+    "KTYPE" <ty:"TYPENAME"> "EQ" "PIPE"? <variants:NonEmptySep<"TYPENAME", "PIPE">> =>
+        ProgBlock::TypeDeclaration(ty, variants),
 };
 
 FunctionParam: (String, Ty) = {
@@ -267,6 +269,7 @@ extern {
         "KDO" => Tok::KDO,
         "KEND" => Tok::KEND,
         "KIN" => Tok::KIN,
+        "KTYPE" => Tok::KTYPE,
 
         "DIGITS" => Tok::DIGITS(<String>),
         "I32SUFFIX" => Tok::I32SUFFIX,

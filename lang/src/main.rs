@@ -62,13 +62,17 @@ fn main() -> io::Result<()> {
 
             let eparser = ExprParser::new();
 
+            let tlparser = ProgBlockParser::new();
             let parser = StatementParser::new();
             let eparser = ExprParser::new();
-            match parser.parse(t(&line)) {
-                Ok(ast) => println!("ok(S): {:?}", ast),
-                Err(err) => match eparser.parse(t(&line)) {
-                    Ok(ast) => println!("ok(E): {:?}", ast),
-                    Err(err) => println!("error: {:?}", err),
+            match tlparser.parse(t(&line)) {
+                Ok(ast) => println!("ok(P): {:?}", ast),
+                Err(err) => match parser.parse(t(&line)) {
+                    Ok(ast) => println!("ok(S): {:?}", ast),
+                    Err(err) => match eparser.parse(t(&line)) {
+                        Ok(ast) => println!("ok(E): {:?}", ast),
+                        Err(err) => println!("error: {:?}", err),
+                    }
                 }
             }
 
