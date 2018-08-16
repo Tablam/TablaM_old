@@ -217,11 +217,6 @@ NumLiteral: Scalar = {
     <"DIGITS"> "I64SUFFIX" => Scalar::I64(i64::from_str(&<>).unwrap()),
 };
 
-// BoolLiteral: Scalar = {
-//     <b:r"true|false"> =>
-//         Scalar::"BOOL"(bool::from_str(b).unwrap()),
-// };
-
 StringLiteral: Scalar = {
     <s:"STRINGLITERAL"> => {
         let literal = &s[1..s.len()-1];
@@ -232,7 +227,6 @@ StringLiteral: Scalar = {
 extern {
     type Location = usize;
     type Error = tok::Error;
-    // type Tok = tok::Tok;
 
     enum Tok {
         "LBRACK" => Tok::LBRACK,
