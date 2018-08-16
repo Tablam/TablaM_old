@@ -5,6 +5,23 @@ use self::radix_trie::Trie;
 pub struct NoCloneTok(pub Tok);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Error {
+    pub location: usize,
+    pub code: ErrorCode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ErrorCode {
+    UnrecognizedToken,
+    UnterminatedEscape,
+    UnterminatedStringLiteral,
+    UnterminatedCharacterLiteral,
+    UnterminatedAttribute,
+    UnterminatedCode,
+    ExpectedStringLiteral,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Tok {
     LBRACK,
     RBRACK,
@@ -55,6 +72,7 @@ pub enum Tok {
     NAME(String),
     TYPENAME(String),
 }
+
 lazy_static! {
     static ref TRIE: Trie<&'static str, Tok> = {
         let mut kws = Trie::new();
@@ -119,18 +137,52 @@ pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
                     tokens.push((i, Tok::DIGITS(tmp), newi));
                     i = newi;
                     continue;
-                }
-                // _ if c.is_upper()
-                /* CONSTANT */
-                /* STRINGLITERAL */
-                /* NAME */
-                /* TYPENAME */
+                },
+                _ if c.is_alphanumeric() && c.is_uppercase() => {
+                    let typename = |c:char| c.is_alphanumeric() || c == '_';
+                    let (tmp, next) = take_while(c, &mut chars, typename);
+                    lookahead = next;
+                    let newi = i + tmp.len();
+                    if tmp.chars().all(|c| c.is_uppercase() || c.is_numeric() || c == '_') {
+                        tokens.push((i, Tok::CONSTANT(tmp), newi));
+                    }
+                    else {
+                        tokens.push((i, Tok::TYPENAME(tmp), newi));
+                    }
+                    i = newi;
+                    continue;
+                },
+                _ if c.is_alphanumeric() && c.is_lowercase() => {
+                    let name = |c:char| c.is_alphanumeric() || c == '_';
+                    let (tmp, next) = take_while(c, &mut chars, name);
+                    lookahead = next;
+                    let newi = i + tmp.len();
+                    if let Some(v) = TRIE.get(tmp.as_str()) {
+                        // It's a keyword
+                        tokens.push((i, v.clone(), newi));
+                    }
+                    else {
+                        // It's a variable
+                        tokens.push((i, Tok::NAME(tmp), newi));
+                    }
+                    i = newi;
+                    continue;
+                },
+                '"' => {
+                    let (mut tmp, next) = take_while(c, &mut chars, |c| c != '"');
+                    lookahead = chars.next(); // skip the last quote
+                    tmp.push('"');
+                    let newi = i + tmp.len();
+                    tokens.push((i, Tok::STRINGLITERAL(tmp), newi));
+                    i = newi;
+                    continue;
+                },
                 /* COMMENT */
                 _ => {
                     let (tmp, next) =
-                        take_while_buf(c, &mut chars, |s| TRIE.subtrie(&s).is_some());
+                        take_while_buf(c, &mut chars, |s| TRIE.get_raw_descendant(&s).is_some());
 
-                    if tmp.len() == 0 || !TRIE.subtrie(tmp.as_str()).is_some() {
+                    if tmp.len() == 0 || !TRIE.get(tmp.as_str()).is_some() {
                         panic!("invalid token: {:?}, seen tokens: {:?}", tmp, tokens);
                     }
 
@@ -140,7 +192,8 @@ pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
                     tokens.push((i, tok, newi));
                     i = newi;
                     continue;
-                }
+                },
+
             }
         }
         else {

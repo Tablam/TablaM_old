@@ -44,33 +44,29 @@ fn main() -> io::Result<()> {
     // println!("e: {:?}", e)
 
     // let mut buffer = String::new();
+
     loop {
         use tok::{tokenize};
+        use tablam::*;
 
-        // io::stdin().read_to_string(&mut buffer)?;
         let stdin = io::stdin();
         print!("> ");
         std::io::stdout().flush().unwrap();
         for line_r in stdin.lock().lines() {
             let line = line_r.unwrap();
-            let tokens = tokenize(&line);
-            println!("ok: {:?}", tokens);
+
+            let parser = StatementParser::new();
+            let eparser = ExprParser::new();
+            match parser.parse(tokenize(&line)) {
+                Ok(ast) => println!("ok(S): {:?}", ast),
+                Err(err) => match eparser.parse(tokenize(&line)) {
+                    Ok(ast) => println!("ok(E): {:?}", ast),
+                    Err(err) => println!("error: {:?}", err),
+                }
+            }
 
             print!("> ");
             std::io::stdout().flush().unwrap();
-
-            // let parser = StatementParser::new();
-            // let eparser = ExprParser::new();
-            // match parser.parse(&line.clone()) {
-            //     Ok(ast) => println!("ok(S): {:?}", ast),
-            //     Err(err) => match eparser.parse(&line.clone()) {
-            //         Ok(ast) => println!("ok(E): {:?}", ast),
-            //         Err(err) => println!("error: {:?}", err),
-            //     }
-            // }
-
-            // print!("> ");
-            // std::io::stdout().flush().unwrap();
         }
     }
 }
