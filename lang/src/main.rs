@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate lalrpop_util;
 
 // Keep until lalrpop 0.16
@@ -8,6 +9,7 @@ lalrpop_mod!(pub tablam);
 // pub mod tablam;
 
 mod core;
+mod tok;
 
 use std::io::{self, Write, BufRead};
 // use core::operators::*;
@@ -43,7 +45,7 @@ fn main() -> io::Result<()> {
 
     // let mut buffer = String::new();
     loop {
-        use tablam::*;
+        use tok::{tokenize};
 
         // io::stdin().read_to_string(&mut buffer)?;
         let stdin = io::stdin();
@@ -51,17 +53,24 @@ fn main() -> io::Result<()> {
         std::io::stdout().flush().unwrap();
         for line_r in stdin.lock().lines() {
             let line = line_r.unwrap();
-            let parser = StatementParser::new();
-            let eparser = ExprParser::new();
-            match parser.parse(&line.clone()) {
-                Ok(ast) => println!("ok(S): {:?}", ast),
-                Err(err) => match eparser.parse(&line.clone()) {
-                    Ok(ast) => println!("ok(E): {:?}", ast),
-                    Err(err) => println!("error: {:?}", err),
-                }
-            }
+            let tokens = tokenize(&line);
+            println!("ok: {:?}", tokens);
+
             print!("> ");
             std::io::stdout().flush().unwrap();
+
+            // let parser = StatementParser::new();
+            // let eparser = ExprParser::new();
+            // match parser.parse(&line.clone()) {
+            //     Ok(ast) => println!("ok(S): {:?}", ast),
+            //     Err(err) => match eparser.parse(&line.clone()) {
+            //         Ok(ast) => println!("ok(E): {:?}", ast),
+            //         Err(err) => println!("error: {:?}", err),
+            //     }
+            // }
+
+            // print!("> ");
+            // std::io::stdout().flush().unwrap();
         }
     }
 }

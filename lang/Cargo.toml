@@ -19,6 +19,9 @@ bytes = "0.4"
 lalrpop-util = { git = "https://github.com/lalrpop/lalrpop.git" }
 regex = "0.2"
 
+radix_trie = "0.1"
+lazy_static = "1"
+
 [build-dependencies]
 # For parsing
 lalrpop = "0.15"

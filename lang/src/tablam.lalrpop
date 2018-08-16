@@ -242,6 +242,8 @@ match {
     "->" => ARROW,
     "==" => EQUALS,
     "!=" => NOTEQUALS,
+    ">" => GT,
+    "<" => LT,
     "|" => PIPE,
     "?" => QMARK,
     "#" => HASH,
@@ -265,10 +267,10 @@ match {
     "do" => KDO,
     "end" => KEND,
     "in" => KIN,
-    r"[0-9]+" => DIGITS,
-    r"[A-Z][A-Z0-9_]+" => CONSTANT,
     "i32" => I32SUFFIX,
     "i64" => I64SUFFIX,
+    r"[0-9]+" => DIGITS,
+    r"[A-Z][A-Z0-9_]+" => CONSTANT,
     r#""[^"]*""# => STRINGLITERAL,
 } else {
     // r"//.*\n" => None, // C-style comment
