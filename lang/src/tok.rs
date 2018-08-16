@@ -1,6 +1,8 @@
 extern crate radix_trie;
 use self::radix_trie::Trie;
 
+pub type Spanned<T> = (usize, T, usize);
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct NoCloneTok(pub Tok);
 
@@ -127,7 +129,7 @@ enum CommentState {
 }
 
 // simplest and stupidest possible tokenizer
-pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
+pub fn tokenize(s: &str) -> Vec<Spanned<Tok>> {
     let mut tokens = vec![];
     let mut chars = s.chars();
     let mut lookahead = chars.next();
