@@ -13,7 +13,12 @@ mod tok;
 
 use std::io::{self, Write, BufRead};
 // use core::operators::*;
-use tok::{Tok, tokenize};
+use tok::{TablamTokenizer};
+
+
+fn t<'input>(s: &'input str) -> TablamTokenizer<'input> {
+    TablamTokenizer::new(s)
+}
 
 fn main() -> io::Result<()> {
     // let nums1:Vec<i64> = (0..100).into_iter().collect();
@@ -55,11 +60,13 @@ fn main() -> io::Result<()> {
         for line_r in stdin.lock().lines() {
             let line = line_r.unwrap();
 
+            let eparser = ExprParser::new();
+
             let parser = StatementParser::new();
             let eparser = ExprParser::new();
-            match parser.parse(tokenize(&line)) {
+            match parser.parse(t(&line)) {
                 Ok(ast) => println!("ok(S): {:?}", ast),
-                Err(err) => match eparser.parse(tokenize(&line)) {
+                Err(err) => match eparser.parse(t(&line)) {
                     Ok(ast) => println!("ok(E): {:?}", ast),
                     Err(err) => println!("error: {:?}", err),
                 }
@@ -86,10 +93,6 @@ fn rc<T>(s: T) -> Rc<T> {
     Rc::new(s)
 }
 
-fn t(s: &str) -> Vec<(usize, Tok, usize)> {
-    tokenize(s)
-}
-
 #[test]
 fn tablam() {
     use tablam::*;
@@ -97,7 +100,7 @@ fn tablam() {
     use core::ast::{ColumnExp, *};
 
     let contents = include_str!("example.tb");
-    match ProgramParser::new().parse(tokenize(&contents)) {
+    match ProgramParser::new().parse(t(&contents)) {
         Ok(ast) => (),
         Err(err) => panic!(format!("{:?}", err)),
     };

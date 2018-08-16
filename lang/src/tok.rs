@@ -1,7 +1,9 @@
 extern crate radix_trie;
 use self::radix_trie::Trie;
 
-pub type Spanned<T> = (usize, T, usize);
+use std::iter::Iterator;
+use std::str::Chars;
+
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct NoCloneTok(pub Tok);
@@ -75,6 +77,40 @@ pub enum Tok {
     TYPENAME(String),
 }
 
+pub struct TablamTokenizer<'input> {
+    chars: Chars<'input>,
+    lookahead: Option<char>,
+    i: usize,
+}
+enum CommentState {
+    OutOfComment,
+    InComment,
+    SeekingSlash,
+}
+
+impl<'input> TablamTokenizer<'input> {
+    pub fn new(s: &'input str) -> TablamTokenizer<'input> {
+        TablamTokenizer { chars: s.chars(), lookahead: None, i: 0 }
+    }
+
+    fn skip_ws(&mut self) -> () {
+        if Some(true) == self.lookahead.map(|c| !c.is_whitespace()) {
+            return;
+        }
+
+        loop {
+            self.lookahead = self.chars.next();
+            match self.lookahead {
+                None => { break; }
+                Some(c) if !c.is_whitespace() => { break; }
+                _ => { continue; }
+            }
+        }
+    }
+}
+
+pub type Spanned<T> = (usize, T, usize);
+
 lazy_static! {
     static ref TRIE: Trie<&'static str, Tok> = {
         let mut kws = Trie::new();
@@ -122,117 +158,97 @@ lazy_static! {
     };
 }
 
-enum CommentState {
-    OutOfComment,
-    InComment,
-    SeekingSlash,
-}
+impl<'input> Iterator for TablamTokenizer<'input> {
+    type Item = Spanned<Tok>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.skip_ws();
+        if self.lookahead.is_none() { return None; }
+        let c = self.lookahead.unwrap();
 
-// simplest and stupidest possible tokenizer
-pub fn tokenize(s: &str) -> Vec<Spanned<Tok>> {
-    let mut tokens = vec![];
-    let mut chars = s.chars();
-    let mut lookahead = chars.next();
-    let mut i = 0;
-    while let Some(c) = lookahead {
-        // skip whitespace characters
-        if !c.is_whitespace() {
-            match c {
-                _ if c.is_digit(10) => {
-                    let (tmp, next) = take_while(c, &mut chars, |c| c.is_digit(10));
-                    lookahead = next;
-                    let newi = i + tmp.len();
-                    tokens.push((i, Tok::DIGITS(tmp), newi));
-                    i = newi;
-                    continue;
-                },
-                _ if c.is_alphanumeric() && c.is_uppercase() => {
-                    let typename = |c:char| c.is_alphanumeric() || c == '_';
-                    let (tmp, next) = take_while(c, &mut chars, typename);
-                    lookahead = next;
-                    let newi = i + tmp.len();
-                    if tmp.chars().all(|c| c.is_uppercase() || c.is_numeric() || c == '_') {
-                        tokens.push((i, Tok::CONSTANT(tmp), newi));
-                    }
-                    else {
-                        tokens.push((i, Tok::TYPENAME(tmp), newi));
-                    }
-                    i = newi;
-                    continue;
-                },
-                _ if c.is_alphanumeric() && c.is_lowercase() => {
-                    let name = |c:char| c.is_alphanumeric() || c == '_';
-                    let (tmp, next) = take_while(c, &mut chars, name);
-                    lookahead = next;
-                    let newi = i + tmp.len();
-                    if let Some(v) = TRIE.get(tmp.as_str()) {
-                        // It's a keyword
-                        tokens.push((i, v.clone(), newi));
-                    }
-                    else {
-                        // It's a variable
-                        tokens.push((i, Tok::NAME(tmp), newi));
-                    }
-                    i = newi;
-                    continue;
-                },
-                '"' => {
-                    /* STRING LITERAL */
-                    let (mut tmp, next) = take_while(c, &mut chars, |c| c != '"');
-                    lookahead = chars.next(); // skip the last quote
-                    tmp.push('"');
-                    let newi = i + tmp.len();
-                    tokens.push((i, Tok::STRINGLITERAL(tmp), newi));
-                    i = newi;
-                    continue;
-                },
-                '/' => {
-                    /* COMMENT */
-                    use self::CommentState::*;
-                    let mut state = OutOfComment;
+        let name = |c:char| c.is_alphanumeric() || c == '_';
+        match c {
+            _ if c.is_digit(10) => {
+                let (tmp, next) = take_while(c, &mut self.chars, |c| c.is_digit(10));
+                self.lookahead = next;
+                let newi = self.i + tmp.len();
+                let t = (self.i, Tok::DIGITS(tmp), newi);
+                self.i = newi;
+                Some(t)
+            },
+            _ if c.is_alphanumeric() && c.is_uppercase() => {
+                let (tmp, next) = take_while(c, &mut self.chars, name);
+                self.lookahead = next;
+                let newi = self.i + tmp.len();
+                let constlike = |c:char| c.is_uppercase() || c.is_numeric() || c == '_';
+                let t = if tmp.chars().all(constlike) {
+                    (self.i, Tok::CONSTANT(tmp), newi)
+                }
+                else {
+                    (self.i, Tok::TYPENAME(tmp), newi)
+                };
+                self.i = newi;
+                Some(t)
+            },
+            _ if c.is_alphanumeric() && c.is_lowercase() => {
+                let (tmp, next) = take_while(c, &mut self.chars, name);
+                self.lookahead = next;
+                let newi = self.i + tmp.len();
+                let t = match TRIE.get(tmp.as_str()) {
+                    // It's a keyword
+                    Some(v) => (self.i, v.clone(), newi),
+                    // It's a variable
+                    _ => (self.i, Tok::NAME(tmp), newi),
+                };
+                self.i = newi;
+                Some(t)
+            },
+            '"' => {
+                /* STRING LITERAL */
+                let (mut tmp, next) = take_while(c, &mut self.chars, |c| c != '"');
+                self.lookahead = self.chars.next(); // skip the last quote
+                tmp.push('"');
+                let newi = self.i + tmp.len();
+                let t = (self.i, Tok::STRINGLITERAL(tmp), newi);
+                self.i = newi;
+                Some(t)
+            },
+            '/' => {
+                /* COMMENT */
+                use self::CommentState::*;
+                let mut state = OutOfComment;
 
-                    loop {
-                        lookahead = chars.next();
-                        state = match (lookahead, state) {
-                            (Some('*'), OutOfComment) => InComment,
-                            (Some('*'), InComment) => SeekingSlash,
-                            (Some('/'), SeekingSlash) => { break; },
-                            (Some(_), SeekingSlash) | (Some(_), InComment) =>
-                                InComment,
-                            (Some(_), OutOfComment) =>
-                                panic!("Should not happen"),
-                            (None, _) =>
-                                panic!("Premature EOF in comment"),
-                        }
+                loop {
+                    self.lookahead = self.chars.next();
+                    state = match (self.lookahead, state) {
+                        (Some('*'), OutOfComment) => InComment,
+                        (Some('*'), InComment) => SeekingSlash,
+                        (Some('/'), SeekingSlash) => { break; },
+                        (Some(_), SeekingSlash) | (Some(_), InComment) =>
+                            InComment,
+                        (Some(c), OutOfComment) => { break; },
+                        (None, _) => panic!("Premature EOF in comment"),
                     }
                 }
-                _ => {
-                    let (tmp, next) =
-                        take_while_buf(c, &mut chars, |s| TRIE.get_raw_descendant(&s).is_some());
 
-                    if tmp.len() == 0 || !TRIE.get(tmp.as_str()).is_some() {
-                        panic!("invalid token: {:?}, seen tokens: {:?}", tmp, tokens);
-                    }
+                self.next()
+            },
+            _ => {
+                let (tmp, next) =
+                    take_while_buf(c, &mut self.chars, |s| TRIE.get_raw_descendant(&s).is_some());
 
-                    lookahead = next;
-                    let tok = TRIE.get(tmp.as_str()).unwrap().clone();
-                    let newi = i + tmp.len();
-                    tokens.push((i, tok, newi));
-                    i = newi;
-                    continue;
-                },
+                if tmp.len() == 0 || !TRIE.get(tmp.as_str()).is_some() {
+                    panic!("invalid token: {:?}", tmp);
+                }
 
-            }
+                self.lookahead = next;
+                let tok = TRIE.get(tmp.as_str()).unwrap().clone();
+                let newi = self.i + tmp.len();
+                let t = (self.i, tok, newi);
+                self.i = newi;
+                Some(t)
+            },
         }
-        else {
-            i += 1;
-        }
-
-        // advance to next character by default
-        lookahead = chars.next();
     }
-
-    tokens
 }
 
 fn take_while<C, F>(c0: char, chars: &mut C, f: F) -> (String, Option<char>)
