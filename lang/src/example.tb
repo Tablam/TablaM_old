@@ -1,4 +1,7 @@
-HELLO : Int = 123
+type Maybe 'a = Some 'a | None
+type MyFun = Thing (Maybe Int -> Maybe String -> (Int -> String))
+
+HELLO : Maybe = 123
 
 fun main(): Int = do
 /* test comment

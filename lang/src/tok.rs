@@ -55,6 +55,7 @@ pub enum Tok {
     RROW,
     LCOL,
     RCOL,
+    TICK,
     KFUN,
     KLET,
     KVAR,
@@ -66,6 +67,7 @@ pub enum Tok {
     KEND,
     KIN,
     KTYPE,
+    KOF,
 
     DIGITS(String),
     I32SUFFIX,
@@ -143,6 +145,7 @@ lazy_static! {
         kws.insert(">]", Tok::RROW);
         kws.insert("[|", Tok::LCOL);
         kws.insert("|]", Tok::RCOL);
+        kws.insert("'", Tok::TICK);
         kws.insert("fun", Tok::KFUN);
         kws.insert("let", Tok::KLET);
         kws.insert("var", Tok::KVAR);
@@ -154,6 +157,7 @@ lazy_static! {
         kws.insert("end", Tok::KEND);
         kws.insert("in", Tok::KIN);
         kws.insert("type", Tok::KTYPE);
+        kws.insert("of", Tok::KOF);
         kws.insert("i32", Tok::I32SUFFIX);
         kws.insert("i64", Tok::I64SUFFIX);
         kws

@@ -18,7 +18,7 @@ pub struct Prog {
 pub enum ProgBlock {
     Function(FunDef),
     Constant(String, Ty, Rc<Exp>),
-    TypeDeclaration(String, Vec<String>),
+    TypeDeclaration(Ty, Vec<(String, Vec<Atype>)>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -31,8 +31,25 @@ pub struct FunDef {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ty {
-    Star(String),
-    Arrow(Vec<Ty>),
+    Tycon(String, Vec<String>),
+    Arrow(Rc<Ty>, Rc<Option<Ty>>),
+    TyApp(Rc<Ty>, Rc<Atype>),
+    Atype(Rc<Atype>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Atype {
+    // Gtycon(Gtycon),
+    Conid(String),
+    Tyvar(String),
+    Tuple(Vec<Ty>),
+    List(Ty),
+    Paren(Ty),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Gtycon {
+    Conid(String), Unit, List, Function,
 }
 
 #[derive(Debug, PartialEq, Clone)]

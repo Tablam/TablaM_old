@@ -42,14 +42,6 @@ fn main() -> io::Result<()> {
 //  //   println!("Sum Dot:  {:?}", f2.clone() + f1.clone());
 //  //   println!("Sum Scalar:  {:?}", f2.clone() + s1.clone());
 
-    // let e = Exp::BinOp(
-    //     BinOp::Plus,
-    //     Exp::Scalar(Scalar::I32(3)).into(),
-    //     Exp::Scalar(Scalar::I64(4)).into()
-    //     );
-    // println!("e: {:?}", e)
-
-    // let mut buffer = String::new();
 
     loop {
         use tablam::*;
@@ -60,21 +52,23 @@ fn main() -> io::Result<()> {
         for line_r in stdin.lock().lines() {
             let line = line_r.unwrap();
 
-            let eparser = ExprParser::new();
-
+            let typarser = TypeParser::new();
             let tlparser = ProgBlockParser::new();
             let parser = StatementParser::new();
             let eparser = ExprParser::new();
-            match tlparser.parse(t(&line)) {
-                Ok(ast) => println!("ok(P): {:?}", ast),
-                Err(err) => match parser.parse(t(&line)) {
-                    Ok(ast) => println!("ok(S): {:?}", ast),
-                    Err(err) => match eparser.parse(t(&line)) {
-                        Ok(ast) => println!("ok(E): {:?}", ast),
-                        Err(err) => println!("error: {:?}", err),
-                    }
-                }
-            }
+
+            println!("{:?}", tlparser.parse(t(&line)));
+
+            // match tlparser.parse(t(&line)) {
+            //     Ok(ast) => println!("ok(P): {:?}", ast),
+            //     Err(err) => match parser.parse(t(&line)) {
+            //         Ok(ast) => println!("ok(S): {:?}", ast),
+            //         Err(err) => match eparser.parse(t(&line)) {
+            //             Ok(ast) => println!("ok(E): {:?}", ast),
+            //             Err(err) => println!("error: {:?}", err),
+            //         }
+            //     }
+            // }
 
             print!("> ");
             std::io::stdout().flush().unwrap();
@@ -95,6 +89,11 @@ fn stringlit(s: &str) -> Exp {
 use std::rc::Rc;
 fn rc<T>(s: T) -> Rc<T> {
     Rc::new(s)
+}
+
+use core::ast::{Ty, Atype};
+fn star(s: &str) -> Ty {
+    Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
 }
 
 #[test]
@@ -169,7 +168,7 @@ fn tablam() {
             ==
             ColumnExp {
                 name: Some("name".into()),
-                ty: Some(Ty::Star("String".into())),
+                ty: Some(star("String")),
                 es: vec!(stringlit("hello"), stringlit("world")),
             });
 
@@ -177,14 +176,14 @@ fn tablam() {
             ==
             ColumnExp {
                 name: None,
-                ty: Some(Ty::Star("String".into())),
+                ty: Some(star("String")),
                 es: vec!(stringlit("hello"), stringlit("world")),
             });
 
     assert!(ExprParser::new().parse(t("List[1 2]")).unwrap()
             ==
             Exp::Container(
-                Ty::Star("List".into()),
+                star("List"),
                 ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }
                 ));
 
@@ -216,7 +215,7 @@ fn tablam() {
             ==
             Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {
                 name: Some("a".into()),
-                ty: Some(Ty::Star("Ty".into())),
+                ty: Some(star("Ty")),
                 es: vec![1i32.into(), 2i32.into(), 3i32.into()],
             }).into()));
 
@@ -267,7 +266,7 @@ fn tablam() {
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
-                types: vec!(Some(Ty::Star("Int".into())), None),
+                types: vec!(Some(star("Int")), None),
                 es: vec![1i32.into(), true.into()],
             });
 
@@ -307,14 +306,15 @@ fn tablam() {
     assert!(ExprParser::new().parse(t("()")).unwrap() == Exp::Unit);
 
     assert!(TypeParser::new().parse(t("Int")).unwrap()
-            == Ty::Star("Int".into()));
+            == star("Int"));
 
     assert!(TypeParser::new().parse(t("Int -> String -> Float")).unwrap()
-            == Ty::Arrow(vec!(
-                    Ty::Star("Int".into()),
-                    Ty::Star("String".into()),
-                    Ty::Star("Float".into())
-                    )));
+            == Ty::Arrow(
+                    Ty::Atype(Atype::Conid(("Int").into()).into()).into(),
+                    Some(Ty::Arrow(
+                            Ty::Atype(Atype::Conid(("String").into()).into()).into(),
+                            Some(star("Float"),
+                            ).into())).into()));
 
     assert!(ExprParser::new().parse(t("a ? # name == \"Max\" # your != mom")).unwrap()
             == Exp::QueryFilter(
@@ -356,10 +356,10 @@ fn tablam() {
             ProgBlock::Function(FunDef {
                 name: "test".into(),
                 params: vec!(
-                    ("a".into(), Ty::Star("Int".into())),
-                    ("b".into(), Ty::Star("String".into()))
+                    ("a".into(), star("Int")),
+                    ("b".into(), star("String"))
                     ),
-                ret_ty: Ty::Star("Int".into()),
+                ret_ty: star("Int"),
                 body: Exp::Block(
                     vec!(),
                     rc(Exp::BinOp(
@@ -413,5 +413,5 @@ fn tablam() {
 
     assert!(ProgBlockParser::new().parse(t("HELLO:Int = 123")).unwrap()
             ==
-            ProgBlock::Constant("HELLO".into(), Ty::Star("Int".into()), rc(123.into())));
+            ProgBlock::Constant("HELLO".into(), star("Int"), rc(123.into())));
 }

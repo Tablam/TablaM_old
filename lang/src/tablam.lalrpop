@@ -28,22 +28,49 @@ pub ProgBlock: ProgBlock = {
         ProgBlock::Function(FunDef { name: name, params: params, ret_ty: ret_ty, body: body }),
     <n:"CONSTANT"> "COLON" <ty:Type> "EQ" <e:Expr> =>
         ProgBlock::Constant(n.into(), ty, e.into()),
-    "KTYPE" <ty:"TYPENAME"> "EQ" "PIPE"? <variants:NonEmptySep<"TYPENAME", "PIPE">> =>
+    "KTYPE" <ty:Simpletype> "EQ" "PIPE"? <variants:NonEmptySep<Variant, "PIPE">> =>
         ProgBlock::TypeDeclaration(ty, variants),
+};
+
+Variant: (String, Vec<Atype>) = {
+    <variant:Conid> <base:Atype*> => (variant, base),
 };
 
 FunctionParam: (String, Ty) = {
     <n:Name> "COLON" <t:Type> => (n, t),
 };
 
+Conid: String = <"TYPENAME"> => <>.into();
 pub Type: Ty = {
-    <ty:AtLeast2Sep<SimpleType, "ARROW">> => Ty::Arrow(ty),
-    SimpleType,
+    <b:Btype> <t:("ARROW" <Type>)?> => Ty::Arrow(b.into(), t.into()),
 };
+Btype: Ty = {
+    <b:Btype> <a:Atype> => Ty::TyApp(b.into(), a.into()),
+    <a:Atype> => Ty::Atype(a.into()),
+};
+Atype: Atype = {
+    // TODO: fix -- causes conflict
+    // <Gtycon> => Atype::Gtycon(<>),
+    <Conid> => Atype::Conid(<>),
+    <Tyvar> => Atype::Tyvar(<>),
+    "LPAREN" <AtLeast2Sep<Type, "COMMA">> "RPAREN" => Atype::Tuple(<>),
+    // TODO: fix -- causes conflict
+    // "LBRACK" <Type> "RBRACK" => Atype::List(<>),
+    "LPAREN" <Type> "RPAREN" => Atype::Paren(<>),
+};
+Tyvar: String = {
+    "TICK" <Name> => <>,
+};
+// Gtycon: Gtycon = {
+//     <Conid> => Gtycon::Conid(<>),
+//     "LPAREN" "RPAREN" => Gtycon::Unit,
+//     "LBRACK" "RBRACK" => Gtycon::List,
+//     "LPAREN" "ARROW" "RPAREN" => Gtycon::Function,
+// };
 
-SimpleType: Ty = {
-    "TYPENAME" => Ty::Star(<>.into()),
-    "LPAREN" <Type> "RPAREN" => <>,
+Simpletype: Ty = {
+    <con:Conid> <vars:Tyvar*> => Ty::Tycon(con, vars),
+    // "LPAREN" <Type> "RPAREN" => <>,
 };
 
 pub Statement: Stmt = {
@@ -127,7 +154,7 @@ Factor: Exp = {
 };
 
 ContainerLiteral: Exp = {
-    <ty:"TYPENAME"> <c:ColumnLiteral> => Exp::Container(Ty::Star(ty.into()), c),
+    <ty:Type> <c:ColumnLiteral> => Exp::Container(ty, c),
     GroupLiteral,
 };
 
@@ -259,6 +286,7 @@ extern {
         "RROW" => Tok::RROW,
         "LCOL" => Tok::LCOL,
         "RCOL" => Tok::RCOL,
+        "TICK" => Tok::TICK,
         "KFUN" => Tok::KFUN,
         "KLET" => Tok::KLET,
         "KVAR" => Tok::KVAR,
@@ -270,6 +298,7 @@ extern {
         "KEND" => Tok::KEND,
         "KIN" => Tok::KIN,
         "KTYPE" => Tok::KTYPE,
+        "KOF" => Tok::KOF,
 
         "DIGITS" => Tok::DIGITS(<String>),
         "I32SUFFIX" => Tok::I32SUFFIX,
