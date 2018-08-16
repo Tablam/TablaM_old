@@ -120,6 +120,12 @@ lazy_static! {
     };
 }
 
+enum CommentState {
+    OutOfComment,
+    InComment,
+    SeekingSlash,
+}
+
 // simplest and stupidest possible tokenizer
 pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
     let mut tokens = vec![];
@@ -169,6 +175,7 @@ pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
                     continue;
                 },
                 '"' => {
+                    /* STRING LITERAL */
                     let (mut tmp, next) = take_while(c, &mut chars, |c| c != '"');
                     lookahead = chars.next(); // skip the last quote
                     tmp.push('"');
@@ -177,7 +184,26 @@ pub fn tokenize(s: &str) -> Vec<(usize, Tok, usize)> {
                     i = newi;
                     continue;
                 },
-                /* COMMENT */
+                '/' => {
+                    /* COMMENT */
+                    use self::CommentState::*;
+                    let mut state = OutOfComment;
+
+                    loop {
+                        lookahead = chars.next();
+                        state = match (lookahead, state) {
+                            (Some('*'), OutOfComment) => InComment,
+                            (Some('*'), InComment) => SeekingSlash,
+                            (Some('/'), SeekingSlash) => { break; },
+                            (Some(_), SeekingSlash) | (Some(_), InComment) =>
+                                InComment,
+                            (Some(_), OutOfComment) =>
+                                panic!("Should not happen"),
+                            (None, _) =>
+                                panic!("Premature EOF in comment"),
+                        }
+                    }
+                }
                 _ => {
                     let (tmp, next) =
                         take_while_buf(c, &mut chars, |s| TRIE.get_raw_descendant(&s).is_some());

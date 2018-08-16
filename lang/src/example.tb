@@ -1,6 +1,8 @@
 HELLO : Int = 123
 
 fun main(): Int = do
+/* test comment
+*/
     let nums = (1..10);
     let city = {name:String = "New York", population = 100000};
     let ny:String = city.name;

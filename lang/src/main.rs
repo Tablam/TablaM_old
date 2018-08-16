@@ -13,6 +13,7 @@ mod tok;
 
 use std::io::{self, Write, BufRead};
 // use core::operators::*;
+use tok::{Tok, tokenize};
 
 fn main() -> io::Result<()> {
     // let nums1:Vec<i64> = (0..100).into_iter().collect();
@@ -46,7 +47,6 @@ fn main() -> io::Result<()> {
     // let mut buffer = String::new();
 
     loop {
-        use tok::{tokenize};
         use tablam::*;
 
         let stdin = io::stdin();
@@ -86,6 +86,10 @@ fn rc<T>(s: T) -> Rc<T> {
     Rc::new(s)
 }
 
+fn t(s: &str) -> Vec<(usize, Tok, usize)> {
+    tokenize(s)
+}
+
 #[test]
 fn tablam() {
     use tablam::*;
@@ -93,48 +97,51 @@ fn tablam() {
     use core::ast::{ColumnExp, *};
 
     let contents = include_str!("example.tb");
-    match ProgramParser::new().parse(&contents) {
+    match ProgramParser::new().parse(tokenize(&contents)) {
         Ok(ast) => (),
         Err(err) => panic!(format!("{:?}", err)),
     };
 
     assert!(
-        ExprParser::new().parse("12").unwrap()
+        ExprParser::new().parse(t("12")).unwrap()
         == 12i32.into());
 
     assert!(
-        ExprParser::new().parse("12i64").unwrap()
+        ExprParser::new().parse(t("12i64")).unwrap()
         == 12i64.into());
 
     assert!(
-        ExprParser::new().parse("LLAMA").unwrap()
+        ExprParser::new().parse(t("LLAMA")).unwrap()
         == Exp::Constant("LLAMA".into())
         );
 
     assert!(
-        ExprParser::new().parse("true").unwrap()
+        ExprParser::new().parse(t("true")).unwrap()
         == true.into()
         );
 
     assert!(
-        ExprParser::new().parse("false").unwrap()
+        ExprParser::new().parse(t("false")).unwrap()
         == false.into()
         );
 
     assert!(
-        ExprParser::new().parse(r#""hello""#).unwrap()
+        ExprParser::new().parse(t(r#""hello""#)).unwrap()
         == stringlit("hello")
         );
 
-    assert!(ExprParser::new().parse(r#""hello"#).is_err());
+    // assert!(ExprParser::new().parse(t(r#""hello"#)).is_err());
 
-    assert!(ExprParser::new().parse("1").unwrap()
+    assert!(ExprParser::new().parse(t("1")).unwrap()
             == 1i32.into());
 
-    assert!(ExprParser::new().parse("1 + 2").unwrap()
+    assert!(ExprParser::new().parse(t("1 + 2")).unwrap()
             == Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())));
 
-    assert!(StatementParser::new().parse("{1; 2; 3;}").unwrap()
+    assert!(ExprParser::new().parse(t("1 + /* hello world */ 2")).unwrap()
+            == Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())));
+
+    assert!(StatementParser::new().parse(t("{1; 2; 3;}")).unwrap()
             ==
             Stmt::Block(vec!(
                     Stmt::Exp(1.into()),
@@ -143,7 +150,7 @@ fn tablam() {
                     ))
             );
 
-    assert!(ExprParser::new().parse("do 1; 2; 3 end").unwrap()
+    assert!(ExprParser::new().parse(t("do 1; 2; 3 end")).unwrap()
             ==
             Exp::Block(
                 vec!(Stmt::Exp(1.into()), Stmt::Exp(2.into())),
@@ -151,7 +158,7 @@ fn tablam() {
                 )
             );
 
-    assert!(ColumnLiteralParser::new().parse("[name:String; \"hello\" \"world\"]").unwrap()
+    assert!(ColumnLiteralParser::new().parse(t("[name:String; \"hello\" \"world\"]")).unwrap()
             ==
             ColumnExp {
                 name: Some("name".into()),
@@ -159,7 +166,7 @@ fn tablam() {
                 es: vec!(stringlit("hello"), stringlit("world")),
             });
 
-    assert!(ColumnLiteralParser::new().parse("[String; \"hello\" \"world\"]").unwrap()
+    assert!(ColumnLiteralParser::new().parse(t("[String; \"hello\" \"world\"]")).unwrap()
             ==
             ColumnExp {
                 name: None,
@@ -167,14 +174,14 @@ fn tablam() {
                 es: vec!(stringlit("hello"), stringlit("world")),
             });
 
-    assert!(ExprParser::new().parse("List[1 2]").unwrap()
+    assert!(ExprParser::new().parse(t("List[1 2]")).unwrap()
             ==
             Exp::Container(
                 Ty::Star("List".into()),
                 ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }
                 ));
 
-    assert!(ExprParser::new().parse("a.b.c.d").unwrap()
+    assert!(ExprParser::new().parse(t("a.b.c.d")).unwrap()
             ==
                 Exp::ColumnSelect(
                     Exp::ColumnSelect(
@@ -186,7 +193,7 @@ fn tablam() {
                     ).into(),
                 "d".into()));
 
-    assert!(ExprParser::new().parse("a.0.1.2").unwrap()
+    assert!(ExprParser::new().parse(t("a.0.1.2")).unwrap()
             ==
                 Exp::ColumnSelect(
                     Exp::ColumnSelect(
@@ -198,7 +205,7 @@ fn tablam() {
                     ).into(),
                 2.into()));
 
-    assert!(StatementParser::new().parse("let x = [a:Ty; 1 2 3];").unwrap()
+    assert!(StatementParser::new().parse(t("let x = [a:Ty; 1 2 3];")).unwrap()
             ==
             Stmt::Let(LetKind::Imm, "x".into(), None, Exp::Column(ColumnExp {
                 name: Some("a".into()),
@@ -206,7 +213,7 @@ fn tablam() {
                 es: vec![1i32.into(), 2i32.into(), 3i32.into()],
             }).into()));
 
-    assert!(RelationLiteralParser::new().parse(r#"[<id, name; 1 "1"; 2 "2" >]"#).unwrap()
+    assert!(RelationLiteralParser::new().parse(t(r#"[<id, name; 1 "1"; 2 "2" >]"#)).unwrap()
             ==
             RelationExp {
                 rel_type: RelType::Row,
@@ -217,7 +224,7 @@ fn tablam() {
                     )
             });
 
-    assert!(RelationLiteralParser::new().parse(r#"[| id= 1 2; name= "1" "2" |]"#).unwrap()
+    assert!(RelationLiteralParser::new().parse(t(r#"[| id= 1 2; name= "1" "2" |]"#)).unwrap()
             ==
             RelationExp {
                 rel_type: RelType::Col,
@@ -228,20 +235,20 @@ fn tablam() {
                     )
             });
 
-    assert!(RangeLiteralParser::new().parse("(1..llama_world)").unwrap()
+    assert!(RangeLiteralParser::new().parse(t("(1..llama_world)")).unwrap()
             == RangeExp {
                 start: rc(1i32.into()),
                 end: name("llama_world").into(),
             });
 
-    assert!(StatementParser::new().parse("if true 3 else 4").unwrap()
+    assert!(StatementParser::new().parse(t("if true 3 else 4")).unwrap()
             ==
             Stmt::IfElse(
                 rc(true.into()),
                 rc(3i32.into()),
                 rc(4i32.into())));
 
-    assert!(RowLiteralParser::new().parse("{hello=1, world=true}").unwrap()
+    assert!(RowLiteralParser::new().parse(t("{hello=1, world=true}")).unwrap()
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
@@ -249,7 +256,7 @@ fn tablam() {
                 es: vec![1i32.into(), true.into()],
             });
 
-    assert!(RowLiteralParser::new().parse("{hello:Int=1, world=true}").unwrap()
+    assert!(RowLiteralParser::new().parse(t("{hello:Int=1, world=true}")).unwrap()
             ==
             RowExp {
                 names: Some(vec!["hello".into(), "world".into()]),
@@ -257,7 +264,7 @@ fn tablam() {
                 es: vec![1i32.into(), true.into()],
             });
 
-    assert!(RowLiteralParser::new().parse("{1, true}").unwrap()
+    assert!(RowLiteralParser::new().parse(t("{1, true}")).unwrap()
             ==
             RowExp {
                 names: None,
@@ -265,7 +272,7 @@ fn tablam() {
                 es: vec![1i32.into(), true.into()],
             });
 
-    assert!(StatementParser::new().parse("while true do hello; end").unwrap()
+    assert!(StatementParser::new().parse(t("while true do hello; end")).unwrap()
             ==
             Stmt::While(
                 rc(true.into()),
@@ -273,7 +280,7 @@ fn tablam() {
                     vec![Stmt::Exp(name("hello"))],
                 ).into()));
 
-    assert!(ColumnLiteralParser::new().parse("[1 2 3 (4+5)]").unwrap()
+    assert!(ColumnLiteralParser::new().parse(t("[1 2 3 (4+5)]")).unwrap()
             ==
             ColumnExp {
                 name: None,
@@ -290,19 +297,19 @@ fn tablam() {
                 ]
             });
 
-    assert!(ExprParser::new().parse("()").unwrap() == Exp::Unit);
+    assert!(ExprParser::new().parse(t("()")).unwrap() == Exp::Unit);
 
-    assert!(TypeParser::new().parse("Int").unwrap()
+    assert!(TypeParser::new().parse(t("Int")).unwrap()
             == Ty::Star("Int".into()));
 
-    assert!(TypeParser::new().parse("Int -> String -> Float").unwrap()
+    assert!(TypeParser::new().parse(t("Int -> String -> Float")).unwrap()
             == Ty::Arrow(vec!(
                     Ty::Star("Int".into()),
                     Ty::Star("String".into()),
                     Ty::Star("Float".into())
                     )));
 
-    assert!(ExprParser::new().parse("a ? # name == \"Max\" # your != mom").unwrap()
+    assert!(ExprParser::new().parse(t("a ? # name == \"Max\" # your != mom")).unwrap()
             == Exp::QueryFilter(
                 Exp::Name("a".into()).into(),
                 vec!(
@@ -316,28 +323,28 @@ fn tablam() {
                         name("mom").into()),
                     )));
 
-    assert!(ExprParser::new().parse("[1 2 3] # 1").unwrap()
+    assert!(ExprParser::new().parse(t("[1 2 3] # 1")).unwrap()
             ==
             Exp::QuerySelect(
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
                 rc(1.into())
                 ));
 
-    assert!(ExprParser::new().parse("[1 2 3] # [1 2]").unwrap()
+    assert!(ExprParser::new().parse(t("[1 2 3] # [1 2]")).unwrap()
             ==
             Exp::QuerySelect(
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into()) }).into(),
                 ));
 
-    assert!(ExprParser::new().parse("[1 2 3] # (1..2)").unwrap()
+    assert!(ExprParser::new().parse(t("[1 2 3] # (1..2)")).unwrap()
             ==
             Exp::QuerySelect(
                 Exp::Column(ColumnExp { name: None, ty: None, es: vec!(1.into(), 2.into(), 3.into()) }).into(),
                 Exp::Range(RangeExp { start: rc(1.into()), end: rc(2.into()) }).into(),
                 ));
 
-    assert!(ProgBlockParser::new().parse("fun test(a:Int, b:String): Int = do 1 + 2 end").unwrap()
+    assert!(ProgBlockParser::new().parse(t("fun test(a:Int, b:String): Int = do 1 + 2 end")).unwrap()
             ==
             ProgBlock::Function(FunDef {
                 name: "test".into(),
@@ -354,7 +361,7 @@ fn tablam() {
                             rc(2.into()))))
             }));
 
-    assert!(ExprParser::new().parse("print(a(b), c(d))").unwrap()
+    assert!(ExprParser::new().parse(t("print(a(b), c(d))")).unwrap()
             ==
             Exp::Apply(
                 name("print").into(),
@@ -363,7 +370,7 @@ fn tablam() {
                     Exp::Apply(name("c").into(), vec!(name("d"))),
                     )));
 
-    assert!(ExprParser::new().parse("a | b | c").unwrap()
+    assert!(ExprParser::new().parse(t("a | b | c")).unwrap()
             ==
             Exp::Apply(
                 name("c").into(),
@@ -371,16 +378,16 @@ fn tablam() {
                         name("b").into(),
                         vec!(name("a").into())))));
 
-    assert!(ExprParser::new().parse("1 + 2 | print").unwrap()
+    assert!(ExprParser::new().parse(t("1 + 2 | print")).unwrap()
             ==
             Exp::Apply(
                 name("print").into(),
                 vec!(Exp::BinOp(BinOp::Plus, rc(1.into()), rc(2.into())))));
 
-    assert!(StatementParser::new().parse(r#"
+    assert!(StatementParser::new().parse(t(r#"
                 for row in city ? #name == "new york" do
                     row | print;
-                end"#).unwrap()
+                end"#)).unwrap()
             ==
             Stmt::For(
                 "row".into(),
@@ -397,7 +404,7 @@ fn tablam() {
                     )
                 ).into()));
 
-    assert!(ProgBlockParser::new().parse("HELLO:Int = 123").unwrap()
+    assert!(ProgBlockParser::new().parse(t("HELLO:Int = 123")).unwrap()
             ==
             ProgBlock::Constant("HELLO".into(), Ty::Star("Int".into()), rc(123.into())));
 }
