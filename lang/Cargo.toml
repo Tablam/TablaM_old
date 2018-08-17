@@ -18,7 +18,7 @@ bytes = "0.4"
 # This is due to some bullshit with the lalrpop_mod macro
 lalrpop-util = { git = "https://github.com/lalrpop/lalrpop.git" }
 regex = "0.2"
-
+bit-vec = "*"
 radix_trie = "0.1"
 lazy_static = "1"
 

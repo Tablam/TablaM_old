@@ -1,7 +1,7 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::slice::Iter;
 
 extern crate bytes;
 
@@ -10,10 +10,7 @@ use self::bytes::*;
 pub type RVec<T> = Rc<Vec<T>>;
 pub type Names = Vec<String>;
 
-/// Marker trait for the values
-pub trait Value: Clone + Debug {}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Layout {
 	Scalar,
     Row,
@@ -26,189 +23,44 @@ pub enum Layout {
 pub enum DataType {
     None,
     Bool,
-    Int32,
-    Int64,
+    I32,
+    I64,
 //    Planed:
 //    Decimal,
 //    Time,
 //    Date,
 //    DateTime,
 //    Char,
-//    UTF8,
+    UTF8,
 //    Byte,
+    Tuple,
 //    Sum(DataType), //enums
 //    Product(DataType), //struct
 //    Rel((String, DataType)), //Relations, Columns
 //    Function,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Scalar {
 	None, //null
-    BOOL(bool),
+    Bool(bool),
     I32(i32),
     I64(i64),
     UTF8(BytesMut),
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Column {
-    BOOL(RVec<bool>),
-    I32(RVec<i32>),
-    I64(RVec<i64>),
-    UTF8(RVec<BytesMut>),    
-    ROW(RVec<Column>),
-}
-
-impl Value for bool {}
-impl Value for i32 {}
-impl Value for i64 {}
-impl Value for BytesMut {}
-impl Value for Column {}
-
-/// Recovers the elements type through iterators and slices
-pub trait ColumnIter: Value {
-    fn as_slice<'b>(col: &'b Column) -> &'b [Self];
-    fn iter<'b>(col: &'b Column) -> Iter<'b, Self> {
-        Self::as_slice(col).iter()
-    }
-}
-
-impl ColumnIter for bool {
-    fn as_slice<'b>(col: &'b Column) -> &'b [bool] {
-        if let Column::BOOL(ref vec) = *col {
-            vec
-        } else {
-            panic!("Improper cast of {:?} to [bool]", col)
-        }
-    }
-}
-
-impl ColumnIter for BytesMut {
-    fn as_slice<'b>(col: &'b Column) -> &'b [BytesMut] {
-        if let Column::UTF8(ref vec) = *col {
-            vec
-        } else {
-            panic!("Improper cast of {:?} to [BytesMut]", col)
-        }
-    }
-}
-
-impl ColumnIter for Column {
-    fn as_slice<'b>(col: &'b Column) -> &'b [Column] {
-        if let Column::ROW(ref vec) = *col {
-            vec
-        } else {
-            panic!("Improper cast of {:?} to [Column]", col)
-        }
-    }
-}
-
-impl ColumnIter for i32 {
-    fn as_slice<'b>(col: &'b Column) -> &'b [i32] {
-        if let Column::I32(ref vec) = *col {
-            vec
-        } else {
-            panic!("Improper cast of {:?} to [i32]", col)
-        }
-    }
-}
-
-impl ColumnIter for i64 {
-    fn as_slice<'b>(col: &'b Column) -> &'b [i64] {
-        if let Column::I64(ref vec) = *col {
-            vec
-        } else {
-            panic!("Improper cast of {:?} to [i64]", col)
-        }
-    }
-}
-
-/// `ColumnType` is the type of the elements if the columns.
-/// It composes all column traits and is used as a type bound
-/// to bring all the dependencies at once
-pub trait ColumnType: Value {
-    fn to_column(Vec<Self>) -> Column;
-    fn iter<'b>(&'b Column) -> Iter<'b, Self>;
-    fn as_slice<'b>(&'b Column) -> &'b [Self];
-}
-
-/// Implement `ColumnType` for each type that implements
-/// `ColumnIter<Self>` and `From<Vec<Self>>` for `Column`
-impl<T> ColumnType for T
-    where
-        T: ColumnIter + Value,
-        Column: From<Vec<T>>,
-{
-    fn to_column(vec: Vec<T>) -> Column {
-        vec.into()
-    }
-
-    fn iter<'b>(col: &'b Column) -> Iter<'b, T> {
-        T::iter(col)
-    }
-
-    fn as_slice<'b>(col: &'b Column) -> &'b [T] {
-        T::as_slice(col)
-    }
-}
-
-impl Column {
-    /// Construct a column from a vector
-    pub fn from<T: ColumnType>(vec: Vec<T>) -> Column {
-        T::to_column(vec)
-    }
-
-    pub fn from_scalar<T: ColumnType>(value: T) -> Column {
-        T::to_column(vec!(value))
-    }
-
-    /// column.iter()
-    pub fn iter<T: ColumnType>(&self) -> Iter<T> {
-        T::iter(self)
-    }
-
-    /// column.as_slice()
-    pub fn as_slice<T: ColumnType>(&self) -> &[T] {
-        T::as_slice(self)
-    }
-
-    /// column.len()
-    pub fn len<T: ColumnType>(&self) -> usize {
-        T::as_slice(self).len()
-    }
-
+    Tuple(Vec<Scalar>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Frame {
-    pub names:Names,
-    pub data :RVec<Column>,
+pub struct Data {
+    pub kind:   DataType,
+    pub len:    usize,
+    pub data:   RVec<Scalar>,
 }
 
-impl Frame {
-    pub fn empty() -> Self {
-        Frame {
-           names: Vec::new(),
-           data: Rc::new(Vec::new()),
-        }
-    }
-
-    pub fn new(columns: Vec<Column>) -> Self {
-        let total = 0..columns.len();
-        let names:Names = total.map(| x | format!("col{}", x).to_string() ).collect();
-
-        Frame {
-            names,
-            data: Rc::new(columns),
-        }
-    }
-
-}
 #[derive(Debug, Clone)]
 pub enum ColumnExp {
     //TODO: This complicate things. Support later constant values...
-	//Value(Scalar),
+    //Value(Scalar),
     Name(String),
     Pos(usize),
 }
@@ -262,32 +114,32 @@ pub struct QueryPlanner {
     pub ops: Vec<Algebra>,
 }
 
-pub trait RelationRow {
-    fn row_count(&self) -> usize;
-    fn column_count(&self) -> usize;
-
-    fn layout(&self) -> Layout {
-       Layout::Row
-    }
-
-    fn names(&self) -> Names;
-    fn row(&self, pos:usize) -> Frame;
-    fn col(&self, pos:usize) -> Column;
-    fn col_named(&self, name:&str) -> Column {
-        let pos = self.names().as_slice().iter().position(|r| r == name).unwrap();
-        self.col(pos)
-    }
-}
-
-pub trait RelationCol:RelationRow {
-    fn frame(&self) -> &Frame;
-}
-
 pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
 }
 
-/* BEGIN easy From for testing */
+impl Data {
+    pub fn empty(kind:DataType) -> Self {
+        Data {
+            kind,
+            len: 0,
+            data: Rc::new([].to_vec()),
+        }
+    }
+
+    pub fn new(of:Vec<Scalar>, kind:DataType) -> Self {
+        Data {
+            kind,
+            len: of.len(),
+            data: Rc::new(of),
+        }
+    }
+
+    pub fn new_row(of:Vec<Scalar>) -> Self {
+        Data::new(of, DataType::Tuple)
+    }
+}
+
 impl From<i32> for Scalar {
     fn from(i: i32) -> Self {
         Scalar::I32(i)
@@ -299,130 +151,285 @@ impl From<i64> for Scalar {
         Scalar::I64(i)
     }
 }
-/* END easy From for testing */
 
-//TODO: Use a macro for automate convertions?
-impl From<i32> for Column {
-    fn from(vec: i32) -> Self {
-        Column::I32(Rc::from(vec!(vec)))
+impl From<bool> for Scalar {
+    fn from(i: bool) -> Self {
+        Scalar::Bool(i)
     }
 }
 
-impl From<Vec<i32>> for Column {
-    fn from(vec: Vec<i32>) -> Self {
-        Column::I32(Rc::from(vec))
+impl From<BytesMut> for Scalar {
+    fn from(i: BytesMut) -> Self {
+        Scalar::UTF8(i)
     }
 }
 
-impl From<i64> for Column {
-    fn from(vec: i64) -> Self {
-        Column::I64(Rc::from(vec!(vec)))
+macro_rules! to_data {
+    ($ARRAY:expr, $TY:expr) => {
+        Data::new($ARRAY.into_iter().map(|x| Scalar::from(x)).collect(), $TY)
     }
 }
 
-impl From<Vec<i64>> for Column {
-    fn from(vec: Vec<i64>) -> Self {
-        Column::I64(Rc::from(vec))
+impl From<i32> for Data {
+    fn from(of: i32) -> Self {
+        to_data!(vec![of], DataType::I32)
     }
 }
 
-impl From<bool> for Column {
-    fn from(vec: bool) -> Self {
-        Column::BOOL(Rc::from(vec!(vec)))
+impl From<Vec<i32>> for Data {
+    fn from(of: Vec<i32>) -> Self {
+        to_data!(of, DataType::I32)
     }
 }
 
-impl From<Vec<bool>> for Column {
-    fn from(vec: Vec<bool>) -> Self {
-        Column::BOOL(Rc::from(vec))
+impl From<i64> for Data {
+    fn from(of: i64) -> Self {
+        to_data!(vec![of], DataType::I64)
     }
 }
 
-impl From<BytesMut> for Column {
-    fn from(vec: BytesMut) -> Self {
-        Column::UTF8(Rc::from(vec!(vec)))
+impl From<Vec<i64>> for Data {
+    fn from(of: Vec<i64>) -> Self {
+        to_data!(of, DataType::I64)
     }
 }
 
-impl From<Vec<BytesMut>> for Column {
-    fn from(vec: Vec<BytesMut>) -> Self {
-        Column::UTF8(Rc::from(vec))
+impl From<bool> for Data {
+    fn from(of: bool) -> Self {
+        to_data!(vec![of], DataType::Bool)
     }
 }
 
-impl From<Vec<Column>> for Column {
-    fn from(vec: Vec<Column>) -> Self {
-        Column::ROW(Rc::from(vec))
+impl From<Vec<bool>> for Data {
+    fn from(of: Vec<bool>) -> Self {
+        to_data!(of, DataType::Bool)
     }
 }
 
-pub fn len(of:&Column) -> usize {
-    match of {
-        Column::I32(data)  => data.len(),
-        Column::I64(data)  => data.len(),
-        Column::BOOL(data) => data.len(),
-        Column::UTF8(data) => data.len(),
-        Column::ROW(data)  =>  data.len(),
+impl From<BytesMut> for Data {
+    fn from(of: BytesMut) -> Self {
+        to_data!(vec![of], DataType::UTF8)
     }
 }
 
-pub fn value(of:&Column, pos:usize) -> Column {
-    match of {
-        Column::I32(data)  => Column::from_scalar(data[pos]),
-        Column::I64(data)  => Column::from_scalar(data[pos]),
-        Column::BOOL(data) => Column::from_scalar(data[pos]),
-        Column::UTF8(data) => Column::from_scalar(data[pos].clone()),
-        Column::ROW(data)  => Column::from_scalar(data[pos].clone()),
-    }        
+impl From<Vec<BytesMut>> for Data {
+    fn from(of: Vec<BytesMut>) -> Self {
+        to_data!(of, DataType::UTF8)
+    }
 }
 
-pub fn row(of:&Vec<Column>, pos:usize) -> Vec<Column> {
-    let data = of.as_slice().iter().map(| x | value(x, pos));
+//TODO: How deal with mutable relations?
 
-    data.collect()
+/// The frame is the central storage unit, for data in columnar or row layout
+#[derive(Debug, Clone)]
+pub struct Frame {
+    pub layout  :Layout,
+    pub len     :usize,
+    pub names   :Names,
+    pub data    :RVec<Data>,
 }
 
-impl RelationRow for Frame {
-    fn row_count(&self) -> usize {
-        if self.column_count() > 0 {
-            return len(&self.data[0])
+fn layout_of_data(of:&Data) -> Layout {
+    match of.len {
+        0 => Layout::Scalar,
+        1 => Layout::Scalar,
+        _ => {
+            if of.kind == DataType::Tuple {
+                Layout::Row
+            } else {
+                Layout::Col
+            }
         }
-        0
+    }
+}
+//
+//fn count_rows_data(of:&Data) -> usize {
+//    match of.len {
+//        0 => Layout::Scalar,
+//        1 => Layout::Scalar,
+//        _ => {
+//            if of.kind == DataType::Tuple {
+//                Layout::Row
+//            } else {
+//                Layout::Col
+//            }
+//        }
+//    }
+//}
+
+impl Frame {
+    //TODO: Validate equal size of headers and columns here or in the parser?
+    fn new(names:Names, data:Vec<Data>) -> Self {
+        let size = data.len();
+
+        let layout =
+            match size {
+                0 => Layout::Scalar,
+                _ => layout_of_data(&data[0])
+            };
+
+        let count =
+            if size > 0 {
+                match layout {
+                    Layout::Row => {
+                        //println!("{:?} : {}", &layout, size);
+                        size
+                    },
+                    _ => {
+                        //println!("{:?} : {}", &layout, data[0].len);
+                        data[0].len
+                    }
+                }
+            } else {
+                0
+            };
+
+        Frame{
+            len:count,
+            layout,
+            names,
+            data:Rc::new(data),
+        }
     }
 
-    fn column_count(&self) -> usize {
-        self.data.len()
+    fn empty(names:Names) -> Self {
+        Frame::new(names, [].to_vec())
     }
 
+    fn row_data(of:&Data, pos:usize) -> Data {
+        let mut rows = Vec::new();
+        for col in of.data.iter() {
+            rows.push(col.clone())
+        }
+
+        Data::new(rows, DataType::Tuple)
+    }
+
+    fn row(of:&Frame, pos:usize) -> Data {
+        let mut rows = Vec::new();
+        for col in of.data.iter() {
+            rows.push(col.data[pos].clone())
+        }
+
+        Data::new(rows, DataType::Tuple)
+    }
+}
+
+trait Relation {
+    fn col_count(&self) -> usize;
+    fn row_count(&self) -> usize;
+    fn names(&self)  -> Names;
     fn layout(&self) -> Layout {
         Layout::Col
     }
+    fn row(&self, pos:usize) -> Data;
+}
 
+/// Encapsulate 2d relations (aka: Tables)
+impl Relation for Frame {
+    fn col_count(&self) -> usize {
+        self.names.len()
+    }
+    fn row_count(&self) -> usize {
+        self.len
+    }
     fn names(&self) -> Names {
         self.names.clone()
     }
-
-    fn row(&self, pos: usize) -> Frame
-    {
-        Frame {
-            names: self.names(),
-            data: Rc::new(row(&self.data, pos))
-        }
-    }
-
-    fn col(&self, pos:usize) -> Column {
-        self.data[pos].clone()
+    fn row(&self, pos:usize) -> Data {
+        Frame::row(&self, pos)
     }
 }
 
-impl RelationCol for Frame {
-    fn frame(&self) -> &Frame {self}
+/// Encapsulate 1d relations (aka: arrays)
+impl Relation for Data {
+    fn col_count(&self) -> usize {
+        1
+    }
+    fn row_count(&self) -> usize {
+        self.len
+    }
+    fn names(&self) -> Names {
+        vec!("item".to_string())
+    }
+    fn row(&self, pos:usize) -> Data {
+        Frame::row_data(&self, pos)
+    }
 }
 
-pub fn to_i64(from:&Column) -> &RVec<i64> {
-    if let Column::I64(data) = from {
-        data
-    } else {
-        panic!("Improper cast of {:?} to [f64]", from)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn _name(name:&str) -> Names {
+        vec!(name.to_string())
+    }
+
+    fn _name2(name:&str, name2:&str) -> Names {
+        vec!(name.to_string(), name2.to_string())
+    }
+
+    #[test]
+    fn test_create_frame() {
+        let null1 = Data::empty(DataType::I32);
+        let s1 = Data::from(1);
+        let col1 = Data::from(vec![1, 2, 3]);
+        let col2 = col1.clone();
+        let row1 = to_data!(vec![3, 4, 5], DataType::Tuple);
+        let row2 = row1.clone();
+
+        let name = _name("x");
+        let names = _name2("x", "y");
+
+        let fnull = Frame::new(name.clone(), vec![null1]);
+        assert_eq!(fnull.layout, Layout::Scalar);
+        assert_eq!(fnull.col_count(), 1);
+        assert_eq!(fnull.row_count(), 0);
+
+        let fs1 = Frame::new(name.clone(), vec![s1]);
+        assert_eq!(fs1.layout, Layout::Scalar);
+        assert_eq!(fs1.col_count(), 1);
+        assert_eq!(fs1.row_count(), 1);
+
+        let fcol1 = Frame::new(name.clone(), vec![col1.clone()]);
+        assert_eq!(fcol1.layout, Layout::Col);
+        assert_eq!(fcol1.row_count(), 3);
+
+        let fcols = Frame::new(names.clone(), vec![col1, col2]);
+        assert_eq!(fcols.layout, Layout::Col);
+        assert_eq!(fcols.col_count(), 2);
+        assert_eq!(fcols.row_count(), 3);
+
+        let frow1 = Frame::new(name.clone(), vec![row1.clone()]);
+        assert_eq!(frow1.layout, Layout::Row);
+        assert_eq!(frow1.col_count(), 1);
+        assert_eq!(frow1.row_count(), 1);
+
+        let frows = Frame::new(names.clone(), vec![row1, row2]);
+        assert_eq!(frows.layout, Layout::Row);
+        assert_eq!(frows.col_count(), 2);
+        assert_eq!(frows.row_count(), 2);
+
+        //TODO: What type is a empty frame?
+//        let fempty = Frame::empty(names.clone());
+//        assert_eq!(fempty.layout, Layout::Row);
+//        assert_eq!(fempty.col_count(), 2);
+//        assert_eq!(fempty.row_count(), 0);
+
+    }
+
+    #[test]
+    fn test_create_col() {
+        let null1 = Data::empty(DataType::I32);
+        assert_eq!(layout_of_data(&null1), Layout::Scalar);
+
+        let s1 = Data::from(1);
+        assert_eq!(layout_of_data(&s1), Layout::Scalar);
+
+        let col1 = Data::from(vec![1, 2, 3]);
+        assert_eq!(layout_of_data(&col1), Layout::Col);
+
+        let row1 = to_data!(vec![3, 4, 5], DataType::Tuple);
+        assert_eq!(layout_of_data(&row1), Layout::Row);
     }
 }
