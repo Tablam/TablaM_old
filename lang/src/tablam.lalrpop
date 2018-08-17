@@ -1,83 +1,313 @@
 use std::str::FromStr;
 use core::ast::*;
+use tok::{self, Tok};
 
 grammar;
 
-pub Expr: Exp = {
-    "let" <n:Name> "=" <e:If> ";" => Exp::LetImm(n, e.into()),
-    "var" <n:Name> "=" <e:If> ";" => Exp::LetMut(n, e.into()),
-    If,
-}
+Sep<E,S>: Vec<E> =
+    <v0:(<E> S)*> <e1:E?> =>
+        v0.into_iter().chain(e1).collect();
 
-If: Exp = {
-    "if" <cond:Add> "then" <if_true:Add> "else" <if_false:Add> "end" =>
-        Exp::IfElse(cond.into(), if_true.into(), if_false.into()),
-    "if" <cond:Add> "then" <if_true:Add> "end" =>
-        Exp::If(cond.into(), if_true.into()),
+NonEmptySep<E,S>: Vec<E> =
+    <e0:E> <e1:(S <E>)*> =>
+        vec!(e0).into_iter().chain(e1).collect();
+
+AtLeast2Sep<E,S>: Vec<E> =
+    <e0:E> <e1:(S <E>)+> =>
+        vec!(e0).into_iter().chain(e1).collect();
+
+Comma<E>: Vec<E> = Sep<E, "COMMA">;
+Semi<E>: Vec<E> = Sep<E, "SEMICOLON">;
+
+pub Program: Prog = {
+    <ProgBlock*> => Prog { blocks: <> },
+};
+
+pub ProgBlock: ProgBlock = {
+    "KFUN" <name:Name> "LPAREN" <params:Comma<FunctionParam>> "RPAREN" "COLON" <ret_ty:Type> "EQ" <body:Expr> =>
+        ProgBlock::Function(FunDef { name: name, params: params, ret_ty: ret_ty, body: body }),
+    <n:"CONSTANT"> "COLON" <ty:Type> "EQ" <e:Expr> =>
+        ProgBlock::Constant(n.into(), ty, e.into()),
+    "KTYPE" <ty:Simpletype> "EQ" "PIPE"? <variants:NonEmptySep<Variant, "PIPE">> =>
+        ProgBlock::TypeDeclaration(ty, variants),
+};
+
+Variant: (String, Vec<Atype>) = {
+    <variant:Conid> <base:Atype*> => (variant, base),
+};
+
+FunctionParam: (String, Ty) = {
+    <n:Name> "COLON" <t:Type> => (n, t),
+};
+
+Conid: String = <"TYPENAME"> => <>.into();
+pub Type: Ty = {
+    <b:Btype> <t:("ARROW" <Type>)?> => Ty::Arrow(b.into(), t.into()),
+};
+Btype: Ty = {
+    <b:Btype> <a:Atype> => Ty::TyApp(b.into(), a.into()),
+    <a:Atype> => Ty::Atype(a.into()),
+};
+Atype: Atype = {
+    // TODO: fix -- causes conflict
+    // <Gtycon> => Atype::Gtycon(<>),
+    <Conid> => Atype::Conid(<>),
+    <Tyvar> => Atype::Tyvar(<>),
+    "LPAREN" <AtLeast2Sep<Type, "COMMA">> "RPAREN" => Atype::Tuple(<>),
+    // TODO: fix -- causes conflict
+    // "LBRACK" <Type> "RBRACK" => Atype::List(<>),
+    "LPAREN" <Type> "RPAREN" => Atype::Paren(<>),
+};
+Tyvar: String = {
+    "TICK" <Name> => <>,
+};
+// Gtycon: Gtycon = {
+//     <Conid> => Gtycon::Conid(<>),
+//     "LPAREN" "RPAREN" => Gtycon::Unit,
+//     "LBRACK" "RBRACK" => Gtycon::List,
+//     "LPAREN" "ARROW" "RPAREN" => Gtycon::Function,
+// };
+
+Simpletype: Ty = {
+    <con:Conid> <vars:Tyvar*> => Ty::Tycon(con, vars),
+    // "LPAREN" <Type> "RPAREN" => <>,
+};
+
+pub Statement: Stmt = {
+    // "TODO": fix "warning: literal out of range for i8"
+    "KLET" <n:Name> <ty:("COLON" <Type>)?> "EQ" <e:Expr> "SEMICOLON" =>
+        Stmt::Let(LetKind::Imm, n, ty, e.into()),
+    "KVAR" <n:Name> "EQ" <e:Expr> "SEMICOLON" =>
+        Stmt::Let(LetKind::Mut, n, None, e.into()),
+
+    "KIF" <cond:Term> <if_true:Term> "KELSE" <if_false:Term> =>
+        Stmt::IfElse(cond.into(), if_true.into(), if_false.into()),
+    "KIF" <cond:Term> <if_true:Term> =>
+        Stmt::If(cond.into(), if_true.into()),
+
+    "KWHILE" <cond:Expr> <body:BlockStatement> =>
+        Stmt::While(cond.into(), body.into()),
+
+    "KFOR" <n:Name> "KIN" <e:Expr> <body:BlockStatement> =>
+        Stmt::For(n, e.into(), body.into()),
+
+    <Expr> "SEMICOLON" => Stmt::Exp(<>),
+    BlockStatement,
+};
+
+BlockStatement: Stmt = {
+    "LBRACE" <ss:Statement*> "RBRACE" => Stmt::Block(ss),
+    "KDO" <ss:Statement*> "KEND" => Stmt::Block(ss),
+};
+
+pub Expr: Exp = Pipe;
+
+Pipe: Exp = {
+    // Function application
+    <e:Pipe> "PIPE" <f:App> => Exp::Apply(f.into(), vec!(e)),
+    App,
+};
+
+App: Exp = {
+    // Function application
+    <f:Term> "LPAREN" <es:Comma<Expr>> "RPAREN" => Exp::Apply(f.into(), es),
+    Query,
+};
+
+Query: Exp = {
+    // Query by filtering
+    <rel:ContainerLiteral> "QMARK" <fs:FilterList> =>
+        Exp::QueryFilter(rel.into(), fs),
+
+    // Query by selecting
+    <rel:ContainerLiteral> "HASH" <fs:GroupLiteral> =>
+        Exp::QuerySelect(rel.into(), fs.into()),
     Add,
 };
 
+FilterList: Vec<FilterExp> = {
+    <("HASH" <Filter>)+> => <>
+};
+
+Filter: FilterExp = {
+    <field:Name> <op:RelOp> <e:Term> =>
+        FilterExp::RelOp(op, field, e.into()),
+};
+
+RelOp: RelOp = {
+    "EQUALS" => RelOp::Equals,
+    "NOTEQUALS" => RelOp::NotEquals,
+};
+
 Add: Exp = {
-    <l:Expr> "+" <r:Factor> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
-    <l:Expr> "-" <r:Factor> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
+    <l:Factor> "PLUS" <r:Add> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
+    <l:Factor> "MINUS" <r:Add> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
     Factor,
 };
 
 Factor: Exp = {
-    <l:Factor> "*" <r:Term> => Exp::BinOp(BinOp::Times, l.into(), r.into()),
-    <l:Factor> "/" <r:Term> => Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    <l:ContainerLiteral> "TIMES" <r:Factor> =>
+        Exp::BinOp(BinOp::Times, l.into(), r.into()),
+    <l:ContainerLiteral> "DIVIDE" <r:Factor> =>
+        Exp::BinOp(BinOp::Divide, l.into(), r.into()),
+    ContainerLiteral,
+};
+
+ContainerLiteral: Exp = {
+    <ty:Type> <c:ColumnLiteral> => Exp::Container(ty, c),
+    GroupLiteral,
+};
+
+GroupLiteral: Exp = {
+    <ColumnLiteral> => Exp::Column(<>),
+    <RowLiteral> => Exp::Row(<>),
+    <RelationLiteral> => Exp::Relation(<>),
+    <RangeLiteral> => Exp::Range(<>),
     Term,
 };
 
 Term: Exp = {
-    <s:ScalarLiteral> => Exp::Scalar(s),
-    <c:ColumnLiteral> => Exp::Column(c),
-    <r:RangeLiteral> => Exp::Range(r),
-    <n:Name> => Exp::Name(n),
-    "(" <Expr> ")",
+    "LPAREN" "RPAREN" => Exp::Unit,
+    <NumLiteral> => Exp::Scalar(<>),
+    <StringLiteral> => Exp::Scalar(<>),
+    <Name> => Exp::Name(<>),
+    "CONSTANT" => Exp::Constant(<>.into()),
+    "LPAREN" <Expr> "RPAREN" => <>,
+
+    // Used for selecting named fields in a row
+    <g:GroupLiteral> "DOT" <n:Name> =>
+        Exp::ColumnSelect(g.into(), ColumnSelector::Name(n)),
+
+    // Used for selecting indices in unnamed fields in a row
+    <g:GroupLiteral> "DOT" <n:"DIGITS"> =>
+        Exp::ColumnSelect(g.into(), ColumnSelector::Num(u32::from_str(&n).unwrap())),
+    BlockExpr,
 };
 
-pub ScalarLiteral: Scalar = {
-    <n:NumLiteral> => n,
-    // <b:BoolLiteral> => b,
-    <s:StringLiteral> => s,
+BlockExpr: Exp = {
+    // "LBRACE" <ss:Statement*> <e:Expr> "RBRACE" => Exp::Block(ss, e.into()),
+    "KDO" <ss:Statement*> <e:Expr> "KEND" => Exp::Block(ss, e.into()),
 };
 
 pub ColumnLiteral: ColumnExp = {
-    "[" <name:Name> ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
-        ColumnExp { name: Some(name), ty: Some(ty), es: es },
-    "[" ":" <ty:Name> ";" <es:(<Expr>)+> "]" =>
-        ColumnExp { name: None, ty: Some(ty), es: es },
-    "[" <es:(<Expr>)+> "]" =>
+    "LBRACK" <name:(<Name> "COLON")?> <ty:Type> "SEMICOLON" <es:Term+> "RBRACK" =>
+        ColumnExp { name: name, ty: Some(ty), es: es },
+    "LBRACK" <es:Term+> "RBRACK" =>
         ColumnExp { name: None, ty: None, es: es },
 };
 
 pub RangeLiteral: RangeExp = {
-    "(" <start:Expr> ".." <end:Expr> ")" =>
+    "LPAREN" <start:Term> "DOTDOT" <end:Term> "RPAREN" =>
         RangeExp { start: start.into(), end: end.into() }
 };
 
+pub RowLiteral: RowExp = {
+    "LBRACE" <row:NonEmptySep<RowAssignment, "COMMA">> "RBRACE" => {
+        let (names_types, exps): (Vec<(_, _)>, _) =
+            row.iter().cloned().unzip();
+        let (names, types) =
+            names_types.iter().cloned().unzip();
+        RowExp { names: Some(names), types: types, es: exps }
+    },
+
+    "LBRACE" <row:NonEmptySep<Term, "COMMA">> "RBRACE" =>
+        RowExp { names: None, types: vec![None; row.len()], es: row },
+};
+
+RowAssignment: ((String, Option<Ty>), Exp) = {
+    // Per-field optional types
+    <n:Name> <ty:("COLON" <Type>)?> "EQ" <e:Term> => ((n, ty), e),
+};
+
+pub RelationLiteral: RelationExp = {
+    // "TODO": add types
+    // Row format
+    "LROW" <names:Comma<Name>> "SEMICOLON" <data:Semi<Term+>> "RROW" =>
+        RelationExp { rel_type: RelType::Row, names: names, data: data },
+
+    // "TODO": add types
+    // Col format
+    "LCOL" <cols:Semi<ColAssignment>> "RCOL" => {
+        let (names, data) = cols.iter().cloned().unzip();
+        RelationExp { rel_type: RelType::Col, names: names, data: data }
+    },
+};
+
+ColAssignment: (String, Vec<Exp>) = {
+    <n:Name> "EQ" <es:Term+> => (n, es),
+};
+
 Name: String = {
-    r"[a-zA-Z][_a-zA-Z0-9]*" => <>.into()
+    "NAME" => <>.into(),
 };
 
 NumLiteral: Scalar = {
-    <digits:r"[0-9]+"> =>
-        Scalar::I32(i32::from_str(digits).unwrap()),
-    // <digits:r"[0-9]+"> "i64" =>
-    //     Scalar::I64(i64::from_str(digits).unwrap()),
-    // <digits:r"[0-9]+"> "i32"? =>
-    //     Scalar::I32(i32::from_str(digits).unwrap()),
+    <"DIGITS"> "I32SUFFIX"? => Scalar::I32(i32::from_str(&<>).unwrap()),
+    <"DIGITS"> "I64SUFFIX" => Scalar::I64(i64::from_str(&<>).unwrap()),
 };
 
-// BoolLiteral: Scalar = {
-//     <b:r"true|false"> =>
-//         Scalar::BOOL(bool::from_str(b).unwrap()),
-// };
-
 StringLiteral: Scalar = {
-    <s:r#""[^"]*""#> => {
+    <s:"STRINGLITERAL"> => {
         let literal = &s[1..s.len()-1];
         Scalar::UTF8(encode_str(literal))
     },
 };
+
+extern {
+    type Location = usize;
+    type Error = tok::Error;
+
+    enum Tok {
+        "LBRACK" => Tok::LBRACK,
+        "RBRACK" => Tok::RBRACK,
+        "LBRACE" => Tok::LBRACE,
+        "RBRACE" => Tok::RBRACE,
+        "LPAREN" => Tok::LPAREN,
+        "RPAREN" => Tok::RPAREN,
+        "COLON" => Tok::COLON,
+        "SEMICOLON" => Tok::SEMICOLON,
+        "COMMA" => Tok::COMMA,
+        "EQ" => Tok::EQ,
+        "ARROW" => Tok::ARROW,
+        "EQUALS" => Tok::EQUALS,
+        "NOTEQUALS" => Tok::NOTEQUALS,
+        "GT" => Tok::GT,
+        "LT" => Tok::LT,
+        "PIPE" => Tok::PIPE,
+        "QMARK" => Tok::QMARK,
+        "HASH" => Tok::HASH,
+        "PLUS" => Tok::PLUS,
+        "MINUS" => Tok::MINUS,
+        "TIMES" => Tok::TIMES,
+        "DIVIDE" => Tok::DIVIDE,
+        "DOTDOT" => Tok::DOTDOT,
+        "DOT" => Tok::DOT,
+        "LROW" => Tok::LROW,
+        "RROW" => Tok::RROW,
+        "LCOL" => Tok::LCOL,
+        "RCOL" => Tok::RCOL,
+        "TICK" => Tok::TICK,
+        "KFUN" => Tok::KFUN,
+        "KLET" => Tok::KLET,
+        "KVAR" => Tok::KVAR,
+        "KIF" => Tok::KIF,
+        "KELSE" => Tok::KELSE,
+        "KWHILE" => Tok::KWHILE,
+        "KFOR" => Tok::KFOR,
+        "KDO" => Tok::KDO,
+        "KEND" => Tok::KEND,
+        "KIN" => Tok::KIN,
+        "KTYPE" => Tok::KTYPE,
+        "KOF" => Tok::KOF,
+
+        "DIGITS" => Tok::DIGITS(<String>),
+        "I32SUFFIX" => Tok::I32SUFFIX,
+        "I64SUFFIX" => Tok::I64SUFFIX,
+
+        "CONSTANT" => Tok::CONSTANT(<String>),
+        "STRINGLITERAL" => Tok::STRINGLITERAL(<String>),
+
+        "NAME" => Tok::NAME(<String>),
+        "TYPENAME" => Tok::TYPENAME(<String>),
+    }
+}

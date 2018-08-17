@@ -1,13 +1,6 @@
-[package]
-name = "tablam"
-version = "0.1.0"
-authors = ["Mario Montoya <mamcx@elmalabarista.com>", "Maxwell Bernstein <tekknolagi@gmail.com>"]
-repository = "https://bitbucket.org/tablam/tablam/"
-license = "MPL-2.0"
-readme = "README.md"
-homepage = "https://bitbucket.org/tablam/tablam/"
-keywords = ["database", "interpreter", "language", "relational", "columnar"]
-categories = ["database", "language", "relational"]
+# [package]
+# name = "tablam"
+# version = "0.1.0"
 
 [workspace]
 members = ["lang", "drivers"]
@@ -22,7 +15,3 @@ bit-vec = "*"
 [dependencies.rusqlite]
 version = "0.13.0"
 features = ["bundled"]
-
-[[bin]]
-name = "table"
-path = "lang/src/main.rs"
