@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
             let parser = StatementParser::new();
             let eparser = ExprParser::new();
 
-            println!("{:?}", tlparser.parse(t(&line)));
+            println!("{:?}", parser.parse(t(&line)));
 
             // match tlparser.parse(t(&line)) {
             //     Ok(ast) => println!("ok(P): {:?}", ast),
