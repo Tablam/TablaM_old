@@ -198,6 +198,29 @@ fn nested_loop(left:Data, right:Data) -> impl Iterator<Item = (usize, usize)>
         }.into_iter()
 }
 
+/// Select: aka projection in relational algebra
+fn select(of:Rc<Relation>, pick:Names) -> Rc<Relation>
+{
+    if pick.len() == 0 {
+        of
+    } else {
+        let mut cols = Vec::new();
+
+        for name in &pick {
+            cols.push(of.get_col(name))
+        }
+
+        Rc::new(Frame::new(pick, cols))
+    }
+}
+
+fn deselect(of:Rc<Relation>, remove:Names) -> Rc<Relation>
+{
+    let mut names = of.names();
+    names.retain(|name| !remove.contains(name));
+    select(of, names)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,37 +238,43 @@ mod tests {
     }
 
     fn columns() -> (ColumnExp, ColumnExp) {
-        let pick1 = ColumnExp::Name("col0".to_string());
+        let pick1 = ColumnExp::Name("0".to_string());
         let pick2 = col(1);
 
         (pick1, pick2)
     }
 
-//    fn make_rel1() -> Rc<Frame> {
-//        let nums1 = make_nums1();
-//        let nums2 = make_nums2();
-//
-//        let col1 = Column::from(nums1);
-//        let col2 = Column::from(nums2);
-//
-//        Rc::new(Frame::new(vec!(col1, col2)))
-//    }
-//
-//    #[test]
-//    fn test_select() {
-//        let nums1 = make_nums1();
-//        let f1 = make_rel1();
-//
-//        let (pick1, pick2) = columns();
-//
-//        let col3 = select(f1.clone(), &pick1);
+    fn make_rel1() -> Rc<Frame> {
+        let nums1 = make_nums1();
+        let nums2 = make_nums2();
+
+        let col1 = Data::from(nums1);
+        let col2 = Data::from(nums2);
+        let cols = vec!(col1, col2);
+
+        Rc::new(Frame::new_anon(cols))
+    }
+
+    #[test]
+    fn test_select() {
+        let nums1 = make_nums1();
+        let f1 = make_rel1();
+
+        let (pick1, pick2) = columns();
+        //println!("{:?}", f1.names());
+        let names1 = f1.resolve_names(vec![&pick1]);
+        let names2 = f1.resolve_names(vec![&pick2]);
+
+        let query1 = select(f1.clone(), names1);
+        println!("{:?}", query1.col_count());
 //        let nums3:Vec<i64> = col3.as_slice().into();
 //        assert_eq!(nums1, nums3);
-//
-//        let cols = deselect(f1.clone(), &pick1);
+
+        let query2 = deselect(f1.clone(), names2);
+        println!("{:?}", query2.col_count());
 //        assert_eq!(cols.len(), 1);
-//    }
-//
+    }
+
 //    #[test]
 //    fn test_compare() {
 //        let f1 = make_rel1();

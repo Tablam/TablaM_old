@@ -26,6 +26,8 @@ pub enum DataType {
     I32,
     I64,
 //    Planed:
+//    F32,
+//    F64,
 //    Decimal,
 //    Time,
 //    Date,
@@ -242,24 +244,14 @@ fn layout_of_data(of:&Data) -> Layout {
         }
     }
 }
-//
-//fn count_rows_data(of:&Data) -> usize {
-//    match of.len {
-//        0 => Layout::Scalar,
-//        1 => Layout::Scalar,
-//        _ => {
-//            if of.kind == DataType::Tuple {
-//                Layout::Row
-//            } else {
-//                Layout::Col
-//            }
-//        }
-//    }
-//}
+
+pub fn names(names:Vec<&str>) -> Names {
+    names.into_iter().map(|x| x.to_string()).collect()
+}
 
 impl Frame {
     //TODO: Validate equal size of headers and columns here or in the parser?
-    fn new(names:Names, data:Vec<Data>) -> Self {
+    pub fn new(names:Names, data:Vec<Data>) -> Self {
         let size = data.len();
 
         let layout =
@@ -292,11 +284,16 @@ impl Frame {
         }
     }
 
-    fn empty(names:Names) -> Self {
+    pub fn new_anon(data:Vec<Data>) -> Self {
+        let names:Vec<_> = (0..data.len()).map(|x| x.to_string()).collect();
+        Frame::new(names, data)
+    }
+
+    pub fn empty(names:Names) -> Self {
         Frame::new(names, [].to_vec())
     }
 
-    fn row_data(of:&Data, pos:usize) -> Data {
+    pub fn row_data(of:&Data, pos:usize) -> Data {
         let mut rows = Vec::new();
         for col in of.data.iter() {
             rows.push(col.clone())
@@ -305,7 +302,7 @@ impl Frame {
         Data::new(rows, DataType::Tuple)
     }
 
-    fn row(of:&Frame, pos:usize) -> Data {
+    pub fn row(of:&Frame, pos:usize) -> Data {
         let mut rows = Vec::new();
         for col in of.data.iter() {
             rows.push(col.data[pos].clone())
@@ -313,20 +310,60 @@ impl Frame {
 
         Data::new(rows, DataType::Tuple)
     }
+
+    //TODO: Remove this hack, and put type on field name
+    pub fn col(of:&Frame, pos:usize) -> Data {
+        let mut rows = Vec::new();
+        let mut last = DataType::None;
+
+        for col in of.data.iter() {
+            last = col.kind.clone();
+            rows.push(col.data[pos].clone())
+        }
+
+        Data::new(rows, last)
+    }
+
 }
 
-trait Relation {
+pub trait Relation {
+    fn layout(&self) -> Layout;
     fn col_count(&self) -> usize;
     fn row_count(&self) -> usize;
     fn names(&self)  -> Names;
-    fn layout(&self) -> Layout {
-        Layout::Col
-    }
     fn row(&self, pos:usize) -> Data;
+    fn col(&self, pos:usize) -> Data;
+    fn resolve_names(&self, of: Vec<&ColumnExp>) -> Names {
+        let mut names = Vec::new();
+        let fields = self.names();
+
+        for name in of.into_iter() {
+            let pick =
+                    match name {
+                        ColumnExp::Pos(x) => {
+                            fields[*x].clone()
+                        },
+                        ColumnExp::Name(x) => {
+                            let pos = fields.iter().position(|r| r == x).unwrap();
+                            fields[pos].clone()
+                        }
+                    };
+            names.push(pick);
+        }
+        names
+    }
+    fn get_col(&self, name:&String) -> Data
+    {
+        let pos = self.names().iter().position(|r| r == name).unwrap();
+        self.col(pos)
+    }
 }
 
 /// Encapsulate 2d relations (aka: Tables)
 impl Relation for Frame {
+    fn layout(&self) -> Layout {
+        self.layout.clone()
+    }
     fn col_count(&self) -> usize {
         self.names.len()
     }
@@ -339,10 +376,22 @@ impl Relation for Frame {
     fn row(&self, pos:usize) -> Data {
         Frame::row(&self, pos)
     }
+
+    fn col(&self, pos:usize) -> Data {
+        match self.layout {
+            Layout::Row => {
+                Frame::col(self, pos)
+            },
+            _ => self.data[pos].clone(),
+        }
+    }
 }
 
 /// Encapsulate 1d relations (aka: arrays)
 impl Relation for Data {
+    fn layout(&self) -> Layout {
+        Layout::Col
+    }
     fn col_count(&self) -> usize {
         1
     }
@@ -355,6 +404,10 @@ impl Relation for Data {
     fn row(&self, pos:usize) -> Data {
         Frame::row_data(&self, pos)
     }
+
+    fn col(&self, pos:usize) -> Data {
+        self.clone()
+    }
 }
 
 #[cfg(test)]
@@ -362,11 +415,11 @@ mod tests {
     use super::*;
 
     fn _name(name:&str) -> Names {
-        vec!(name.to_string())
+        names(vec![name])
     }
 
     fn _name2(name:&str, name2:&str) -> Names {
-        vec!(name.to_string(), name2.to_string())
+        names(vec![name, name2])
     }
 
     #[test]
