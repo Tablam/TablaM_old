@@ -17,10 +17,13 @@ impl Add for Scalar {
     type Output = Scalar;
 
     fn add(self, other: Scalar) -> Scalar {
+        use self::Scalar::*;
         match (self, other) {
-            (Scalar::I32(x), Scalar::I32(y)) => Scalar::I32(x + y),
-            (Scalar::I64(x), Scalar::I64(y)) => Scalar::I64(x + y),
-            _ => panic!("Not implemented")
+            (I32(x), I32(y)) => I32(x + y),
+            (I64(x), I64(y)) => I64(x + y),
+            (I64(x), I64(y)) => I64(x + y),
+            // (UTF8(s), UTF8(o)) => UTF8(s+o),
+            p => panic!("Not implemented: cannot add {:?}", p),
         }
     }
 }

@@ -20,7 +20,7 @@ fn t<'input>(s: &'input str) -> TablamTokenizer<'input> {
     TablamTokenizer::new(s)
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), Box<std::error::Error>> {
     // let nums1:Vec<i64> = (0..100).into_iter().collect();
     // let nums2:Vec<i64> = (100..200).into_iter().collect();
     // let nums3:Vec<i64> = (100..200).into_iter().collect();
@@ -42,59 +42,85 @@ fn main() -> io::Result<()> {
 //  //   println!("Sum Dot:  {:?}", f2.clone() + f1.clone());
 //  //   println!("Sum Scalar:  {:?}", f2.clone() + s1.clone());
 
+    use std::env;
+    use core::ast::*;
+    use std::fs::File;
+    use std::io::Read;
+    use tablam::ProgramParser;
+    // use core::typecheck::*;
 
-    loop {
-        use tablam::*;
 
-        let stdin = io::stdin();
-        print!("> ");
-        std::io::stdout().flush().unwrap();
-        for line_r in stdin.lock().lines() {
-            let line = line_r.unwrap();
+    let args: Vec<String> = env::args().collect();
+    let filename: &String = args.get(1).ok_or("Did not pass a filename on CLI")?;
+    let mut f = File::open(filename)?;
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+    let ast = ProgramParser::new().parse(t(&contents))?;
+    let res = ast.run(vec!(), &Env::empty())?;
+    println!("returned: {:?}", res);
 
-            let typarser = TypeParser::new();
-            let tlparser = ProgBlockParser::new();
-            let parser = StatementParser::new();
-            let eparser = ExprParser::new();
+    // let e = TypedExp {
+    //     ty: Ty::Atype(Atype::Conid("Int".into()).into()),
+    //     exp: Exp::Scalar(Scalar::I32(1))
+    // };
+    // let e = Kind::Arrow(vec!(Kind::Type, Kind::Type), Kind::Type.into());
+    // let e = listtype(I32TYPE);
+    // println!("e: {}", e);
 
-            println!("{:?}", parser.parse(t(&line)));
 
-            // match tlparser.parse(t(&line)) {
-            //     Ok(ast) => println!("ok(P): {:?}", ast),
-            //     Err(err) => match parser.parse(t(&line)) {
-            //         Ok(ast) => println!("ok(S): {:?}", ast),
-            //         Err(err) => match eparser.parse(t(&line)) {
-            //             Ok(ast) => println!("ok(E): {:?}", ast),
-            //             Err(err) => println!("error: {:?}", err),
-            //         }
-            //     }
-            // }
+    // loop {
+    //     use tablam::*;
 
-            print!("> ");
-            std::io::stdout().flush().unwrap();
-        }
-    }
+    //     let stdin = io::stdin();
+    //     print!("> ");
+    //     std::io::stdout().flush().unwrap();
+    //     for line_r in stdin.lock().lines() {
+    //         let line = line_r.unwrap();
+
+    //         let typarser = TypeParser::new();
+    //         let tlparser = ProgBlockParser::new();
+    //         let parser = StatementParser::new();
+    //         let eparser = ExprParser::new();
+
+    //         println!("{:?}", parser.parse(t(&line)));
+
+    //         // match tlparser.parse(t(&line)) {
+    //         //     Ok(ast) => println!("ok(P): {:?}", ast),
+    //         //     Err(err) => match parser.parse(t(&line)) {
+    //         //         Ok(ast) => println!("ok(S): {:?}", ast),
+    //         //         Err(err) => match eparser.parse(t(&line)) {
+    //         //             Ok(ast) => println!("ok(E): {:?}", ast),
+    //         //             Err(err) => println!("error: {:?}", err),
+    //         //         }
+    //         //     }
+    //         // }
+
+    //         print!("> ");
+    //         std::io::stdout().flush().unwrap();
+    //     }
+    // }
+    Ok(())
 }
 
-use core::ast::Exp;
-fn name(s: &str) -> Exp {
-    Exp::Name(s.into())
-}
-
-fn stringlit(s: &str) -> Exp {
-    use core::types::{Scalar, encode_str};
-    Exp::Scalar(Scalar::UTF8(encode_str(s)))
-}
-
-use std::rc::Rc;
-fn rc<T>(s: T) -> Rc<T> {
-    Rc::new(s)
-}
-
-use core::ast::{Ty, Atype};
-fn star(s: &str) -> Ty {
-    Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
-}
+// use core::ast::Exp;
+// fn name(s: &str) -> Exp {
+//     Exp::Name(s.into())
+// }
+// 
+// fn stringlit(s: &str) -> Exp {
+//     use core::types::{Scalar, encode_str};
+//     Exp::Scalar(Scalar::UTF8(encode_str(s)))
+// }
+// 
+// use std::rc::Rc;
+// fn rc<T>(s: T) -> Rc<T> {
+//     Rc::new(s)
+// }
+// 
+// use core::ast::{Ty, Atype};
+// fn star(s: &str) -> Ty {
+//     Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
+// }
 
 #[test]
 fn tablam() {

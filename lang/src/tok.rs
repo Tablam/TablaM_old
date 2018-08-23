@@ -14,6 +14,14 @@ pub struct Error {
     pub code: ErrorCode,
 }
 
+use std::fmt;
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Error {:?} at position {}", self.code, self.location)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ErrorCode {
     UnrecognizedToken,
@@ -78,6 +86,12 @@ pub enum Tok {
 
     NAME(String),
     TYPENAME(String),
+}
+
+impl fmt::Display for Tok {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 pub struct TablamTokenizer<'input> {

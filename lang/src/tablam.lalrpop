@@ -19,11 +19,11 @@ AtLeast2Sep<E,S>: Vec<E> =
 Comma<E>: Vec<E> = Sep<E, "COMMA">;
 Semi<E>: Vec<E> = Sep<E, "SEMICOLON">;
 
-pub Program: Prog = {
+pub Program: Prog<()> = {
     <ProgBlock*> => Prog { blocks: <> },
 };
 
-pub ProgBlock: ProgBlock = {
+pub ProgBlock: ProgBlock<()> = {
     "KFUN" <name:Name> "LPAREN" <params:Comma<FunctionParam>> "RPAREN" "COLON" <ret_ty:Type> "EQ" <body:Expr> =>
         ProgBlock::Function(FunDef { name: name, params: params, ret_ty: ret_ty, body: body }),
     <n:"CONSTANT"> "COLON" <ty:Type> "EQ" <e:Expr> =>
@@ -73,7 +73,7 @@ Simpletype: Ty = {
     // "LPAREN" <Type> "RPAREN" => <>,
 };
 
-pub Statement: Stmt = {
+pub Statement: Stmt<()> = {
     // "TODO": fix "warning: literal out of range for i8"
     "KLET" <n:Name> <ty:("COLON" <Type>)?> "EQ" <e:Expr> "SEMICOLON" =>
         Stmt::Let(LetKind::Imm, n, ty, e.into()),
@@ -95,26 +95,26 @@ pub Statement: Stmt = {
     BlockStatement,
 };
 
-BlockStatement: Stmt = {
+BlockStatement: Stmt<()> = {
     "LBRACE" <ss:Statement*> "RBRACE" => Stmt::Block(ss),
     "KDO" <ss:Statement*> "KEND" => Stmt::Block(ss),
 };
 
-pub Expr: Exp = Pipe;
+pub Expr: Exp<()> = Pipe;
 
-Pipe: Exp = {
+Pipe: Exp<()> = {
     // Function application
     <e:Pipe> "PIPE" <f:App> => Exp::Apply(f.into(), vec!(e)),
     App,
 };
 
-App: Exp = {
+App: Exp<()> = {
     // Function application
     <f:Term> "LPAREN" <es:Comma<Expr>> "RPAREN" => Exp::Apply(f.into(), es),
     Query,
 };
 
-Query: Exp = {
+Query: Exp<()> = {
     // Query by filtering
     <rel:ContainerLiteral> "QMARK" <fs:FilterList> =>
         Exp::QueryFilter(rel.into(), fs),
@@ -125,11 +125,11 @@ Query: Exp = {
     Add,
 };
 
-FilterList: Vec<FilterExp> = {
+FilterList: Vec<FilterExp<()>> = {
     <("HASH" <Filter>)+> => <>
 };
 
-Filter: FilterExp = {
+Filter: FilterExp<()> = {
     <field:Name> <op:RelOp> <e:Term> =>
         FilterExp::RelOp(op, field, e.into()),
 };
@@ -139,13 +139,13 @@ RelOp: RelOp = {
     "NOTEQUALS" => RelOp::NotEquals,
 };
 
-Add: Exp = {
+Add: Exp<()> = {
     <l:Factor> "PLUS" <r:Add> => Exp::BinOp(BinOp::Plus, l.into(), r.into()),
     <l:Factor> "MINUS" <r:Add> => Exp::BinOp(BinOp::Minus, l.into(), r.into()),
     Factor,
 };
 
-Factor: Exp = {
+Factor: Exp<()> = {
     <l:ContainerLiteral> "TIMES" <r:Factor> =>
         Exp::BinOp(BinOp::Times, l.into(), r.into()),
     <l:ContainerLiteral> "DIVIDE" <r:Factor> =>
@@ -153,12 +153,12 @@ Factor: Exp = {
     ContainerLiteral,
 };
 
-ContainerLiteral: Exp = {
+ContainerLiteral: Exp<()> = {
     <ty:Type> <c:ColumnLiteral> => Exp::Container(ty, c),
     GroupLiteral,
 };
 
-GroupLiteral: Exp = {
+GroupLiteral: Exp<()> = {
     <ColumnLiteral> => Exp::Column(<>),
     <RowLiteral> => Exp::Row(<>),
     <RelationLiteral> => Exp::Relation(<>),
@@ -166,7 +166,7 @@ GroupLiteral: Exp = {
     Term,
 };
 
-Term: Exp = {
+Term: Exp<()> = {
     "LPAREN" "RPAREN" => Exp::Unit,
     <NumLiteral> => Exp::Scalar(<>),
     <StringLiteral> => Exp::Scalar(<>),
@@ -184,24 +184,24 @@ Term: Exp = {
     BlockExpr,
 };
 
-BlockExpr: Exp = {
+BlockExpr: Exp<()> = {
     // "LBRACE" <ss:Statement*> <e:Expr> "RBRACE" => Exp::Block(ss, e.into()),
     "KDO" <ss:Statement*> <e:Expr> "KEND" => Exp::Block(ss, e.into()),
 };
 
-pub ColumnLiteral: ColumnExp = {
+pub ColumnLiteral: ColumnExp<()> = {
     "LBRACK" <name:(<Name> "COLON")?> <ty:Type> "SEMICOLON" <es:Term+> "RBRACK" =>
         ColumnExp { name: name, ty: Some(ty), es: es },
     "LBRACK" <es:Term+> "RBRACK" =>
         ColumnExp { name: None, ty: None, es: es },
 };
 
-pub RangeLiteral: RangeExp = {
+pub RangeLiteral: RangeExp<()> = {
     "LPAREN" <start:Term> "DOTDOT" <end:Term> "RPAREN" =>
         RangeExp { start: start.into(), end: end.into() }
 };
 
-pub RowLiteral: RowExp = {
+pub RowLiteral: RowExp<()> = {
     "LBRACE" <row:NonEmptySep<RowAssignment, "COMMA">> "RBRACE" => {
         let (names_types, exps): (Vec<(_, _)>, _) =
             row.iter().cloned().unzip();
@@ -214,12 +214,12 @@ pub RowLiteral: RowExp = {
         RowExp { names: None, types: vec![None; row.len()], es: row },
 };
 
-RowAssignment: ((String, Option<Ty>), Exp) = {
+RowAssignment: ((String, Option<Ty>), Exp<()>) = {
     // Per-field optional types
     <n:Name> <ty:("COLON" <Type>)?> "EQ" <e:Term> => ((n, ty), e),
 };
 
-pub RelationLiteral: RelationExp = {
+pub RelationLiteral: RelationExp<()> = {
     // "TODO": add types
     // Row format
     "LROW" <names:Comma<Name>> "SEMICOLON" <data:Semi<Term+>> "RROW" =>
@@ -233,7 +233,7 @@ pub RelationLiteral: RelationExp = {
     },
 };
 
-ColAssignment: (String, Vec<Exp>) = {
+ColAssignment: (String, Vec<Exp<()>>) = {
     <n:Name> "EQ" <es:Term+> => (n, es),
 };
 
