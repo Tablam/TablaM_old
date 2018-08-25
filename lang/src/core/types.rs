@@ -2,13 +2,15 @@
 #![allow(unused_imports)]
 use std::fmt::Debug;
 use std::rc::Rc;
+use std::cell::Cell;
+use std::ops::Index;
 
 extern crate bytes;
 
 use self::bytes::*;
+//use super::cursor::Cursor;
 
 pub type RVec<T> = Rc<Vec<T>>;
-pub type Names = Vec<String>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Layout {
@@ -38,8 +40,14 @@ pub enum DataType {
     Tuple,
 //    Sum(DataType), //enums
 //    Product(DataType), //struct
-//    Rel((String, DataType)), //Relations, Columns
+//    Rel(Vec<Field>), //Relations, Columns
 //    Function,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    pub name: String,
+    pub kind: DataType,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -118,6 +126,60 @@ pub struct QueryPlanner {
 
 pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
+}
+
+impl Field {
+    pub fn new(name: &str, kind: DataType) -> Self {
+        Field {
+            name: name.to_string(),
+            kind,
+        }
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn kind(&self) -> &DataType {
+        &self.kind
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Schema {
+    pub columns: Vec<Field>,
+}
+
+impl Schema {
+    pub fn new(fields:Vec<Field>) -> Self {
+        Schema {
+            columns: fields
+        }
+    }
+
+    pub fn new_single(name:&str, kind:DataType) -> Self {
+        let field = Field::new(name, kind);
+        Self::new(vec![field])
+    }
+
+    pub fn named(&self, name:&str) -> Option<(usize, &Field)> {
+        self.columns
+            .iter()
+            .enumerate()
+            .find(|&(_, field)| field.name == name)
+    }
+
+    pub fn len(&self) -> usize {
+        self.columns.len()
+    }
+}
+
+impl Index<usize> for Schema {
+    type Output = Field;
+
+    fn index(&self, pos: usize) -> &Field {
+        &self.columns[pos]
+    }
 }
 
 impl Data {
@@ -227,7 +289,7 @@ impl From<Vec<BytesMut>> for Data {
 pub struct Frame {
     pub layout  :Layout,
     pub len     :usize,
-    pub names   :Names,
+    pub names   :Schema,
     pub data    :RVec<Data>,
 }
 
@@ -245,13 +307,9 @@ fn layout_of_data(of:&Data) -> Layout {
     }
 }
 
-pub fn names(names:Vec<&str>) -> Names {
-    names.into_iter().map(|x| x.to_string()).collect()
-}
-
 impl Frame {
     //TODO: Validate equal size of headers and columns here or in the parser?
-    pub fn new(names:Names, data:Vec<Data>) -> Self {
+    pub fn new(names:Schema, data:Vec<Data>) -> Self {
         let size = data.len();
 
         let layout =
@@ -285,11 +343,15 @@ impl Frame {
     }
 
     pub fn new_anon(data:Vec<Data>) -> Self {
-        let names:Vec<_> = (0..data.len()).map(|x| x.to_string()).collect();
-        Frame::new(names, data)
+        let mut names:Vec<Field> = Vec::new();
+        for (pos, d) in data.iter().enumerate() {
+            let name = format!("{}", pos);
+            names.push(Field::new(&name, d.kind.clone()));
+        }
+        Frame::new(Schema::new(names), data)
     }
 
-    pub fn empty(names:Names) -> Self {
+    pub fn empty(names:Schema) -> Self {
         Frame::new(names, [].to_vec())
     }
 
@@ -330,10 +392,11 @@ pub trait Relation {
     fn layout(&self) -> Layout;
     fn col_count(&self) -> usize;
     fn row_count(&self) -> usize;
-    fn names(&self)  -> Names;
+    fn names(&self)  -> Schema;
     fn row(&self, pos:usize) -> Data;
     fn col(&self, pos:usize) -> Data;
-    fn resolve_names(&self, of: Vec<&ColumnExp>) -> Names {
+    fn value(&self, row:usize, col:usize) -> &Scalar;
+    fn resolve_names(&self, of: Vec<&ColumnExp>) -> Schema {
         let mut names = Vec::new();
         let fields = self.names();
 
@@ -344,17 +407,19 @@ pub trait Relation {
                             fields[*x].clone()
                         },
                         ColumnExp::Name(x) => {
-                            let pos = fields.iter().position(|r| r == x).unwrap();
-                            fields[pos].clone()
+                            let (_pos, f) = fields.named(x).unwrap();
+                            f.clone()
                         }
                     };
             names.push(pick);
         }
-        names
+        Schema::new(names)
     }
+
     fn get_col(&self, name:&String) -> Data
     {
-        let pos = self.names().iter().position(|r| r == name).unwrap();
+        let fields = self.names();
+        let (pos, _f) = fields.named(name).unwrap();
         self.col(pos)
     }
 }
@@ -370,7 +435,7 @@ impl Relation for Frame {
     fn row_count(&self) -> usize {
         self.len
     }
-    fn names(&self) -> Names {
+    fn names(&self) -> Schema {
         self.names.clone()
     }
     fn row(&self, pos:usize) -> Data {
@@ -385,6 +450,10 @@ impl Relation for Frame {
             _ => self.data[pos].clone(),
         }
     }
+
+    fn value(&self, row:usize, col:usize) -> &Scalar {
+        &self.data[row].data[col]
+    }
 }
 
 /// Encapsulate 1d relations (aka: arrays)
@@ -398,8 +467,9 @@ impl Relation for Data {
     fn row_count(&self) -> usize {
         self.len
     }
-    fn names(&self) -> Names {
-        vec!("item".to_string())
+    fn names(&self) -> Schema
+    {
+        Schema::new(vec![Field::new("item", self.kind.clone())])
     }
     fn row(&self, pos:usize) -> Data {
         Frame::row_data(&self, pos)
@@ -408,18 +478,91 @@ impl Relation for Data {
     fn col(&self, pos:usize) -> Data {
         self.clone()
     }
+
+    fn value(&self, row:usize, col:usize) -> &Scalar {
+        &self.data[row]
+    }
+}
+
+struct DataSource<T>
+where T:Relation
+{
+    source:T,
+    pos: Cell<usize>,
+
+}
+
+impl <T> DataSource<T>
+    where T:Relation
+{
+    fn new(source: T) -> Self {
+        DataSource {
+            pos: Cell::new(0),
+            source
+        }
+    }
+
+    fn _set(&self, pos:usize) {
+        self.pos.set(pos)
+    }
+    fn pos(&self) -> usize {
+        self.pos.get()
+    }
+
+    fn len(&self) -> usize {
+        self.source.row_count()
+    }
+
+    fn eof(&self) -> bool {
+        self.pos() == self.len()
+    }
+    fn first(&self) {
+        self._set(0)
+    }
+    fn back(&self) -> bool {
+        self.skip(-1)
+    }
+    fn next(&self) -> bool {
+        self.skip(1)
+    }
+    fn last(&self) {
+        let pos = self.len();
+        self._set(pos)
+    }
+    fn skip(&self, steps:isize) -> bool {
+        let pos = (self.pos() as isize) + steps;
+
+        if pos < 0 || pos > (self.len() as isize) {
+            return false
+        }
+        self._set(pos as usize);
+        true
+    }
+
+    /// Find the first value that match
+    fn filter(&self, col:usize, value:&Scalar) -> bool {
+        while !self.eof() {
+            let lv = self.source.value(self.pos(), col);
+            if lv == value {
+                return true
+            }
+            self.next();
+        }
+        false
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn _name(name:&str) -> Names {
-        names(vec![name])
+    fn _name(name:&str, kind:DataType) -> Schema {
+        Schema::new_single(name, kind)
     }
 
-    fn _name2(name:&str, name2:&str) -> Names {
-        names(vec![name, name2])
+    fn _name2(name:&str, name2:&str, kind:DataType) -> Schema {
+        let fields = vec![Field::new(name, kind.clone()), Field::new(name2, kind.clone())];
+        Schema::new(fields)
     }
 
     #[test]
@@ -431,8 +574,8 @@ mod tests {
         let row1 = to_data!(vec![3, 4, 5], DataType::Tuple);
         let row2 = row1.clone();
 
-        let name = _name("x");
-        let names = _name2("x", "y");
+        let name = _name("x", DataType::I32);
+        let names = _name2("x", "y", DataType::I32);
 
         let fnull = Frame::new(name.clone(), vec![null1]);
         assert_eq!(fnull.layout, Layout::Scalar);

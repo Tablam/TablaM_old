@@ -199,25 +199,25 @@ fn nested_loop(left:Data, right:Data) -> impl Iterator<Item = (usize, usize)>
 }
 
 /// Select: aka projection in relational algebra
-fn select(of:Rc<Relation>, pick:Names) -> Rc<Relation>
+fn select(of:Rc<Relation>, pick:Schema) -> Rc<Relation>
 {
     if pick.len() == 0 {
         of
     } else {
         let mut cols = Vec::new();
 
-        for name in &pick {
-            cols.push(of.get_col(name))
+        for field in &pick.columns {
+            cols.push(of.get_col(&field.name))
         }
 
         Rc::new(Frame::new(pick, cols))
     }
 }
 
-fn deselect(of:Rc<Relation>, remove:Names) -> Rc<Relation>
+fn deselect(of:Rc<Relation>, remove:Schema) -> Rc<Relation>
 {
     let mut names = of.names();
-    names.retain(|name| !remove.contains(name));
+    names.columns.retain(|name| !remove.columns.contains(name));
     select(of, names)
 }
 
@@ -243,6 +243,7 @@ mod tests {
 
         (pick1, pick2)
     }
+
 
     fn make_rel1() -> Rc<Frame> {
         let nums1 = make_nums1();
