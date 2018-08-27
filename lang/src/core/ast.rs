@@ -310,44 +310,44 @@ pub enum FilterExp<T> {
 
 
 /* BEGIN easy From for testing */
-// impl From<bool> for Exp {
-//     fn from(b: bool) -> Self {
-//         match b {
-//             true => Exp::Name("true".into()),
-//             false => Exp::Name("false".into()),
-//         }
-//     }
-// }
-// 
-// impl From<i32> for Exp {
-//     fn from(i: i32) -> Self {
-//         Exp::Scalar(i.into())
-//     }
-// }
-// 
-// impl From<i64> for Exp {
-//     fn from(i: i64) -> Self {
-//         Exp::Scalar(i.into())
-//     }
-// }
-// 
-// impl<'a> From<&'a str> for ColumnSelector {
-//     fn from(s: &'a str) -> Self {
-//         ColumnSelector::Name(s.to_owned())
-//     }
-// }
-// 
-// impl From<u32> for ColumnSelector {
-//     fn from(s: u32) -> Self {
-//         ColumnSelector::Num(s)
-//     }
-// }
-// 
-// impl From<Exp> for Stmt {
-//     fn from(e: Exp) -> Self {
-//         Stmt::Exp(e)
-//     }
-// }
+impl<T> From<bool> for Exp<T> {
+    fn from(b: bool) -> Self {
+        match b {
+            true => Exp::Name("true".into()),
+            false => Exp::Name("false".into()),
+        }
+    }
+}
+
+impl<T> From<i32> for Exp<T> {
+    fn from(i: i32) -> Self {
+        Exp::Scalar(i.into())
+    }
+}
+
+impl<T> From<i64> for Exp<T> {
+    fn from(i: i64) -> Self {
+        Exp::Scalar(i.into())
+    }
+}
+
+impl<'a> From<&'a str> for ColumnSelector {
+    fn from(s: &'a str) -> Self {
+        ColumnSelector::Name(s.to_owned())
+    }
+}
+
+impl From<u32> for ColumnSelector {
+    fn from(s: u32) -> Self {
+        ColumnSelector::Num(s)
+    }
+}
+
+impl<T> From<Exp<T>> for Stmt<T> {
+    fn from(e: Exp<T>) -> Self {
+        Stmt::Exp(e)
+    }
+}
 /* END easy From for testing */
 
 

@@ -102,25 +102,25 @@ fn main() -> Result<(), Box<std::error::Error>> {
     Ok(())
 }
 
-// use core::ast::Exp;
-// fn name(s: &str) -> Exp {
-//     Exp::Name(s.into())
-// }
-// 
-// fn stringlit(s: &str) -> Exp {
-//     use core::types::{Scalar, encode_str};
-//     Exp::Scalar(Scalar::UTF8(encode_str(s)))
-// }
-// 
-// use std::rc::Rc;
-// fn rc<T>(s: T) -> Rc<T> {
-//     Rc::new(s)
-// }
-// 
-// use core::ast::{Ty, Atype};
-// fn star(s: &str) -> Ty {
-//     Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
-// }
+use core::ast::Exp;
+fn name<T>(s: &str) -> Exp<T> {
+    Exp::Name(s.into())
+}
+
+fn stringlit<T>(s: &str) -> Exp<T> {
+    use core::types::{Scalar, encode_str};
+    Exp::Scalar(Scalar::UTF8(encode_str(s)))
+}
+
+use std::rc::Rc;
+fn rc<T>(s: T) -> Rc<T> {
+    Rc::new(s)
+}
+
+use core::ast::{Ty, Atype};
+fn star(s: &str) -> Ty {
+    Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
+}
 
 #[test]
 fn tablam() {
