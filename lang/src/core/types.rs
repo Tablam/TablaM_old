@@ -2,13 +2,14 @@
 #![allow(unused_imports)]
 use std::fmt::Debug;
 use std::rc::Rc;
+use std::ops::Index;
 
 extern crate bytes;
 
 use self::bytes::*;
+//use super::cursor::Cursor;
 
 pub type RVec<T> = Rc<Vec<T>>;
-pub type Names = Vec<String>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Layout {
@@ -26,6 +27,8 @@ pub enum DataType {
     I32,
     I64,
 //    Planed:
+//    F32,
+//    F64,
 //    Decimal,
 //    Time,
 //    Date,
@@ -36,8 +39,14 @@ pub enum DataType {
     Tuple,
 //    Sum(DataType), //enums
 //    Product(DataType), //struct
-//    Rel((String, DataType)), //Relations, Columns
+//    Rel(Vec<Field>), //Relations, Columns
 //    Function,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    pub name: String,
+    pub kind: DataType,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -50,7 +59,20 @@ pub enum Scalar {
     Tuple(Vec<Scalar>),
 }
 
-#[derive(Debug, Clone)]
+pub type BoolExpr = Fn(&Scalar, &Scalar) -> bool;
+
+fn type_of_scalar(value:&Scalar) -> DataType {
+   match value {
+       Scalar::None => DataType::None,
+       Scalar::Bool(_) => DataType::Bool,
+       Scalar::I32(_) => DataType::I32,
+       Scalar::I64(_) => DataType::I64,
+       Scalar::UTF8(_) => DataType::UTF8,
+       Scalar::Tuple(_) => DataType::Tuple,
+   }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Data {
     pub kind:   DataType,
     pub len:    usize,
@@ -59,10 +81,15 @@ pub struct Data {
 
 #[derive(Debug, Clone)]
 pub enum ColumnExp {
-    //TODO: This complicate things. Support later constant values...
-    //Value(Scalar),
     Name(String),
     Pos(usize),
+}
+
+pub fn col(pos:usize) -> ColumnExp {
+    ColumnExp::Pos(pos)
+}
+pub fn coln(name:&str) -> ColumnExp {
+    ColumnExp::Name(name.to_string())
 }
 
 #[derive(Debug, Clone)]
@@ -116,6 +143,101 @@ pub struct QueryPlanner {
 
 pub fn encode_str(value:&str) -> BytesMut {
     BytesMut::from(value)
+}
+
+impl Field {
+    pub fn new(name: &str, kind: DataType) -> Self {
+        Field {
+            name: name.to_string(),
+            kind,
+        }
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn kind(&self) -> &DataType {
+        &self.kind
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Schema {
+    pub columns: Vec<Field>,
+}
+
+impl Schema {
+    pub fn new(fields:Vec<Field>) -> Self {
+        Schema {
+            columns: fields
+        }
+    }
+
+    pub fn new_single(name:&str, kind:DataType) -> Self {
+        let field = Field::new(name, kind);
+        Self::new(vec![field])
+    }
+
+    pub fn scalar_field(kind:DataType) -> Self {
+        Self::new_single("it", kind)
+    }
+
+    pub fn named(&self, name:&str) -> Option<(usize, &Field)> {
+        self.columns
+            .iter()
+            .enumerate()
+            .find(|&(_, field)| field.name == name)
+    }
+
+    pub fn len(&self) -> usize {
+        self.columns.len()
+    }
+
+    pub fn as_slice(&self) -> Vec<&str> {
+        self.columns.iter().map(|x| x.name.as_ref()).collect()
+    }
+
+    /// Helper for select/projection
+    pub fn only(&self, names:Vec<&str>) -> Self {
+        let mut fields = Vec::with_capacity(names.len());
+        for name in names {
+            let (_pos, f) = self.named(name).unwrap();
+            fields.push(f.clone());
+        }
+        Schema::new(fields)
+    }
+
+    /// Helper for deselect/projection
+    pub fn except(&self, remove:Vec<&str>) -> Self {
+        let count = self.len() - remove.len();
+        let mut fields = Vec::with_capacity(count);
+
+        for field in self.columns.clone() {
+            let name = &field.name[..];
+            if !remove.contains(&name) {
+                fields.push(field.clone());
+            }
+        }
+        Schema::new(fields)
+    }
+
+    pub fn is_equal(&self, to:Schema) -> bool {
+        let mut left = self.columns.clone();
+        let mut right = to.columns.clone();
+        left.sort_by(|a, b| b.name.cmp(&a.name));
+        right.sort_by(|a, b| b.name.cmp(&a.name));
+
+        left == right
+    }
+}
+
+impl Index<usize> for Schema {
+    type Output = Field;
+
+    fn index(&self, pos: usize) -> &Field {
+        &self.columns[pos]
+    }
 }
 
 impl Data {
@@ -225,7 +347,7 @@ impl From<Vec<BytesMut>> for Data {
 pub struct Frame {
     pub layout  :Layout,
     pub len     :usize,
-    pub names   :Names,
+    pub names   :Schema,
     pub data    :RVec<Data>,
 }
 
@@ -242,8 +364,8 @@ impl From<Scalar> for Frame {
         Frame {
             layout: Layout::Scalar,
             len: 1,
-            names: vec!("it".to_string()),
-            data: vec!(to_data!(vec![of], dt).into()).into(),
+            names: Schema::scalar_field(dt.clone()),
+            data: vec!(to_data!(vec![of], dt.clone()).into()).into(),
         }
     }
 }
@@ -253,7 +375,7 @@ impl From<i32> for Frame {
         Frame {
             layout: Layout::Scalar,
             len: 1,
-            names: vec!("it".to_string()),
+            names: Schema::scalar_field(DataType::I32),
             data: vec!(to_data!(vec![of], DataType::I32).into()).into(),
         }
     }
@@ -272,7 +394,7 @@ impl Add for Frame {
     }
 }
 
-fn layout_of_data(of:&Data) -> Layout {
+pub fn layout_of_data(of:&Data) -> Layout {
     match of.len {
         0 => Layout::Scalar,
         1 => Layout::Scalar,
@@ -285,24 +407,10 @@ fn layout_of_data(of:&Data) -> Layout {
         }
     }
 }
-//
-//fn count_rows_data(of:&Data) -> usize {
-//    match of.len {
-//        0 => Layout::Scalar,
-//        1 => Layout::Scalar,
-//        _ => {
-//            if of.kind == DataType::Tuple {
-//                Layout::Row
-//            } else {
-//                Layout::Col
-//            }
-//        }
-//    }
-//}
 
 impl Frame {
     //TODO: Validate equal size of headers and columns here or in the parser?
-    fn new(names:Names, data:Vec<Data>) -> Self {
+    pub fn new(names:Schema, data:Vec<Data>) -> Self {
         let size = data.len();
 
         let layout =
@@ -335,12 +443,21 @@ impl Frame {
         }
     }
 
-    fn empty(names:Names) -> Self {
+    pub fn new_anon(data:Vec<Data>) -> Self {
+        let mut names:Vec<Field> = Vec::with_capacity(data.len());
+        for (pos, d) in data.iter().enumerate() {
+            let name = format!("{}", pos);
+            names.push(Field::new(&name, d.kind.clone()));
+        }
+        Frame::new(Schema::new(names), data)
+    }
+
+    pub fn empty(names:Schema) -> Self {
         Frame::new(names, [].to_vec())
     }
 
-    fn row_data(of:&Data, pos:usize) -> Data {
-        let mut rows = Vec::new();
+    pub fn row_data(of:&Data, pos:usize) -> Data {
+        let mut rows = Vec::with_capacity(of.len);
         for col in of.data.iter() {
             rows.push(col.clone())
         }
@@ -348,131 +465,25 @@ impl Frame {
         Data::new(rows, DataType::Tuple)
     }
 
-    fn row(of:&Frame, pos:usize) -> Data {
-        let mut rows = Vec::new();
+    pub fn row(of:&Frame, pos:usize) -> Data {
+        let mut rows = Vec::with_capacity(of.len);
         for col in of.data.iter() {
             rows.push(col.data[pos].clone())
         }
 
         Data::new(rows, DataType::Tuple)
     }
-}
 
-trait Relation {
-    fn col_count(&self) -> usize;
-    fn row_count(&self) -> usize;
-    fn names(&self)  -> Names;
-    fn layout(&self) -> Layout {
-        Layout::Col
-    }
-    fn row(&self, pos:usize) -> Data;
-}
+    //TODO: Remove this hack, and put type on field name
+    pub fn col(of:&Frame, pos:usize) -> Data {
+        let mut rows = Vec::with_capacity(of.len);
+        let mut last = DataType::None;
 
-/// Encapsulate 2d relations (aka: Tables)
-impl Relation for Frame {
-    fn col_count(&self) -> usize {
-        self.names.len()
-    }
-    fn row_count(&self) -> usize {
-        self.len
-    }
-    fn names(&self) -> Names {
-        self.names.clone()
-    }
-    fn row(&self, pos:usize) -> Data {
-        Frame::row(&self, pos)
-    }
-}
+        for col in of.data.iter() {
+            last = col.kind.clone();
+            rows.push(col.data[pos].clone())
+        }
 
-/// Encapsulate 1d relations (aka: arrays)
-impl Relation for Data {
-    fn col_count(&self) -> usize {
-        1
-    }
-    fn row_count(&self) -> usize {
-        self.len
-    }
-    fn names(&self) -> Names {
-        vec!("item".to_string())
-    }
-    fn row(&self, pos:usize) -> Data {
-        Frame::row_data(&self, pos)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn _name(name:&str) -> Names {
-        vec!(name.to_string())
-    }
-
-    fn _name2(name:&str, name2:&str) -> Names {
-        vec!(name.to_string(), name2.to_string())
-    }
-
-    #[test]
-    fn test_create_frame() {
-        let null1 = Data::empty(DataType::I32);
-        let s1 = Data::from(1);
-        let col1 = Data::from(vec![1, 2, 3]);
-        let col2 = col1.clone();
-        let row1 = to_data!(vec![3, 4, 5], DataType::Tuple);
-        let row2 = row1.clone();
-
-        let name = _name("x");
-        let names = _name2("x", "y");
-
-        let fnull = Frame::new(name.clone(), vec![null1]);
-        assert_eq!(fnull.layout, Layout::Scalar);
-        assert_eq!(fnull.col_count(), 1);
-        assert_eq!(fnull.row_count(), 0);
-
-        let fs1 = Frame::new(name.clone(), vec![s1]);
-        assert_eq!(fs1.layout, Layout::Scalar);
-        assert_eq!(fs1.col_count(), 1);
-        assert_eq!(fs1.row_count(), 1);
-
-        let fcol1 = Frame::new(name.clone(), vec![col1.clone()]);
-        assert_eq!(fcol1.layout, Layout::Col);
-        assert_eq!(fcol1.row_count(), 3);
-
-        let fcols = Frame::new(names.clone(), vec![col1, col2]);
-        assert_eq!(fcols.layout, Layout::Col);
-        assert_eq!(fcols.col_count(), 2);
-        assert_eq!(fcols.row_count(), 3);
-
-        let frow1 = Frame::new(name.clone(), vec![row1.clone()]);
-        assert_eq!(frow1.layout, Layout::Row);
-        assert_eq!(frow1.col_count(), 1);
-        assert_eq!(frow1.row_count(), 1);
-
-        let frows = Frame::new(names.clone(), vec![row1, row2]);
-        assert_eq!(frows.layout, Layout::Row);
-        assert_eq!(frows.col_count(), 2);
-        assert_eq!(frows.row_count(), 2);
-
-        //TODO: What type is a empty frame?
-//        let fempty = Frame::empty(names.clone());
-//        assert_eq!(fempty.layout, Layout::Row);
-//        assert_eq!(fempty.col_count(), 2);
-//        assert_eq!(fempty.row_count(), 0);
-
-    }
-
-    #[test]
-    fn test_create_col() {
-        let null1 = Data::empty(DataType::I32);
-        assert_eq!(layout_of_data(&null1), Layout::Scalar);
-
-        let s1 = Data::from(1);
-        assert_eq!(layout_of_data(&s1), Layout::Scalar);
-
-        let col1 = Data::from(vec![1, 2, 3]);
-        assert_eq!(layout_of_data(&col1), Layout::Col);
-
-        let row1 = to_data!(vec![3, 4, 5], DataType::Tuple);
-        assert_eq!(layout_of_data(&row1), Layout::Row);
+        Data::new(rows, last)
     }
 }
