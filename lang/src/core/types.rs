@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::ops::Index;
+use std::fmt;
 
 extern crate bytes;
 
@@ -57,6 +58,16 @@ pub enum Scalar {
     I64(i64),
     UTF8(BytesMut),
     Tuple(Vec<Scalar>),
+}
+
+impl Scalar {
+    pub fn repeat(of:&Scalar, times:usize) -> Vec<Scalar> {
+        let mut result = Vec::with_capacity(times);
+        for i in 0..times {
+            result.push(of.clone());
+        }
+        result
+    }
 }
 
 pub type BoolExpr = Fn(&Scalar, &Scalar) -> bool;
@@ -219,6 +230,34 @@ impl Schema {
                 fields.push(field.clone());
             }
         }
+        Schema::new(fields)
+    }
+
+    pub fn exist(&self, field:&str) -> bool {
+        let mut find = self.columns.iter().filter(|x| x.name == field);
+
+        find.next().is_some()
+    }
+
+    pub fn extend(&self, right:Schema) -> Self {
+        let count = self.len() + right.len();
+        let mut fields = Vec::with_capacity(count);
+        let mut left = self.columns.clone();
+        let mut _right = right.columns.clone();
+
+        fields.append(&mut left);
+        let mut cont = 0;
+        //Avoid duplicated field names...
+        for f in _right {
+            if right.exist(&f.name) {
+                let name = format!("{}_{}", f.name, cont);
+                fields.push(Field::new(&name, f.kind));
+                cont = cont + 1;
+            } else {
+                fields.push(f);
+            }
+        }
+
         Schema::new(fields)
     }
 
@@ -411,6 +450,8 @@ pub fn layout_of_data(of:&Data) -> Layout {
 impl Frame {
     //TODO: Validate equal size of headers and columns here or in the parser?
     pub fn new(names:Schema, data:Vec<Data>) -> Self {
+        assert_eq!(names.len(), data.len(), "Field count <> # of columns");
+
         let size = data.len();
 
         let layout =
@@ -485,5 +526,56 @@ impl Frame {
         }
 
         Data::new(rows, last)
+    }
+}
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Display for Scalar {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Scalar::None    => write!(f, "None"),
+            Scalar::Bool(x) => write!(f, "{}", x),
+            Scalar::I32(x)  => write!(f, "{}", x),
+            Scalar::I64(x)  => write!(f, "{}", x),
+            Scalar::UTF8(x) => write!(f, "{:?}", x),
+            Scalar::Tuple(x)=> write!(f, "{:?}", x),
+        }
+    }
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.name, self.kind)
+    }
+}
+
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:[ ", self.kind);
+        for i in 0..self.len {
+            let item =  &self.data[i];
+            if i > 0 {
+                write!(f, ", {}",item);
+            } else {
+                write!(f, "{}", item);
+            }
+        }
+        write!(f, "]")
+    }
+}
+
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "[< ");
+
+        for (pos, field) in self.names.columns.iter().enumerate() {
+            writeln!(f, "{} = {},", field, self.data[pos]);
+        }
+        writeln!(f, ">]")
     }
 }

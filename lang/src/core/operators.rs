@@ -31,164 +31,6 @@ impl Add for Scalar {
 // TODO: The operators follow this patterns:
 // maps:   ColumnExp & ColumnExp & fn = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp & fn = Column (+ [1, 2] = 3)
-//
-//struct Cmp<'a, F>
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//{
-//    left:   &'a Data,
-//    right:  &'a Data,
-//    pos  :  usize,
-//    apply:  F,
-//}
-//
-//impl <'a, F> Iterator for Cmp<'a, F>
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//{
-//    type Item = (usize, bool);
-//
-//    fn next(&mut self) -> Option<(usize, bool)> {
-//        if self.pos < self.left.len {
-//            let l = &self.left.data[self.pos];
-//            let r = &self.right.data[self.pos];
-//            let result = (self.pos, (self.apply)(l, r));
-//
-//            self.pos +=1;
-//            return Some(result)
-//        };
-//        None
-//    }
-//}
-//
-//fn scan_simple<'a, F>(left: &'a Data, right: &'a Data, apply: &'a F ) -> impl Iterator<Item = bool> + 'a
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//{
-//    let value = &right.data[0];
-//
-//    let scan = left.data.iter()
-//        .map(move |x|  {
-//            let r:bool = apply(x, value);
-//            r
-//        });
-//    scan
-//}
-//
-//fn scan_both<'a, F>(left: &'a Data, right: &'a Data, apply: &'a F ) -> impl Iterator<Item = bool> + 'a
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//{
-//    let scan = left.data.iter()
-//        .zip(right.data.iter())
-//        .map(move |(x, y)|  {
-//            let r:bool = apply(x, y);
-//            r
-//        });
-//    scan
-//}
-//
-//fn eq(left:&Data, right:&Data) -> Data
-//{
-//    let result:Vec<bool> = scan_both(&left, &right, &PartialEq::eq).collect();
-//
-//    Data::from(result)
-//}
-//
-//fn filter(left:&Data, right:&Data) -> Data
-//{
-//    let rows = left.clone();
-//    let result=
-//        if right.len == 1 {
-//            let cmp = scan_simple(&left, &right, &PartialEq::eq);
-//            rows.data.iter()
-//                .zip(cmp)
-//                .filter_map(|(x, check)| {
-//                    if check {
-//                        Some(x.clone())
-//                    } else {
-//                        None
-//                    }
-//                })
-//                .collect()
-//        } else {
-//            let cmp = scan_simple(&left, &right, &PartialEq::eq);
-//            rows.data.iter()
-//                .zip(cmp)
-//                .filter_map(|(x, check)| {
-//                    if check {
-//                        Some(x.clone())
-//                    } else {
-//                        None
-//                    }
-//                })
-//                .collect()
-//        };
-//
-//    Data::new(result, rows.kind)
-//}
-//
-//fn filter_pos(left:&Data, right:&Data) -> Vec<usize>
-//{
-//    let result:Vec<usize>=
-//        if right.len == 1 {
-//            let cmp = scan_simple(&left, &right, &PartialEq::eq);
-//            cmp.enumerate()
-//                .filter_map(|(x, check)| {
-//                    if check {
-//                        Some(x)
-//                    } else {
-//                        None
-//                    }
-//                })
-//                .collect()
-//        } else {
-//            let cmp = scan_simple(&left, &right, &PartialEq::eq);
-//            cmp.enumerate()
-//                .filter_map(|(x, check)| {
-//                    if check {
-//                        Some(x)
-//                    } else {
-//                        None
-//                    }
-//                })
-//                .collect()
-//        };
-//
-//    result
-//}
-//
-
-//fn scan_simple<'a, F>(left: &'a Data, right: &'a Data, apply: &'a F ) -> impl Iterator<Item = bool> + 'a
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//fn lift_cmp<F>(of:Operator) -> F
-//    where
-//        F:  Fn(&Scalar, &Scalar) -> bool
-//{
-//    match cmp.op {
-//        Operator::Eq        =>PartialEq::eq,
-////        Operator::NotEq,
-////        Operator::Less,
-////        Operator::LessEq,
-////        Operator::Greater,
-////        Operator::GreaterEq,
-////        Operator::Not,
-//    }
-//
-//}
-//fn lift_cmp(op:Operator) -> Box<BoolExpr>
-//{
-//    match op {
-//        Operator::Eq        => Box::new(move |left:&Scalar, right:&Scalar| left == right),
-//        Operator::NotEq     => Box::new(move |left:&Scalar, right:&Scalar| left != right),
-//        Operator::Less      => Box::new(move |left:&Scalar, right:&Scalar| left < right),
-//        Operator::LessEq    => Box::new(move |left:&Scalar, right:&Scalar| left <= right),
-//        Operator::Greater   => Box::new(move |left:&Scalar, right:&Scalar| left > right),
-//        Operator::GreaterEq => Box::new(move |left:&Scalar, right:&Scalar| left >= right),
-//        _ => Box::new(move |left:&Scalar, right:&Scalar| false),
-//    }
-//}
 
 fn _select<T>(of:&DataSource<T>, pick:Schema) -> Frame
     where T:Relation
@@ -235,16 +77,44 @@ fn compare<T>(left:&DataSource<T>, col:ColumnExp, apply:&BoolExpr, value:&Scalar
 }
 
 /// Joins
-fn join_left<T, U>(of:&Both<T, U>, left:ColumnExp, right:ColumnExp, apply:&BoolExpr)
+fn joiner<'a, 'b, T: 'a, U: 'b>(left:&'a DataSource<T>, right:&'b DataSource<U>, cols_left:&Vec<ColumnExp>,  cols_right:&Vec<ColumnExp>) -> Both<'a, 'b, T, U>
     where
         T: Relation,
         U: Relation
 {
-    let col_l = of.left.source.resolve_pos(&left);
-    let col_r = of.right.source.resolve_pos(&left);
-    let results = of.join(col_l, col_r, apply);
+    let cols_left = left.source.resolve_pos_many(cols_left);
+    let cols_right = right.source.resolve_pos_many(cols_right);
 
-    println!("{:?}", results)
+    Both {
+        left,
+        right,
+        cols_left,
+        cols_right
+    }
+}
+
+fn join_schema<T, U>(of:&Both<T, U>) -> Schema
+    where
+        T: Relation,
+        U: Relation
+{
+    of.left.source.names().extend( of.right.source.names())
+}
+
+fn left_join<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
+    where
+        T: Relation,
+        U: Relation
+{
+    of.join(apply, true)
+}
+
+fn inner_join<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
+    where
+        T: Relation,
+        U: Relation
+{
+    of.join(apply, false)
 }
 
 #[cfg(test)]
@@ -274,6 +144,21 @@ mod tests {
     {
         let cols = of.into_iter().map(|x| Data::from(x)).collect();
         DataSource::new(Frame::new_anon(cols))
+    }
+
+    fn make_single1() -> DataSource<Frame> {
+        let nums = make_nums1();
+        make_rel(vec![nums])
+    }
+
+    fn make_single2() -> DataSource<Frame> {
+        let nums = make_nums2();
+        make_rel(vec![nums])
+    }
+
+    fn make_single3() -> DataSource<Frame> {
+        let nums = make_nums3();
+        make_rel(vec![nums])
     }
 
     fn make_rel1() -> DataSource<Frame> {
@@ -358,24 +243,26 @@ mod tests {
         let names2 = f1.source.resolve_names(vec![&pick2]);
 
         let query1 = select(&f1, names1);
-        println!("Select {:?}", query1);
+        println!("Select {}", query1);
         assert_eq!(query1.names.len(), 1);
 
         let query2 = deselect(&f1, names2);
-        println!("Deselect {:?}", query2);
+        println!("Deselect {}", query2);
         assert_eq!(query2.names.len(), 1);
     }
 
     #[test]
     fn test_join() {
-        let f1 = make_rel1();
-        let f2 = make_rel2();
+        let f1 = make_single1();
+        let f2 = make_single2();
+        let (pick1, pick2) = (vec![col(0)],  vec![col(0)]);
 
-        let both = Both{
-            left:f1,
-            right:f2,
-        };
+        let both =  joiner(&f1, &f2, &pick1, &pick2);
 
-        join_left(&both, col(0), col(0), &PartialEq::eq);
+        let pos = left_join(&both, &PartialEq::eq);
+        println!("Positions {:?}", pos);
+
+        let joined = both.materialize(pos);
+        println!("Joined {}", joined);
     }
 }

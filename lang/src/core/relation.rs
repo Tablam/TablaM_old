@@ -26,6 +26,12 @@ pub trait Relation {
             }
         }
     }
+
+    fn resolve_pos_many(&self, of: &Vec<ColumnExp>) -> Vec<usize>
+    {
+        of.into_iter().map(|x| self.resolve_pos(x)).collect()
+    }
+
     ///Recover the column names from a list of relative ColumnExp
     fn resolve_names(&self, of: Vec<&ColumnExp>) -> Schema {
         let mut names = Vec::with_capacity(of.len());
@@ -160,11 +166,6 @@ pub fn to_columns(fields:&Schema, data:Vec<Data>) -> Frame {
     Frame::new(fields.clone(), columns)
 }
 
-//pub fn merge(left:&Data, right:&Data) -> Data
-//{
-//
-//}
-
 pub struct DataSource<T>
     where T:Relation
 {
@@ -226,8 +227,18 @@ impl <T> DataSource<T>
     }
 
     pub fn value(&self, col:usize) -> &Scalar {
-        println!("{}", self.pos());
+        println!("P:{}", self.pos());
         self.source.value(self.pos(), col)
+    }
+
+    pub fn tuple(&self, columns:&Vec<usize>) -> Scalar {
+        let mut values = Vec::with_capacity(columns.len());
+        let pos = self.pos();
+
+        for col in columns {
+            values.push(self.source.value(pos, *col).clone())
+        }
+        Scalar::Tuple(values)
     }
 
     pub fn row(&self) -> Data {
@@ -280,18 +291,25 @@ impl <T> DataSource<T>
     }
 }
 
-pub type JoinPos = Vec<(usize, Vec<usize>)>;
+#[derive(Debug, Clone)]
+pub struct JoinPos {
+    len: usize,
+    left: Vec<usize>,
+    right: Vec<Vec<usize>>,
+}
 
-pub struct Both<T, U>
+pub struct Both<'a, 'b, T: 'a, U: 'b>
     where
         T: Relation,
         U: Relation
 {
-    pub left:   DataSource<T>,
-    pub right:  DataSource<U>
+    pub left:   &'a DataSource<T>,
+    pub right:  &'b DataSource<U>,
+    pub cols_left: Vec<usize>,
+    pub cols_right: Vec<usize>,
 }
 
-impl <T, U> Both<T, U>
+impl <'a, 'b, T, U> Both<'a, 'b, T, U>
     where
         T: Relation,
         U: Relation
@@ -303,53 +321,119 @@ impl <T, U> Both<T, U>
         apply(lv, lr)
     }
 
-    pub fn cmp_left(&self, left:usize, right:usize, apply: &BoolExpr) -> Vec<usize>
+    pub fn cmp_left(&self, left:&Scalar, apply: &BoolExpr) -> Vec<usize>
     {
-        let lv = self.left.value(left);
-        self.right.find_collect(right, lv, apply)
+        let mut result = Vec::new();
+        while !self.right.eof() {
+            let right = self.right.tuple(&self.cols_right);
+            if apply(left, &right) {
+                result.push(self.right.pos());
+            }
+            self.right.next();
+        }
+        result
     }
 
-//    pub fn collect_right(&self) -> (Data, Vec<Data>) {
-//        let left = self.left.row();
-//        let mut right = Vec::with_capacity(self.right.len());
-//
-//        self.right.first();
-//        while !self.right.eof() {
-//            right.push(self.right.row());
-//            self.right.next();
-//        }
-//
-//        (left, right)
-//    }
-//
-    pub fn join(&self, left:usize, right:usize, apply:&BoolExpr) -> JoinPos
+    pub fn tuples(&self) -> (Scalar, Scalar)
     {
-        let mut results = Vec::new();
+        let lv = self.left.tuple(&self.cols_left);
+        let lr = self.right.tuple(&self.cols_right);
+
+        (lv, lr)
+    }
+
+    pub fn join(&self, apply:&BoolExpr, keep_nulls:bool) -> JoinPos
+    {
+        let mut cols_left = Vec::new();
+        let mut cols_right = Vec::new();
+        let mut total:usize = 0;
 
         while !self.left.eof() {
-            let result = self.cmp_left(left, right, apply);
-            results.push((self.left.pos(), result));
+            let left = self.left.tuple(&self.cols_left);
+            let result = self.cmp_left(&left, apply);
+            let count = result.len();
+            if count > 0 {
+                cols_left.push(self.left.pos());
+                cols_right.push(result);
+            } else {
+                if keep_nulls {
+                    cols_left.push(self.left.pos());
+                    cols_right.push(result);
+                }
+            }
+            total = total + count;
             self.left.next();
             self.right.first();
         }
 
-        results
+        JoinPos {
+            left:cols_left,
+            right:cols_right,
+            len:total,
+        }
     }
 
-//    pub fn materialize(&self, positions:JoinPos) {
-//        let mut results = Vec::new();
-//        for (left, right) in positions {
-//            let count = right.len();
-//            let row = self.left.source.row(left);
-//            if count > 0 {
-//                results.push(row, Some(row));
-//            } else {
-//                results.push(row, None);
-//            }
-//        }
-//
-//        results
-//    }
+    pub fn eof(&self) -> bool {
+        self.left.eof()
+    }
+
+    pub fn reset(&self) {
+        self.left.first();
+        self.right.first();
+    }
+
+    pub fn next(&self) -> bool {
+        self.left.next()
+    }
+
+    pub fn materialize(&self, positions:JoinPos) -> Frame {
+        self.reset();
+        let schema = self.join_schema();
+        let mut results = Vec::with_capacity(schema.len());
+
+        for (pos, field) in self.left.source.names().columns.iter().enumerate() {
+            let mut column = Vec::with_capacity(positions.len);
+            for i in &positions.left {
+                let cols = &positions.right[*i];
+                //println!("MatL {:?} with {:?}", i, cols);
+                if cols.len() > 0 {
+                    let value = self.left.source.value(*i,pos);
+                    let mut values = Scalar::repeat(value, cols.len());
+                    column.append(&mut values);
+                } else {
+                    column.push(Scalar::None);
+                }
+            }
+            results.push(Data::new(column, field.kind.clone()));
+        }
+
+        for (pos, field) in self.right.source.names().columns.iter().enumerate() {
+            let mut column = Vec::with_capacity(positions.len);
+            for i in &positions.left {
+                let cols = &positions.right[*i];
+                //println!("MatR {:?} with {:?}", i, cols);
+                if cols.len() > 0 {
+                    for r in cols {
+                        let value = self.right.source.value(*r, pos).clone();
+                        column.push(value);
+                    }
+                } else {
+                    column.push(Scalar::None);
+                }
+            }
+            results.push(Data::new(column, field.kind.clone()));
+        }
+
+//        println!("Schema: {:?}", schema);
+//        println!("results: {:?}", results);
+
+        Frame::new(schema, results)
+    }
+
+    pub fn join_schema(&self) -> Schema
+    {
+        self.left.source.names().extend( self.right.source.names())
+    }
 }
 
 #[cfg(test)]
