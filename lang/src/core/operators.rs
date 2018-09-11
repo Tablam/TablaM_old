@@ -101,20 +101,12 @@ fn join_schema<T, U>(of:&Both<T, U>) -> Schema
     of.left.source.names().extend( of.right.source.names())
 }
 
-fn left_join<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
+fn join_both<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
     where
         T: Relation,
         U: Relation
 {
-    of.join(apply, true)
-}
-
-fn inner_join<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
-    where
-        T: Relation,
-        U: Relation
-{
-    of.join(apply, false)
+    of.join(apply)
 }
 
 #[cfg(test)]
@@ -126,7 +118,7 @@ mod tests {
     }
 
     fn make_nums2() -> Vec<i64> {
-        vec![4, 2, 3]
+        vec![2, 3, 4]
     }
 
     fn make_nums3() -> Vec<i64> {
@@ -171,6 +163,14 @@ mod tests {
         let nums1 = make_nums3();
         let nums2 = make_nums1();
         make_rel(vec![nums1, nums2])
+    }
+
+    fn make_both(left:Vec<i64>, right:Vec<i64>) -> (DataSource<Frame>, DataSource<Frame>, Vec<ColumnExp>, Vec<ColumnExp>) {
+        let f1 = make_rel(vec![left]);
+        let f2 = make_rel(vec![right]);
+        let (pick1, pick2) = (vec![col(0)],  vec![col(0)]);
+
+        (f1, f2, pick1, pick2)
     }
 
     #[test]
@@ -251,18 +251,50 @@ mod tests {
         assert_eq!(query2.names.len(), 1);
     }
 
+    fn _test_join(left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)
+    {
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+        let both = joiner(&ds1, &ds2, &p1, &p2);
+
+        let pos = join_both(&both, &PartialEq::eq);
+
+        let mut l = pos.left.clone();
+        let mut r = pos.right.clone();
+
+        l.sort();
+        r.sort();
+        join_left.sort();
+        join_right.sort();
+
+        assert_eq!(l, join_left, "Left Side");
+        assert_eq!(r, join_right, "Right Side");
+    }
+
     #[test]
     fn test_join() {
-        let f1 = make_single1();
-        let f2 = make_single2();
-        let (pick1, pick2) = (vec![col(0)],  vec![col(0)]);
+        _test_join(vec![1], vec![1], vec![0], vec![0]);
+        _test_join(vec![1], vec![2], vec![-1, 0], vec![-1, 0]);
+        _test_join(vec![1], vec![], vec![0], vec![-1]);
+        _test_join(vec![1, 2, 3], vec![1, 2, 3], vec![0, 1, 2], vec![0, 1, 2]);
+        _test_join(vec![1, 2, 3], vec![2, 3, 4], vec![0, 1, 2, -1], vec![-1, 0, 1, 2]);
+        _test_join(vec![1, 1, 1], vec![2, 3, 4], vec![0, 1, 2, -1, -1, -1], vec![-1, -1, -1, 0, 1, 2]);
+    }
 
-        let both =  joiner(&f1, &f2, &pick1, &pick2);
+    #[test]
+    fn test_cross_join() {
+        let left = make_nums1();
+        let right = make_nums2();
 
-        let pos = left_join(&both, &PartialEq::eq);
-        println!("Positions {:?}", pos);
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+        let both = joiner(&ds1, &ds2, &p1, &p2);
+        let result = both.cross();
+        println!("Cross {}", result);
+        let col1 = result.col(0);
+        let col2 = result.col(1);
+        let r1:Vec<i64> =vec![1, 1, 1, 2, 2, 2, 3, 3, 3];
+        let r2:Vec<i64> =vec![2, 3, 4, 2, 3, 4, 2, 3, 4];
 
-        let joined = both.materialize(pos);
-        println!("Joined {}", joined);
+        assert_eq!(col1, Data::from(r1));
+        assert_eq!(col2, Data::from(r2));
     }
 }

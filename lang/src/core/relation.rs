@@ -1,4 +1,8 @@
+use std::cmp;
 use std::cell::Cell;
+use std::collections::HashSet;
+//extern crate bit_vec;
+//use self::bit_vec::BitVec;
 
 use super::types::*;
 
@@ -227,7 +231,7 @@ impl <T> DataSource<T>
     }
 
     pub fn value(&self, col:usize) -> &Scalar {
-        println!("P:{}", self.pos());
+        //println!("P:{}", self.pos());
         self.source.value(self.pos(), col)
     }
 
@@ -293,9 +297,31 @@ impl <T> DataSource<T>
 
 #[derive(Debug, Clone)]
 pub struct JoinPos {
-    len: usize,
-    left: Vec<usize>,
-    right: Vec<Vec<usize>>,
+    pub left:  Vec<isize>,
+    pub right: Vec<isize>,
+}
+
+fn materialize<R>(source:&R, positions:&Vec<isize>, keep_null:bool) -> Vec<Data>
+    where R:Relation
+{
+    let total = positions.len();
+    let schema = source.names();
+    let mut results = Vec::with_capacity(schema.len());
+    let null = -1isize;
+
+    for (pos, field) in schema.columns.iter().enumerate() {
+        let mut column = Vec::with_capacity(total);
+        for found in positions.iter() {
+            if (found == &null) & keep_null {
+                column.push(Scalar::None);
+            } else {
+                column.push(source.value(*found as usize,pos).clone());
+            }
+        }
+        results.push(Data::new(column, field.kind.clone()));
+    }
+
+    results
 }
 
 pub struct Both<'a, 'b, T: 'a, U: 'b>
@@ -314,67 +340,53 @@ impl <'a, 'b, T, U> Both<'a, 'b, T, U>
         T: Relation,
         U: Relation
 {
-    pub fn cmp_both(&self, left:usize, right:usize, apply: &BoolExpr) -> bool
+    pub fn join(&self, apply:&BoolExpr) -> JoinPos
     {
-        let lv = self.left.value(left);
-        let lr = self.right.value(right);
-        apply(lv, lr)
-    }
+        let total = cmp::max(self.left.len(), self.right.len());
 
-    pub fn cmp_left(&self, left:&Scalar, apply: &BoolExpr) -> Vec<usize>
-    {
-        let mut result = Vec::new();
-        while !self.right.eof() {
-            let right = self.right.tuple(&self.cols_right);
-            if apply(left, &right) {
-                result.push(self.right.pos());
-            }
-            self.right.next();
-        }
-        result
-    }
-
-    pub fn tuples(&self) -> (Scalar, Scalar)
-    {
-        let lv = self.left.tuple(&self.cols_left);
-        let lr = self.right.tuple(&self.cols_right);
-
-        (lv, lr)
-    }
-
-    pub fn join(&self, apply:&BoolExpr, keep_nulls:bool) -> JoinPos
-    {
-        let mut cols_left = Vec::new();
-        let mut cols_right = Vec::new();
-        let mut total:usize = 0;
+        let mut right_not_founds = HashSet::new();
+        let mut cols_left  = Vec::with_capacity(total);
+        let mut cols_right = Vec::with_capacity(total);
+        let mut found = false;
+        let mut first = true;
 
         while !self.left.eof() {
             let left = self.left.tuple(&self.cols_left);
-            let result = self.cmp_left(&left, apply);
-            let count = result.len();
-            if count > 0 {
-                cols_left.push(self.left.pos());
-                cols_right.push(result);
-            } else {
-                if keep_nulls {
-                    cols_left.push(self.left.pos());
-                    cols_right.push(result);
+            while !self.right.eof() {
+                let right = self.right.tuple(&self.cols_right);
+                if first {
+                    right_not_founds.insert(self.right.pos());
                 }
+
+                if apply(&left, &right) {
+//                    println!("{} -> {} true", left, right);
+                    cols_left.push(self.left.pos() as isize);
+                    cols_right.push(self.right.pos() as isize);
+                    right_not_founds.remove(&self.right.pos());
+
+                    found = true;
+                }
+                self.right.next();
             }
-            total = total + count;
+            if !found {
+                cols_left.push(self.left.pos() as isize);
+                cols_right.push(-1);
+            }
+            found = false;
+            first = false;
             self.left.next();
             self.right.first();
+        }
+
+        for pos in right_not_founds {
+            cols_left.push(-1);
+            cols_right.push(pos as isize);
         }
 
         JoinPos {
             left:cols_left,
             right:cols_right,
-            len:total,
         }
-    }
-
-    pub fn eof(&self) -> bool {
-        self.left.eof()
     }
 
     pub fn reset(&self) {
@@ -382,50 +394,56 @@ impl <'a, 'b, T, U> Both<'a, 'b, T, U>
         self.right.first();
     }
 
-    pub fn next(&self) -> bool {
-        self.left.next()
-    }
-
-    pub fn materialize(&self, positions:JoinPos) -> Frame {
+    pub fn cross(&self) -> Frame {
         self.reset();
+        let total = self.left.len() * self.right.len();
+        let right_size = self.right.len();
+
         let schema = self.join_schema();
         let mut results = Vec::with_capacity(schema.len());
 
-        for (pos, field) in self.left.source.names().columns.iter().enumerate() {
-            let mut column = Vec::with_capacity(positions.len);
-            for i in &positions.left {
-                let cols = &positions.right[*i];
-                //println!("MatL {:?} with {:?}", i, cols);
-                if cols.len() > 0 {
-                    let value = self.left.source.value(*i,pos);
-                    let mut values = Scalar::repeat(value, cols.len());
-                    column.append(&mut values);
-                } else {
-                    column.push(Scalar::None);
-                }
+        for (i, field) in self.left.source.names().columns.iter().enumerate() {
+            let left = self.left.source.col(i);
+            let mut result = Vec::with_capacity(total);
+
+            for value in left.data.iter() {
+                let mut value = Scalar::repeat(&value, right_size);
+                result.append(&mut value);
             }
-            results.push(Data::new(column, field.kind.clone()));
+
+            results.push(Data::new(result, field.kind.clone()));
         }
 
-        for (pos, field) in self.right.source.names().columns.iter().enumerate() {
-            let mut column = Vec::with_capacity(positions.len);
-            for i in &positions.left {
-                let cols = &positions.right[*i];
-                //println!("MatR {:?} with {:?}", i, cols);
-                if cols.len() > 0 {
-                    for r in cols {
-                        let value = self.right.source.value(*r, pos).clone();
-                        column.push(value);
-                    }
-                } else {
-                    column.push(Scalar::None);
+        for (i, field) in self.right.source.names().columns.iter().enumerate()  {
+            let result = self.right.source.col(i).data;
+
+            let mut data = Vec::with_capacity(total);
+
+            for i in 0..self.left.len() {
+                for value in result.iter() {
+                    data.push(value.clone());
                 }
             }
-            results.push(Data::new(column, field.kind.clone()));
+
+            results.push(Data::new(data, field.kind.clone()));
         }
 
-//        println!("Schema: {:?}", schema);
-//        println!("results: {:?}", results);
+        Frame::new(schema, results)
+    }
+
+    pub fn materialize(&self, positions:JoinPos, join:Join) -> Frame {
+        self.reset();
+        let total = positions.left.len();
+        let schema = self.join_schema();
+        let mut results = Vec::with_capacity(schema.len());
+
+        let null_lefts = join.produce_null(true);
+        let null_rights = join.produce_null(false);
+
+        let mut left = materialize(&self.left.source, &positions.left, null_lefts);
+        let mut right = materialize(&self.right.source, &positions.right, null_rights);
+        results.append(&mut left);
+        results.append(&mut right);
 
         Frame::new(schema, results)
     }

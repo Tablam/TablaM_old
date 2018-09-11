@@ -6,9 +6,7 @@ use std::ops::Index;
 use std::fmt;
 
 extern crate bytes;
-
 use self::bytes::*;
-//use super::cursor::Cursor;
 
 pub type RVec<T> = Rc<Vec<T>>;
 
@@ -50,7 +48,7 @@ pub struct Field {
     pub kind: DataType,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Scalar {
 	None, //null
     Bool(bool),
@@ -101,6 +99,26 @@ pub fn col(pos:usize) -> ColumnExp {
 }
 pub fn coln(name:&str) -> ColumnExp {
     ColumnExp::Name(name.to_string())
+}
+
+#[derive(Debug, Clone)]
+pub enum Join {
+    Left,
+    Right,
+    Inner,
+    Full,
+}
+
+impl Join {
+    pub fn produce_null(&self, is_left:bool) -> bool
+    {
+        match self {
+            Join::Left  => !is_left,
+            Join::Right => is_left,
+            Join::Inner => false,
+            Join::Full  => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -173,7 +191,7 @@ impl Field {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Schema {
     pub columns: Vec<Field>,
 }
@@ -299,6 +317,19 @@ impl Data {
     pub fn new_row(of:Vec<Scalar>) -> Self {
         Data::new(of, DataType::Tuple)
     }
+
+    pub fn append(&self, of:Vec<Scalar>) -> Self {
+        let mut data = Vec::with_capacity(self.len + of.len());
+        let mut other= of;
+
+        for item in self.data.iter() {
+            data.push(item.clone());
+        }
+
+        data.append(&mut other);
+
+        Data::new(data, self.kind.clone())
+    }
 }
 
 impl From<i32> for Scalar {
@@ -325,9 +356,15 @@ impl From<BytesMut> for Scalar {
     }
 }
 
+macro_rules! to_scalar {
+    ($ARRAY:expr) => {
+        $ARRAY.into_iter().map(|x| Scalar::from(x)).collect()
+    }
+}
+
 macro_rules! to_data {
     ($ARRAY:expr, $TY:expr) => {
-        Data::new($ARRAY.into_iter().map(|x| Scalar::from(x)).collect(), $TY)
+        Data::new(to_scalar!($ARRAY), $TY)
     }
 }
 
@@ -382,7 +419,7 @@ impl From<Vec<BytesMut>> for Data {
 //TODO: How deal with mutable relations?
 
 /// The frame is the central storage unit, for data in columnar or row layout
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Frame {
     pub layout  :Layout,
     pub len     :usize,
@@ -556,26 +593,28 @@ impl fmt::Display for Field {
 
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:[ ", self.kind);
+        write!(f, "[it:{}; ", self.kind)?;
         for i in 0..self.len {
             let item =  &self.data[i];
             if i > 0 {
-                write!(f, ", {}",item);
+                write!(f, ", {}",item)?;
             } else {
-                write!(f, "{}", item);
+                write!(f, "{}", item)?;
             }
         }
-        write!(f, "]")
+        write!(f, "]")?;
+        Ok(())
     }
 }
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "[< ");
+        writeln!(f, "[< ")?;
 
         for (pos, field) in self.names.columns.iter().enumerate() {
-            writeln!(f, "{} = {},", field, self.data[pos]);
+            writeln!(f, "{} = {};", field, self.data[pos])?;
         }
-        writeln!(f, ">]")
+        writeln!(f, ">]")?;
+        Ok(())
     }
 }

@@ -11,7 +11,7 @@ lalrpop_mod!(pub tablam);
 mod core;
 mod tok;
 
-use std::io::{self, Write, BufRead};
+//use std::io::{self, Write, BufRead};
 // use core::operators::*;
 use tok::{TablamTokenizer};
 
