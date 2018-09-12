@@ -109,6 +109,34 @@ fn join_both<T, U>(of:&Both<T, U>, apply:&BoolExpr) -> JoinPos
     of.join(apply)
 }
 
+fn equal_schema<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> bool
+    where
+        T: Relation,
+        U: Relation
+{
+    left.source.names().is_equal(right.source.names())
+}
+
+///Set operations
+fn union_all<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> Frame
+    where
+        T: Relation,
+        U: Relation
+{
+    assert!(equal_schema(left, right), "The schema of both relations must be equal");
+
+    let mut columns = Vec::with_capacity(left.source.col_count() + right.source.col_count());
+
+    for (i, field) in left.source.names().columns.iter().enumerate() {
+        let col = left.source.col(i);
+        let more = right.source.col(i).data.as_ref().clone();
+
+        columns.push(col.append(more));
+    }
+
+    Frame::new(left.source.names().clone(), columns)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,5 +324,18 @@ mod tests {
 
         assert_eq!(col1, Data::from(r1));
         assert_eq!(col2, Data::from(r2));
+    }
+
+    #[test]
+    fn test_union() {
+        let left = make_nums1();
+        let right = make_nums2();
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+
+        let result = union_all(&ds1, &ds2);
+        let r1:Vec<i64> =vec![1, 2, 3, 2, 3, 4];
+        println!("Union {}", result);
+
+        assert_eq!(result.col(0), Data::from(r1));
     }
 }
