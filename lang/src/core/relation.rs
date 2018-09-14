@@ -1,6 +1,7 @@
 use std::cmp;
 use std::cell::Cell;
 use std::collections::HashSet;
+use std::collections::HashMap;
 //extern crate bit_vec;
 //use self::bit_vec::BitVec;
 
@@ -295,13 +296,26 @@ impl <T> DataSource<T>
     }
 }
 
+pub fn hash_rel<T>(of:&DataSource<T>) -> HashMap<Data, usize>
+    where T:Relation
+{
+    let mut rows = HashMap::with_capacity(of.len());
+
+    while !of.eof() {
+        rows.insert(of.row(), of.pos());
+        of.next();
+    }
+
+    rows
+}
+
 #[derive(Debug, Clone)]
 pub struct JoinPos {
     pub left:  Vec<isize>,
     pub right: Vec<isize>,
 }
 
-fn materialize<R>(source:&R, positions:&Vec<isize>, keep_null:bool) -> Vec<Data>
+pub fn materialize<R>(source:&R, positions:&Vec<isize>, keep_null:bool) -> Vec<Data>
     where R:Relation
 {
     let total = positions.len();

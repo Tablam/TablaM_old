@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use std::rc::Rc;
 use std::ops::{Add};
+use std::collections::HashMap;
 
 extern crate bit_vec;
 use self::bit_vec::BitVec;
@@ -31,7 +32,6 @@ impl Add for Scalar {
 // TODO: The operators follow this patterns:
 // maps:   ColumnExp & ColumnExp & fn = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp & fn = Column (+ [1, 2] = 3)
-
 fn _select<T>(of:&DataSource<T>, pick:Schema) -> Frame
     where T:Relation
 {
@@ -124,7 +124,6 @@ fn union_all<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> Frame
         U: Relation
 {
     assert!(equal_schema(left, right), "The schema of both relations must be equal");
-
     let mut columns = Vec::with_capacity(left.source.col_count() + right.source.col_count());
 
     for (i, field) in left.source.names().columns.iter().enumerate() {
@@ -132,6 +131,74 @@ fn union_all<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> Frame
         let more = right.source.col(i).data.as_ref().clone();
 
         columns.push(col.append(more));
+    }
+
+    Frame::new(left.source.names().clone(), columns)
+}
+
+fn _check_not_found(cmp:&HashMap<Data, usize>, row:&Data) -> bool {
+    !cmp.contains_key(&row)
+}
+
+fn _check_found(cmp:&HashMap<Data, usize>, row:&Data) -> bool {
+    cmp.contains_key(&row)
+}
+
+fn _compare_hash<T, U>(left:&DataSource<T>, right:&DataSource<U>, mark_found:bool) -> Vec<isize>
+    where
+        T: Relation,
+        U: Relation
+{
+    assert!(equal_schema(left, right), "The schema of both relations must be equal");
+    left.first();
+    right.first();
+
+    let mut results = Vec::new();
+    let cmp = hash_rel(&left);
+    let check =
+        if mark_found {
+            _check_found
+        }  else {
+            _check_not_found
+        };
+
+    while !right.eof() {
+        let row = right.row();
+        if check(&cmp, &row) {
+            results.push(right.pos() as isize)
+        }
+        right.next();
+    }
+    results
+}
+
+fn intersection<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> Frame
+    where
+        T: Relation,
+        U: Relation
+{
+    let results = _compare_hash(&left, &right, true);
+    let columns = materialize(&right.source, &results, false);
+
+    Frame::new(left.source.names().clone(), columns)
+}
+
+fn difference<T, U>(left:&DataSource<T>, right:&DataSource<U>) -> Frame
+    where
+        T: Relation,
+        U: Relation
+{
+    let results1 = _compare_hash(&left, &right, false);
+    let results2 = _compare_hash(&right, &left, false);
+
+    let mut columns = Vec::with_capacity(left.source.col_count());
+
+    let col1 = materialize(&right.source, &results1, false);
+    let col2 = materialize(&left.source, &results2, false);
+
+    for (i, col) in col1.into_iter().enumerate() {
+        let data = col2[i].data.clone();
+        columns.push(col.append_data(data));
     }
 
     Frame::new(left.source.names().clone(), columns)
@@ -335,6 +402,32 @@ mod tests {
         let result = union_all(&ds1, &ds2);
         let r1:Vec<i64> =vec![1, 2, 3, 2, 3, 4];
         println!("Union {}", result);
+
+        assert_eq!(result.col(0), Data::from(r1));
+    }
+
+    #[test]
+    fn test_intersection() {
+        let left = make_nums1();
+        let right = make_nums2();
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+
+        let result = intersection(&ds1, &ds2);
+        let r1:Vec<i64> =vec![2, 3];
+        println!("intersection {}", result);
+
+        assert_eq!(result.col(0), Data::from(r1));
+    }
+
+    #[test]
+    fn test_difference() {
+        let left = make_nums1();
+        let right = make_nums2();
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+
+        let result = difference(&ds1, &ds2);
+        let r1:Vec<i64> =vec![4, 1];
+        println!("difference {}", result);
 
         assert_eq!(result.col(0), Data::from(r1));
     }

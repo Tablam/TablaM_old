@@ -19,7 +19,7 @@ pub enum Layout {
 
 //NOTE: This define a total order, so matter what is the order
 //of the enum! The overall sorting order is defined as:
-#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub enum DataType {
     None,
     Bool,
@@ -81,7 +81,7 @@ fn type_of_scalar(value:&Scalar) -> DataType {
    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Data {
     pub kind:   DataType,
     pub len:    usize,
@@ -327,6 +327,21 @@ impl Data {
         }
 
         data.append(&mut other);
+
+        Data::new(data, self.kind.clone())
+    }
+
+    pub fn append_data(&self, of:RVec<Scalar>) -> Self {
+        let mut data = Vec::with_capacity(self.len + of.len());
+        let other= of;
+
+        for item in self.data.iter() {
+            data.push(item.clone());
+        }
+
+        for item in other.iter() {
+            data.push(item.clone());
+        }
 
         Data::new(data, self.kind.clone())
     }
