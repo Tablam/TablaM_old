@@ -32,6 +32,30 @@ impl Add for Scalar {
 // TODO: The operators follow this patterns:
 // maps:   ColumnExp & ColumnExp & fn = Column (+ [1, 2] [2, 3] = [3, 6])
 // reduce: ColumnExp & fn = Column (+ [1, 2] = 3)
+
+/// Rename
+fn rename<T>(of:&DataSource<T>, from:Vec<ColumnExp>, to:Vec<&str>) -> Frame
+    where T:Relation
+{
+    assert_eq!(from.len(), to.len(), "The columns to rename and the names must be of equal length");
+    let count = from.len();
+    let mut cols = Vec::with_capacity(count);
+    let mut names = of.source.names().columns;
+
+    for (col, name) in from.iter().zip(to.into_iter()) {
+        let pos = of.source.resolve_pos(&col);
+        let old = names[pos].kind.clone();
+        names[pos] = Field::new(name, old);
+    }
+
+    for i in 0..of.source.col_count() {
+        cols.push(of.source.col(i));
+    }
+
+    Frame::new(Schema::new(names), cols)
+}
+
+/// Select: aka projection in relational algebra
 fn _select<T>(of:&DataSource<T>, pick:Schema) -> Frame
     where T:Relation
 {
@@ -44,7 +68,6 @@ fn _select<T>(of:&DataSource<T>, pick:Schema) -> Frame
     Frame::new(pick.clone(), columns)
 }
 
-/// Select: aka projection in relational algebra
 fn select<T>(of:&DataSource<T>, pick:Schema) -> Frame
     where T:Relation
 {
@@ -430,5 +453,16 @@ mod tests {
         println!("difference {}", result);
 
         assert_eq!(result.col(0), Data::from(r1));
+    }
+
+    #[test]
+    fn test_rename() {
+        let f1 = make_rel1();
+
+        let pick1 = col(0);
+        let result = rename(&f1, vec![pick1], vec!["changed"]);
+
+        assert_eq!(result.col_count(), f1.source.col_count());
+        assert_eq!(result.names[0].name, "changed".to_string());
     }
 }
