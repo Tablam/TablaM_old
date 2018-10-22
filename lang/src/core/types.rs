@@ -69,6 +69,7 @@ impl Scalar {
 }
 
 pub type BoolExpr = Fn(&Scalar, &Scalar) -> bool;
+pub type BinExpr = Fn(&Scalar, &Scalar) -> Scalar;
 
 fn type_of_scalar(value:&Scalar) -> DataType {
    match value {
