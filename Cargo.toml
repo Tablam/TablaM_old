@@ -1,17 +1,2 @@
-# [package]
-# name = "tablam"
-# version = "0.1.0"
-
 [workspace]
-members = ["lang", "drivers"]
-
-[dependencies]
-time = "0.1.0"
-rand = "0.5"
-num = "*"
-bytes = "0.4"
-bit-vec = "*"
-
-[dependencies.rusqlite]
-version = "0.13.0"
-features = ["bundled"]
+members = ["core", "lang", "drivers"]

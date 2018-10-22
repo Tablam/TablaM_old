@@ -1,5 +1,5 @@
 [package]
-name = "tablam-rdbms"
+name = "tablam-db-drivers"
 version = "0.1.0"
 authors = ["Mario Alejandro Montoya Cortes <mamcx@elmalabarista.com>"]
 license = "MPL-2.0"
