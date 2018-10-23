@@ -52,6 +52,7 @@ impl Data {
 
     pub fn new_cols(names: Schema, of:&[Col]) -> Self {
         let (cols, rows) = size_rel(of, Layout::Col);
+        assert_eq!(cols, names.len(), "The # of columns of schema and data must be equal");
 
         let mut data = vec![Scalar::default(); rows * cols];
         for (c, col) in of.into_iter().enumerate() {
@@ -72,6 +73,7 @@ impl Data {
 
     pub fn new_rows(names: Schema, of:&[Col]) -> Self {
         let (cols, rows) = size_rel(&of, Layout::Row);
+        assert_eq!(cols, names.len(), "The # of columns of schema and data must be equal");
 
         let mut data = vec![Scalar::default(); rows * cols];
         for (r, row) in of.into_iter().enumerate() {
@@ -116,12 +118,14 @@ impl Data {
     }
 }
 
-pub struct RowIter {
+pub struct RowIter
+{
     pos: usize,
     data: Data
 }
 
-impl IntoIterator for Data {
+impl IntoIterator for Data
+{
     type Item = Col;
     type IntoIter = RowIter;
 
@@ -135,7 +139,7 @@ impl Iterator for RowIter
     type Item = Col;
 
     fn next (&mut self) -> Option<Self::Item> {
-        if self.pos < self.data.rows {
+        if self.pos < self.data.row_count() {
             self.pos = self.pos + 1;
             let row = self.data.row_copy(self.pos);
             Some(row)
@@ -156,9 +160,37 @@ pub trait Relation {
 
     fn row_count(&self) -> usize;
     fn col_count(&self) -> usize;
-    fn row(self, pos:usize) -> Col;
+    fn row(&self, pos:usize) -> Col;
     fn col(&self, pos:usize) -> Col;
     fn value(&self, row:usize, col:usize) -> &Scalar;
+
+    fn rows_pos(&self, pick:Pos) -> Vec<Col> {
+        let total = self.row_count();
+        let row_size = pick.len();
+        let mut columns = Vec::with_capacity(total);
+
+        for pos in 0..total {
+            let mut row = Vec::with_capacity(row_size);
+            let old = self.row(pos);
+            for p in &pick {
+                row.push(old[*p].clone());
+            }
+            columns.push(row)
+        }
+
+        columns
+    }
+
+    fn rows(&self) -> Vec<Col> {
+        let total = self.row_count();
+        let mut columns = Vec::with_capacity(total);
+        for pos in 0..total {
+            let row = self.row(pos);
+            columns.push(row)
+        }
+
+        columns
+    }
 
     fn tuple(&self, row:usize, cols:&[usize]) -> Col {
         let mut data = Vec::with_capacity(cols.len());
@@ -189,10 +221,28 @@ pub trait Relation {
         None
     }
 
-    fn select<T:Relation>(&self, pick:Pos ) -> T {
-        let columns = Vec::with_capacity(pick.len());
-        let names = self.names().only_pos(pick);
-        T::new(names, columns.as_slice())
+    fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+        let old = of.names();
+        let pos = old.resolve_pos_many(pick);
+        let names = old.only(pos.as_slice());
+        T::new(names, of.rows_pos(pos).as_slice())
+    }
+
+    fn deselect<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+        let old = of.names();
+        let pos = old.resolve_pos_many(pick);
+
+        let deselect = old.except(pos.as_slice());
+        println!("{:?}, {:?}", pos, deselect);
+        let names = old.only(deselect.as_slice());
+        T::new(names, of.rows_pos(deselect).as_slice())
+    }
+
+    fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T {
+        let names = from.names();
+        assert_eq!(names, to.names(), "The schemas must be equal");
+
+        T::new(names.clone(), [].to_vec().as_slice())
     }
 }
 
@@ -232,10 +282,14 @@ where
     x.iter().map( |v| value(v.clone())).collect()
 }
 
-pub fn field(name:&str, kind:DataType) -> Schema {
+pub fn field(name:&str, kind:DataType) -> Field {
+    Field::new(name, kind)
+}
+
+pub fn schema_single(name:&str, kind:DataType) -> Schema {
     Schema::new_single(name, kind)
 }
-pub fn fields(names:&[(&str, DataType)]) -> Schema {
+pub fn schema(names:&[(&str, DataType)]) -> Schema {
     let fields = names
             .into_iter()
             .map(|(name, kind)| Field::new(name, kind.clone())).collect();
@@ -250,7 +304,7 @@ pub fn rcol_t<T>(name:&str, kind:DataType, of:&[T]) -> Data
 {
     let data = col(of);
 
-    Data::new_cols(field(name, kind), vec![data].as_slice())
+    Data::new_cols(schema_single(name, kind), vec![data].as_slice())
 }
 
 pub fn rcol<T>(name:&str, of:&[T]) -> Data
@@ -261,7 +315,7 @@ pub fn rcol<T>(name:&str, of:&[T]) -> Data
     let data = col(of);
     let kind = infer_type(data.as_slice());
 
-    Data::new_cols(field(name, kind), vec![data].as_slice())
+    Data::new_cols(schema_single(name, kind), vec![data].as_slice())
 }
 
 pub fn array<T>(of:&[T]) -> Data
@@ -306,6 +360,31 @@ pub fn row_infer<T>(of:&[T]) -> Data
     Data::new_rows(names, vec![data].as_slice())
 }
 
+pub fn table_cols_infer<T>(of:&[Col]) -> Data {
+    let mut types = Vec::with_capacity(of.len());
+    for c in of {
+        types.push(infer_type(c));
+    }
+    let names = Schema::generate(&types);
+
+    Data::new_cols(names, of)
+}
+
+pub fn table_cols<T>(schema:Schema, of:&[Col]) -> Data {
+    Data::new_cols(schema, of)
+}
+
+fn print_values(of: &[Scalar], f: &mut fmt::Formatter) -> fmt::Result {
+    for (i, value) in of.iter().enumerate() {
+        if i == of.len() - 1{
+            write!(f, "{}", value)?;
+        } else {
+            write!(f, "{}, ", value)?;
+        }
+    }
+    Ok(())
+}
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (sep1, sep2) = if self.layout == Layout::Col { ("[|", "|]") } else { ("[<", ">]") };
@@ -314,17 +393,27 @@ impl fmt::Display for Data {
         write!(f, "{}", self.names)?;
         write!(f, "; ")?;
 
-        for row in 0..self.rows {
-            for col in 0..self.cols  {
-                let item =  self.value_owned(row, col);
-                if col > 0 {
-                    write!(f, ", {}", item)?;
-                } else {
-                    write!(f, "{}", item)?;
+        if self.layout == Layout::Col {
+            for col in 0..self.cols {
+                let item =  self.col_slice(col);
+                print_values(item, f)?;
+                if col < self.cols - 1 {
+                    write!(f, ";")?;
                 }
             }
-            if row < self.rows - 1 {
-                write!(f, "; ")?;
+        } else {
+            for row in 0..self.rows {
+                for col in 0..self.cols  {
+                    let item =  self.value_owned(row, col);
+                    if col > 0 {
+                        write!(f, ", {}", item)?;
+                    } else {
+                        write!(f, "{}", item)?;
+                    }
+                }
+                if row < self.rows - 1 {
+                    write!(f, "; ")?;
+                }
             }
         }
 

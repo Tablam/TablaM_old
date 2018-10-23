@@ -1,7 +1,9 @@
 use std::fmt;
 use std::ops::Index;
 use std::fmt::Debug;
-use std::slice::Iter;
+
+extern crate bit_vec;
+use self::bit_vec::BitVec;
 
 /// Marker trait for the values
 trait Value: Clone + Debug {}
@@ -208,13 +210,13 @@ impl Schema {
         }
     }
 
-    fn resolve_pos_many(&self, of: &Vec<ColumnExp>) -> Pos
+    pub fn resolve_pos_many(&self, of: &[ColumnExp]) -> Pos
     {
         of.into_iter().map(|x| self.resolve_pos(x)).collect()
     }
 
     ///Recover the column names from a list of relative ColumnExp
-    fn resolve_names(&self, of: Vec<&ColumnExp>) -> Schema {
+    pub fn resolve_names(&self, of: &[ColumnExp]) -> Schema {
         let mut names = Vec::with_capacity(of.len());
 
         for name in of.into_iter() {
@@ -230,39 +232,32 @@ impl Schema {
                 };
             names.push(pick);
         }
-        Schema::new(names)
+        Self::new(names)
     }
 
     /// Helper for select/projection
-    pub fn only_pos(&self, position:Pos) -> Self {
+    pub fn only(&self, position:&[usize]) -> Self {
         let mut fields = Vec::with_capacity(position.len());
         for pos in position {
-            fields.push(self.columns[pos].clone());
+            fields.push(self.columns[*pos].clone());
         }
-        Schema::new(fields)
+        Self::new(fields)
     }
 
-    pub fn only(&self, names:Vec<&str>) -> Self {
-        let mut fields = Vec::with_capacity(names.len());
-        for name in names {
-            let (_pos, f) = self.named(name).unwrap();
-            fields.push(f.clone());
+    pub fn except(&self, remove:&[usize]) -> Pos {
+        let mut all = BitVec::from_elem(self.len(), true);
+        let mut pos = Vec::with_capacity(self.len());
+
+        for i in remove {
+            all.set(*i, false);
         }
-        Schema::new(fields)
-    }
 
-    /// Helper for deselect/projection
-    pub fn except(&self, remove:Vec<&str>) -> Self {
-        let count = self.len() - remove.len();
-        let mut fields = Vec::with_capacity(count);
-
-        for field in self.columns.clone() {
-            let name = &field.name[..];
-            if !remove.contains(&name) {
-                fields.push(field.clone());
+        for (i, ok) in all.iter().enumerate() {
+            if ok {
+                pos.push(i);
             }
         }
-        Schema::new(fields)
+        pos
     }
 
     pub fn exist(&self, field:&str) -> bool {
@@ -290,7 +285,21 @@ impl Schema {
             }
         }
 
-        Schema::new(fields)
+        Self::new(fields)
+    }
+
+    fn rename(&self, from:&[ColumnExp], to:Vec<&str>) -> Self {
+        assert_eq!(from.len(), to.len(), "The columns to rename and the names must be of equal length");
+
+        let mut names = self.columns.clone();
+
+        for (col, name) in from.iter().zip(to.into_iter()) {
+            let pos = self.resolve_pos(&col);
+            let old = names[pos].kind.clone();
+            names[pos] = Field::new(name, old);
+        }
+
+        Self::new(names)
     }
 
     pub fn is_equal(&self, to:Schema) -> bool {
@@ -313,12 +322,17 @@ impl Index<usize> for Schema {
 
 macro_rules! convert {
     ($kind:ident, $bound:path) => (
+        impl <'a> From<&'a $kind> for Scalar {
+            fn from(i: &'a $kind) -> Self {
+                $bound(*i)
+            }
+        }
+
         impl From<$kind> for Scalar {
             fn from(i: $kind) -> Self {
                 $bound(i)
             }
         }
-
         impl From<Scalar> for $kind {
             fn from(i: Scalar) -> Self {
                 match i {
@@ -333,6 +347,12 @@ macro_rules! convert {
 convert!(bool, Scalar::Bool);
 convert!(i32, Scalar::I32);
 convert!(i64, Scalar::I64);
+
+pub fn encode<'a, T>(values:&'a [T]) -> Vec<Scalar>
+where T: From<Scalar>, Scalar: From<&'a T>,
+{
+    values.into_iter().map(|x| x.into()).collect()
+}
 
 pub fn decode<T:From<Scalar>>(values:&[Scalar]) -> Vec<T> {
     values.iter().map(move |x| From::from(x.clone())).collect()
@@ -379,5 +399,9 @@ pub mod test_values {
 
     pub fn nums_2() -> Vec<i64> {
         vec![4, 5, 6]
+    }
+
+    pub fn bools_1() -> Vec<bool> {
+        vec![true, false, true]
     }
 }
