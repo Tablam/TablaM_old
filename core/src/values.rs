@@ -373,7 +373,7 @@ impl fmt::Display for Scalar {
 
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "'{}':{}", self.name, self.kind)
+        write!(f, "{}:{}", self.name, self.kind)
     }
 }
 

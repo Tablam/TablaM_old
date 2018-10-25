@@ -1,8 +1,166 @@
-#![allow(unused_imports)]
-
 use super::values::*;
-use super::values::DataType::*;
 use super::types::*;
+
+pub struct Cursor
+{
+    start: usize,
+    last: usize,
+}
+
+impl Cursor
+{
+    pub fn new(start:usize, last:usize) -> Self {
+        Cursor {
+            last,
+            start
+        }
+    }
+
+    pub fn set(&mut self, pos:usize) {
+        self.start = pos;
+    }
+
+    pub fn next(&mut self) {
+        let pos = self.start;
+        self.set(pos + 1)
+    }
+
+    pub fn eof(&self) -> bool {
+        self.start >= self.last
+    }
+}
+
+pub trait Relation {
+    fn empty(names:Schema) -> Self;
+    fn new(names: Schema, of:&[Col]) -> Self;
+
+    //fn append(to:&mut Self, from:&[Scalar]) ;
+
+    fn layout(&self) -> &Layout;
+    fn names(&self) -> &Schema;
+
+    fn row_count(&self) -> usize;
+    fn col_count(&self) -> usize;
+    fn row(&self, pos:usize) -> Col;
+    fn col(&self, pos:usize) -> Col;
+    fn value(&self, row:usize, col:usize) -> &Scalar;
+
+    fn rows_pos(&self, pick:Pos) -> Vec<Col> {
+        let total = self.row_count();
+        let row_size = pick.len();
+        let mut columns = Vec::with_capacity(total);
+
+        for pos in 0..total {
+            let mut row = Vec::with_capacity(row_size);
+            let old = self.row(pos);
+            for p in &pick {
+                row.push(old[*p].clone());
+            }
+            columns.push(row)
+        }
+
+        columns
+    }
+
+    fn rows(&self) -> Vec<Col> {
+        let total = self.row_count();
+        let mut columns = Vec::with_capacity(total);
+        for pos in 0..total {
+            let row = self.row(pos);
+            columns.push(row)
+        }
+
+        columns
+    }
+
+    fn tuple(&self, row:usize, cols:&[usize]) -> Col {
+        let mut data = Vec::with_capacity(cols.len());
+
+        for i in cols {
+            data.push(self.value(row, *i).clone())
+        }
+        data
+    }
+
+    fn cmp(&self, row:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> bool
+    {
+        let old = self.value(row, col);
+        println!("CMP {:?}, {:?}", value, old);
+        apply(old, value)
+    }
+
+    //TODO: Specialize for columnar layout
+    fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
+    {
+        //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
+        while !cursor.eof() {
+            let row = cursor.start;
+            cursor.next();
+            if self.cmp(row, col, value, apply) {
+                return Some(row)
+            }
+        }
+
+        Option::None
+    }
+
+    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>
+    {
+        let mut pos = Vec::new();
+
+        let mut cursor = Cursor::new(start, self.row_count());
+
+        while let Some(next) = self.find(&mut cursor, col, value, apply) {
+            pos.push(next);
+        }
+
+        pos
+    }
+
+    fn find_all_rows(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<Col>
+    {
+        let mut pos = Vec::new();
+        let mut cursor = Cursor::new(start, self.row_count());
+
+        while let Some(next) = self.find(&mut cursor, col, value, apply) {
+            pos.push(self.row(next));
+        }
+
+        pos
+    }
+
+    fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+        let old = of.names();
+        let pos = old.resolve_pos_many(pick);
+        let names = old.only(pos.as_slice());
+        T::new(names, of.rows_pos(pos).as_slice())
+    }
+
+    fn deselect<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+        let old = of.names();
+        let pos = old.resolve_pos_many(pick);
+
+        let deselect = old.except(pos.as_slice());
+        let names = old.only(deselect.as_slice());
+        T::new(names, of.rows_pos(deselect).as_slice())
+    }
+
+    fn where_value_late<T:Relation>(of:&T, col:usize, value:&Scalar, apply:&BoolExpr) -> T {
+        let rows = T::find_all_rows(of, 0, col, value, apply);
+
+        T::new(of.names().clone(), rows.as_slice())
+    }
+
+    fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T {
+        let names = from.names();
+        assert_eq!(names, to.names(), "The schemas must be equal");
+
+        T::new(names.clone(), [].to_vec().as_slice())
+    }
+}
+
+pub type RelExpr = Fn(&Relation) -> Relation;
+pub type RelBool = Fn(&Relation) -> Relation;
 
 impl Relation for Data {
     fn empty(names:Schema) -> Self {
@@ -45,14 +203,15 @@ impl Relation for Data {
 mod tests {
     use super::*;
     use super::super::values::test_values::*;
+    use super::super::values::DataType::*;
 
     pub fn rel_empty() -> Data { array_empty(I32) }
     pub fn rel_nums1() -> Data {
         array(nums_1().as_slice())
     }
-    pub fn rel_nums2() -> Data {
-        array(nums_2().as_slice())
-    }
+//    pub fn rel_nums2() -> Data {
+//        array(nums_2().as_slice())
+//    }
     pub fn table_1() -> Data {
         let fields = [field("one", I32), field("two", I32), field("three", Bool)].to_vec();
         let schema = Schema::new(fields);
@@ -66,10 +225,10 @@ mod tests {
     #[test]
     fn test_create() {
         let num1 = nums_1();
-        let emptySchema = &Schema::scalar_field(I32);
+        let empty_schema = &Schema::scalar_field(I32);
 
         let fnull = rel_empty();
-        assert_eq!(fnull.names(), emptySchema);
+        assert_eq!(fnull.names(), empty_schema);
         assert_eq!(fnull.layout(), &Layout::Col);
         println!("Empty {:?}", fnull);
 
@@ -78,7 +237,7 @@ mod tests {
 
         let fcol1 = rel_nums1();
         println!("Array {}", fcol1);
-        assert_eq!(fnull.names(), emptySchema);
+        assert_eq!(fnull.names(), empty_schema);
         assert_eq!(fcol1.layout(), &Layout::Col);
 
         assert_eq!(fcol1.col_count(), 1);
@@ -120,5 +279,24 @@ mod tests {
         println!("DeSelect 1 {}", query3);
         assert_eq!(query3.names.len(), 1);
         assert_eq!(query1.names, query3.names);
+    }
+
+    #[test]
+    fn test_compare() {
+        let table1 = &table_1();
+        println!("Table1 {}", table1);
+        let none = &none();
+        let one = &value(1i64);
+
+        let pos1 = table1.find_all(0, 0, one, &PartialEq::eq);
+        assert_eq!(pos1, [0].to_vec());
+
+        let query1 = Data::where_value_late(table1, 0, none, &PartialEq::eq);
+        println!("Where1 = None {}", query1);
+        assert_eq!(query1.row_count(), 0);
+
+        let query2 = Data::where_value_late(table1,0, one, &PartialEq::eq);
+        println!("Where2 = 1 {}", query2);
+        assert_eq!(query2.row_count(), 1);
     }
 }
