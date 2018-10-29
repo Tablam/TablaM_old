@@ -32,9 +32,12 @@ impl Cursor
 
 pub trait Relation {
     fn empty(names:Schema) -> Self;
+    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&Col) -> Self;
     fn new(names: Schema, of:&[Col]) -> Self;
 
     //fn append(to:&mut Self, from:&[Scalar]) ;
+
+    fn flat_raw(&self) -> &Col;
 
     fn layout(&self) -> &Layout;
     fn names(&self) -> &Schema;
@@ -129,6 +132,11 @@ pub trait Relation {
         pos
     }
 
+    fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
+        let schema = of.names().rename(change);
+        T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), of.flat_raw())
+    }
+
     fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
         let old = of.names();
         let pos = old.resolve_pos_many(pick);
@@ -167,8 +175,18 @@ impl Relation for Data {
         Data::empty(names, Layout::Col)
     }
 
+    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&Col) -> Self
+    {
+        Data::new(names, layout, cols, rows, of)
+    }
+
     fn new(names: Schema, of:&[Col]) -> Self {
         Data::new_rows(names, of)
+    }
+
+    fn flat_raw(&self) -> &Col
+    {
+        &self.ds
     }
 
     fn layout(&self) -> &Layout {
@@ -298,5 +316,14 @@ mod tests {
         let query2 = Data::where_value_late(table1,0, one, &PartialEq::eq);
         println!("Where2 = 1 {}", query2);
         assert_eq!(query2.row_count(), 1);
+    }
+
+    #[test]
+    fn test_rename() {
+        let table =  &table_1();
+        let renamed = Data::rename(table, &[(colp(0), "changed")]);
+
+        assert_eq!(table.col_count(), renamed.col_count());
+        assert_eq!(renamed.names.columns[0].name, "changed".to_string());
     }
 }

@@ -40,6 +40,16 @@ pub struct Data {
 }
 
 impl Data {
+    pub fn new(names: Schema, layout: Layout, cols:usize, rows:usize, data:&Col) -> Self {
+        Data {
+            layout,
+            cols,
+            rows,
+            names,
+            ds: data.clone()
+        }
+    }
+
     pub fn empty(names: Schema, layout: Layout) -> Self {
         Data {
             layout,

@@ -198,7 +198,7 @@ impl Schema {
     }
 
     ///Recover the column position from the relative ColumnExp
-    fn resolve_pos(&self, of: &ColumnExp) -> usize {
+    pub fn resolve_pos(&self, of: &ColumnExp) -> usize {
         match of {
             ColumnExp::Pos(x) => {
                 *x
@@ -288,12 +288,10 @@ impl Schema {
         Self::new(fields)
     }
 
-    fn rename(&self, from:&[ColumnExp], to:Vec<&str>) -> Self {
-        assert_eq!(from.len(), to.len(), "The columns to rename and the names must be of equal length");
-
+    pub fn rename(&self, change:&[(ColumnExp, &str)]) -> Self {
         let mut names = self.columns.clone();
 
-        for (col, name) in from.iter().zip(to.into_iter()) {
+        for (col, name) in change {
             let pos = self.resolve_pos(&col);
             let old = names[pos].kind.clone();
             names[pos] = Field::new(name, old);
