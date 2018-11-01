@@ -413,6 +413,9 @@ pub mod test_values {
     pub fn nums_2() -> Vec<i64> {
         vec![4, 5, 6]
     }
+    pub fn nums_3() -> Vec<i64> {
+        vec![2, 3, 4]
+    }
 
     pub fn bools_1() -> Vec<bool> {
         vec![true, false, true]

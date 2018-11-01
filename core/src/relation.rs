@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+
+extern crate bit_vec;
+use self::bit_vec::BitVec;
+
 use super::values::*;
 use super::types::*;
 
@@ -30,10 +35,48 @@ impl Cursor
     }
 }
 
+fn _check_not_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
+    !cmp.contains_key(&row)
+}
+
+fn _check_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
+    cmp.contains_key(&row)
+}
+
+fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize)
+    where
+        T: Relation,
+        U: Relation
+{
+    let cmp = left.hash_rows();
+    let mut results = BitVec::from_elem(right.row_count(), false);
+    let mut not_found = 0;
+    let check =
+        if mark_found {
+            _check_found
+        }  else {
+            _check_not_found
+        };
+
+    let mut cursor = Cursor::new(0, right.row_count());
+
+    while let Some(next) = right.next(&mut cursor) {
+        let h = right.hash_row(next);
+
+        if check(&cmp, h) {
+            results.set(next, true);
+        } else {
+            not_found = not_found + 1;
+        }
+    }
+
+    (results, not_found)
+}
+
 pub trait Relation {
-    fn empty(names:Schema) -> Self;
-    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:Col) -> Self;
-    fn new(names: Schema, of:&[Col]) -> Self;
+    fn empty(names: Schema) -> Self;
+    fn from_raw(names: Schema, layout: Layout, cols: usize, rows: usize, of: Col) -> Self;
+    fn new(names: Schema, of: &[Col]) -> Self;
 
     //fn append(to:&mut Self, from:&[Scalar]) ;
     fn layout(&self) -> &Layout;
@@ -41,15 +84,15 @@ pub trait Relation {
 
     fn row_count(&self) -> usize;
     fn col_count(&self) -> usize;
-    fn row(&self, pos:usize) -> Col;
-    fn col(&self, pos:usize) -> Col;
-    fn value(&self, row:usize, col:usize) -> &Scalar;
+    fn row(&self, pos: usize) -> Col;
+    fn col(&self, pos: usize) -> Col;
+    fn value(&self, row: usize, col: usize) -> &Scalar;
 
-    fn flat_raw(&self, layout:&Layout) -> Col {
+    fn flat_raw(&self, layout: &Layout) -> Col {
         let rows = self.row_count();
-        let cols =self.col_count();
+        let cols = self.col_count();
 
-        let mut data = Vec::with_capacity( cols * rows);
+        let mut data = Vec::with_capacity(cols * rows);
 
         if *layout == Layout::Col {
             for col in 0..cols {
@@ -68,7 +111,30 @@ pub trait Relation {
         data
     }
 
-    fn rows_pos(&self, pick:Pos) -> Vec<Col> {
+    fn materialize_raw(&self, pos:&BitVec, null_count:usize, layout: &Layout, keep_null:bool) -> Col {
+        let rows = pos.len();
+        let cols = self.col_count();
+        let total_rows = if keep_null {rows} else {rows - null_count};
+
+        let mut data = vec![Scalar::None; cols * total_rows];
+        let positions =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x);
+
+        let mut new_row = 0;
+        for (row, found) in positions {
+            for col in 0..cols {
+                let _pos = index(layout, cols, total_rows, new_row, col);
+
+                data[_pos] = self.value(row, col).clone();
+                new_row += 1;
+            }
+        }
+
+        data
+    }
+
+    fn rows_pos(&self, pick: Pos) -> Vec<Col> {
         let total = self.row_count();
         let row_size = pick.len();
         let mut columns = Vec::with_capacity(total);
@@ -85,6 +151,22 @@ pub trait Relation {
         columns
     }
 
+    fn hash_row(&self, row:usize) -> u64 {
+        hash_column(self.row(row))
+    }
+
+    fn hash_rows(&self) -> HashMap<u64, usize> {
+        let mut rows = HashMap::with_capacity(self.row_count());
+
+        let mut cursor = Cursor::new(0, self.row_count());
+
+        while let Some(next) = self.next(&mut cursor) {
+            rows.insert(self.hash_row(next), next);
+        }
+
+        rows
+    }
+
     fn rows(&self) -> Vec<Col> {
         let total = self.row_count();
         let mut columns = Vec::with_capacity(total);
@@ -96,7 +178,7 @@ pub trait Relation {
         columns
     }
 
-    fn tuple(&self, row:usize, cols:&[usize]) -> Col {
+    fn tuple(&self, row: usize, cols: &[usize]) -> Col {
         let mut data = Vec::with_capacity(cols.len());
 
         for i in cols {
@@ -105,7 +187,7 @@ pub trait Relation {
         data
     }
 
-    fn cmp(&self, row:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> bool
+    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
     {
         let old = self.value(row, col);
         println!("CMP {:?}, {:?}", value, old);
@@ -113,6 +195,16 @@ pub trait Relation {
     }
 
     //TODO: Specialize for columnar layout
+    fn next(&self, cursor: &mut Cursor) -> Option<usize> {
+        while !cursor.eof() {
+            let row = cursor.start;
+            cursor.next();
+            return Some(row)
+        }
+
+        Option::None
+    }
+
     fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
     {
         //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
@@ -191,6 +283,32 @@ pub trait Relation {
 
         T::from_raw(names.clone(), layout.clone(), names.len(), rows, left)
     }
+
+    fn intersection<T:Relation, U:Relation>(from:&T, to:&U) -> T {
+        let names = from.names();
+        assert_eq!(names, to.names(), "The schemas must be equal");
+        let layout = to.layout();
+        let (pos, null_count) = _compare_hash(from, to, true);
+
+        let data = to.materialize_raw(&pos, null_count, layout, false);
+
+        T::from_raw(names.clone(), layout.clone(), names.len(), pos.len() - null_count, data)
+    }
+
+    fn difference<T:Relation, U:Relation>(from:&T, to:&U) -> T {
+        let names = from.names();
+        assert_eq!(names, to.names(), "The schemas must be equal");
+        let layout = to.layout();
+        let (pos1, null_count1) = _compare_hash(from, to, false);
+        let (pos2, null_count2) = _compare_hash(to, from, false);
+
+        let mut data = to.materialize_raw(&pos1, null_count1, layout, false);
+        let mut data2 = from.materialize_raw(&pos2, null_count2, layout, false);
+        data.append(&mut data2);
+        let total_rows = (pos1.len() - null_count1) + (pos2.len() - null_count2);
+
+        T::from_raw(names.clone(), layout.clone(), names.len(), total_rows, data)
+    }
 }
 
 pub type RelExpr = Fn(&Relation) -> Relation;
@@ -248,9 +366,12 @@ mod tests {
     pub fn rel_nums1() -> Data {
         array(nums_1().as_slice())
     }
-//    pub fn rel_nums2() -> Data {
-//        array(nums_2().as_slice())
-//    }
+    pub fn rel_nums2() -> Data {
+        array(nums_2().as_slice())
+    }
+    pub fn rel_nums3() -> Data {
+        array(nums_3().as_slice())
+    }
     pub fn table_1() -> Data {
         let fields = [field("one", I32), field("two", I32), field("three", Bool)].to_vec();
         let schema = Schema::new(fields);
@@ -361,12 +482,44 @@ mod tests {
     }
 
     #[test]
-    fn test_intersection() {
+    fn test_hash() {
+        let table1 =  &table_1();
+        let hashed = table1.hash_rows();
+        println!("Hash {:?}", hashed);
+        assert_eq!(hashed.len(), table1.row_count());
+        assert_eq!(hashed.contains_key(&hash_column(table1.row(0))), true);
+    }
 
+    #[test]
+    fn test_intersection() {
+        let left = &rel_nums1();
+        let right = &rel_nums3();
+
+        let result = _compare_hash(left, right, true);
+        println!("CMP {:?}", result);
+
+        println!("Left {}", left);
+        println!("Right {}", right);
+
+        let result = Data::intersection(left, right);
+        println!("Intersection {}", result);
+        assert_eq!(result,  array(&[2i64, 3i64]));
     }
 
     #[test]
     fn test_difference() {
+        let left = &rel_nums1();
+        let right = &rel_nums3();
 
+        let result1 = _compare_hash(left, right, false);
+        let result2 = _compare_hash(right, left, false);
+        println!("CMP {:?}, {:?}", result1, result2);
+
+        println!("Left {}", left);
+        println!("Right {}", right);
+
+        let result = Data::difference(left, right);
+        println!("Difference {}", result);
+        assert_eq!(result,  array(&[4i64, 1i64]));
     }
 }

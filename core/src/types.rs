@@ -1,4 +1,6 @@
 use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 //use std::rc::Rc;
 
 use super::values::*;
@@ -22,7 +24,7 @@ fn size_rel(of:&[Col], layout:Layout) -> (usize, usize) {
 }
 
 /// Calculate the appropriated index in the flat array
-fn index(layout:&Layout, col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
+pub fn index(layout:&Layout, col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
     //println!("pos {}, {}, {}, {}", row, col, row_count , col_count);
     match layout {
         Layout::Col => col * row_count + row,
@@ -142,6 +144,17 @@ impl Iterator for RowIter
 }
 
 /// Auxiliary functions and shortcuts
+pub fn hash_column(vec: Col) -> u64 {
+    //println!("HASH {:?}", vec);
+    let mut hasher = DefaultHasher::new();
+
+    vec.into_iter().for_each(| x | x.hash(&mut hasher));
+
+    let x = hasher.finish();
+    //println!("HASH {:?}",x);
+    x
+}
+
 pub fn colp(pos:usize) -> ColumnExp {
     ColumnExp::Pos(pos)
 }
