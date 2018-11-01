@@ -1,4 +1,6 @@
+use std::cmp;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 extern crate bit_vec;
 use self::bit_vec::BitVec;
@@ -43,6 +45,17 @@ fn _check_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
     cmp.contains_key(&row)
 }
 
+fn _bitvector_to_pos(of:&BitVec) -> Vec<isize> {
+    let mut pos =  vec![-1isize; of.len()];
+
+    for (i, found) in of.iter().enumerate() {
+        if found {
+            pos[i] = i as isize;
+        }
+    }
+    pos
+}
+
 fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize)
     where
         T: Relation,
@@ -71,6 +84,53 @@ fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize)
     }
 
     (results, not_found)
+}
+
+fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> (BitVec, BitVec) {
+    let mut right_not_founds = HashSet::new();
+
+    let left = from.col(col_from);
+    let right = to.col(col_to);
+
+    let total = cmp::max(left.len(), right.len());
+
+    let mut cols_left  = BitVec::from_elem(total, false);
+    let mut cols_right = BitVec::from_elem(total, false);
+
+    let mut found = false;
+    let mut first = true;
+
+    for (x, l) in left.iter().enumerate() {
+        for (y, r) in right.iter().enumerate()  {
+            if first {
+                right_not_founds.insert(y);
+            }
+            if apply(l , r) {
+                //println!("{} -> {} true", x, y);
+                cols_left.set(x, true);
+                cols_right.set(y, true);
+                right_not_founds.remove(&y);
+                found = true;
+            }
+        }
+        if !found {
+            //println!("..{} true", x);
+            cols_left.set(x, true);
+        }
+        found = false;
+        first = false;
+    }
+
+    if right_not_founds.len() > 0 {
+        cols_left.grow(right_not_founds.len(), false);
+        cols_right.grow(right_not_founds.len(), false);
+
+        for pos in right_not_founds {
+            cols_right.set(pos, true);
+        }
+    }
+
+    (cols_left, cols_right)
 }
 
 pub trait Relation {
@@ -122,7 +182,7 @@ pub trait Relation {
             .filter(|(_, x)| *x);
 
         let mut new_row = 0;
-        for (row, found) in positions {
+        for (row, _) in positions {
             for col in 0..cols {
                 let _pos = index(layout, cols, total_rows, new_row, col);
 
@@ -309,10 +369,47 @@ pub trait Relation {
 
         T::from_raw(names.clone(), layout.clone(), names.len(), total_rows, data)
     }
+
+    fn join<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> T {
+        let names = from.names();
+        let (left, right) = _join_late(from, to, col_from, col_to, apply);
+
+        T::empty(names.clone())
+    }
 }
 
-pub type RelExpr = Fn(&Relation) -> Relation;
-pub type RelBool = Fn(&Relation) -> Relation;
+/// Fundamental relational operators.
+
+pub fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+    T::select(of, pick)
+}
+
+pub fn deselect<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+    T::deselect(of, pick)
+}
+
+pub fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
+    T::rename(of, change)
+}
+
+pub fn where_value_late<T:Relation>(of:&T, col:usize, value:&Scalar, apply:&BoolExpr) -> T {
+    T::where_value_late(of, col, value, apply)
+}
+
+pub fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T
+{
+    T::union(from, to)
+}
+
+pub fn intersection<T:Relation, U:Relation>(from:&T, to:&U) -> T
+{
+    T::intersection(from, to)
+}
+
+pub fn difference<T:Relation, U:Relation>(from:&T, to:&U) -> T
+{
+    T::difference(from, to)
+}
 
 impl Relation for Data {
     fn empty(names:Schema) -> Self {
@@ -372,6 +469,15 @@ mod tests {
     pub fn rel_nums3() -> Data {
         array(nums_3().as_slice())
     }
+
+    fn make_both(left:Vec<i64>, right:Vec<i64>) -> (Data, Data, usize, usize) {
+        let f1 = array(left.as_slice());
+        let f2 = array(right.as_slice());
+        let (pick1, pick2) = (0,  0);
+
+        (f1, f2, pick1, pick2)
+    }
+
     pub fn table_1() -> Data {
         let fields = [field("one", I32), field("two", I32), field("three", Bool)].to_vec();
         let schema = Schema::new(fields);
@@ -424,18 +530,18 @@ mod tests {
 
         let table1 = &table_1();
         println!("Table1 {}", table1);
-        let query_empty = Data::select(table1, &[]);
+        let query_empty = select(table1, &[]);
         println!("Select 0 {}", query_empty);
         assert_eq!(query_empty.names.len(), 0);
 
-        let query1 = Data::select(table1, &[pick1]);
+        let query1 = select(table1, &[pick1]);
         println!("Select 0 {}", query1);
         assert_eq!(query1.names.len(), 1);
-        let query2 = Data::select(table1, &[pick2.clone()]);
+        let query2 = select(table1, &[pick2.clone()]);
         println!("Select 1 {}", query2);
         assert_eq!(query2.names.len(), 1);
 
-        let query3 = Data::deselect(table1, &[pick2, pick3]);
+        let query3 = deselect(table1, &[pick2, pick3]);
         println!("DeSelect 1 {}", query3);
         assert_eq!(query3.names.len(), 1);
         assert_eq!(query1.names, query3.names);
@@ -451,11 +557,11 @@ mod tests {
         let pos1 = table1.find_all(0, 0, one, &PartialEq::eq);
         assert_eq!(pos1, [0].to_vec());
 
-        let query1 = Data::where_value_late(table1, 0, none, &PartialEq::eq);
+        let query1 = where_value_late(table1, 0, none, &PartialEq::eq);
         println!("Where1 = None {}", query1);
         assert_eq!(query1.row_count(), 0);
 
-        let query2 = Data::where_value_late(table1,0, one, &PartialEq::eq);
+        let query2 = where_value_late(table1,0, one, &PartialEq::eq);
         println!("Where2 = 1 {}", query2);
         assert_eq!(query2.row_count(), 1);
     }
@@ -463,7 +569,7 @@ mod tests {
     #[test]
     fn test_rename() {
         let table =  &table_1();
-        let renamed = Data::rename(table, &[(colp(0), "changed")]);
+        let renamed = rename(table, &[(colp(0), "changed")]);
 
         assert_eq!(table.col_count(), renamed.col_count());
         assert_eq!(renamed.names.columns[0].name, "changed".to_string());
@@ -474,7 +580,7 @@ mod tests {
         let table1 =  &table_1();
         let table2 =  &table_1();
 
-        let table3 = Data::union(table1, table2);
+        let table3 = union(table1, table2);
         println!("Union {}", table3);
 
         assert_eq!(table1.col_count(), table3.col_count());
@@ -501,7 +607,7 @@ mod tests {
         println!("Left {}", left);
         println!("Right {}", right);
 
-        let result = Data::intersection(left, right);
+        let result = intersection(left, right);
         println!("Intersection {}", result);
         assert_eq!(result,  array(&[2i64, 3i64]));
     }
@@ -518,8 +624,39 @@ mod tests {
         println!("Left {}", left);
         println!("Right {}", right);
 
-        let result = Data::difference(left, right);
+        let result = difference(left, right);
         println!("Difference {}", result);
         assert_eq!(result,  array(&[4i64, 1i64]));
+    }
+
+    fn _test_join(left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)
+    {
+        println!("CMP {:?}, {:?}", left, right);
+
+        let (ds1, ds2, p1, p2) = make_both(left, right);
+
+        let (left, right) = _join_late(&ds1, &ds2, p1, p2, &PartialEq::eq);
+        println!("BIT {:?}, {:?}", left, right);
+
+        let mut l = _bitvector_to_pos(&left);
+        let mut r =_bitvector_to_pos(&right);
+
+        l.sort();
+        r.sort();
+        join_left.sort();
+        join_right.sort();
+
+        assert_eq!(l, join_left, "Left Side");
+        assert_eq!(r, join_right, "Right Side");
+    }
+
+    #[test]
+    fn test_join() {
+        _test_join(vec![1], vec![1], vec![0], vec![0]);
+        _test_join(vec![1], vec![2], vec![-1, 0], vec![-1, 0]);
+        _test_join(vec![1], vec![], vec![0], vec![-1]);
+        _test_join(vec![1, 2, 3], vec![1, 2, 3], vec![0, 1, 2], vec![0, 1, 2]);
+        _test_join(vec![1, 2, 3], vec![2, 3, 4], vec![0, 1, 2, -1], vec![-1, 0, 1, 2]);
+        _test_join(vec![1, 1, 1], vec![2, 3, 4], vec![0, 1, 2, -1, -1, -1], vec![-1, -1, -1, 0, 1, 2]);
     }
 }
