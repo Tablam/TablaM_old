@@ -40,29 +40,24 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn new(names: Schema, layout: Layout, cols:usize, rows:usize, data:&Col) -> Self {
+    pub fn new(names: Schema, layout: Layout, cols:usize, rows:usize, data:Col) -> Self {
+        assert_eq!(cols == 0 || cols == names.len(), true, "The # of columns of schema and data must be equal");
+
         Data {
             layout,
             cols,
             rows,
             names,
-            ds: data.clone()
+            ds: data
         }
     }
 
     pub fn empty(names: Schema, layout: Layout) -> Self {
-        Data {
-            layout,
-            cols: 0,
-            rows: 0,
-            names,
-            ds: [].to_vec()
-        }
+        Self::new(names, layout, 0, 0, [].to_vec())
     }
 
     pub fn new_cols(names: Schema, of:&[Col]) -> Self {
         let (cols, rows) = size_rel(of, Layout::Col);
-        assert_eq!(cols == 0 || cols == names.len(), true, "The # of columns of schema and data must be equal");
 
         let mut data = vec![Scalar::default(); rows * cols];
         for (c, col) in of.into_iter().enumerate() {
@@ -72,18 +67,11 @@ impl Data {
             }
         }
 
-        Data {
-            layout: Layout::Col,
-            rows,
-            cols,
-            names,
-            ds: data
-        }
+        Self::new(names, Layout::Col, cols, rows, data)
     }
 
     pub fn new_rows(names: Schema, of:&[Col]) -> Self {
         let (cols, rows) = size_rel(&of, Layout::Row);
-        assert_eq!(cols == 0 || cols == names.len(), true, "The # of columns of schema and data must be equal");
 
         let mut data = vec![Scalar::default(); rows * cols];
         for (r, row) in of.into_iter().enumerate() {
@@ -93,13 +81,7 @@ impl Data {
             }
         }
 
-        Data {
-            layout: Layout::Row,
-            rows,
-            cols,
-            names,
-            ds: data
-        }
+        Self::new(names, Layout::Row, cols, rows, data)
     }
 
     pub fn row_copy(&self, pos:usize) -> Col {

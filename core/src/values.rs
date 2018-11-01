@@ -79,7 +79,7 @@ pub enum ColumnExp {
     Pos(usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Field {
     pub name: String,
     pub kind: DataType,
@@ -151,9 +151,24 @@ pub type BinExpr = Fn(&Scalar, &Scalar) -> Scalar;
 pub type UnaryExpr = Fn(&Scalar) -> Scalar;
 
 //TODO: Must implement Eq/Ord/Hash manually. dd
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, PartialOrd, Hash)]
 pub struct Schema {
     pub columns: Vec<Field>,
+}
+
+impl PartialEq for Schema {
+    fn eq(&self, other: &Schema) -> bool
+    {
+        if self.columns.len() == other.columns.len() {
+            let mut a = self.columns.clone();
+            let mut b = other.columns.clone();
+            a.sort();
+            b.sort();
+            a == b
+        } else {
+            false
+        }
+    }
 }
 
 impl Schema {

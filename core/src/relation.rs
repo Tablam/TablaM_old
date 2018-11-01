@@ -32,13 +32,10 @@ impl Cursor
 
 pub trait Relation {
     fn empty(names:Schema) -> Self;
-    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&Col) -> Self;
+    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:Col) -> Self;
     fn new(names: Schema, of:&[Col]) -> Self;
 
     //fn append(to:&mut Self, from:&[Scalar]) ;
-
-    fn flat_raw(&self) -> &Col;
-
     fn layout(&self) -> &Layout;
     fn names(&self) -> &Schema;
 
@@ -47,6 +44,29 @@ pub trait Relation {
     fn row(&self, pos:usize) -> Col;
     fn col(&self, pos:usize) -> Col;
     fn value(&self, row:usize, col:usize) -> &Scalar;
+
+    fn flat_raw(&self, layout:&Layout) -> Col {
+        let rows = self.row_count();
+        let cols =self.col_count();
+
+        let mut data = Vec::with_capacity( cols * rows);
+
+        if *layout == Layout::Col {
+            for col in 0..cols {
+                for row in 0..rows {
+                    data.push(self.value(row, col).clone())
+                }
+            }
+        } else {
+            for row in 0..rows {
+                for col in 0..cols {
+                    data.push(self.value(row, col).clone())
+                }
+            }
+        }
+
+        data
+    }
 
     fn rows_pos(&self, pick:Pos) -> Vec<Col> {
         let total = self.row_count();
@@ -134,7 +154,7 @@ pub trait Relation {
 
     fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
         let schema = of.names().rename(change);
-        T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), of.flat_raw())
+        T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), of.flat_raw(of.layout()))
     }
 
     fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
@@ -162,8 +182,14 @@ pub trait Relation {
     fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T {
         let names = from.names();
         assert_eq!(names, to.names(), "The schemas must be equal");
+        let layout = from.layout();
+        let rows = from.row_count() + to.row_count();
 
-        T::new(names.clone(), [].to_vec().as_slice())
+        let mut left = from.flat_raw(layout);
+        let mut right = to.flat_raw(layout);
+        left.append(&mut right);
+
+        T::from_raw(names.clone(), layout.clone(), names.len(), rows, left)
     }
 }
 
@@ -175,18 +201,13 @@ impl Relation for Data {
         Data::empty(names, Layout::Col)
     }
 
-    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&Col) -> Self
+    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:Col) -> Self
     {
         Data::new(names, layout, cols, rows, of)
     }
 
     fn new(names: Schema, of:&[Col]) -> Self {
         Data::new_rows(names, of)
-    }
-
-    fn flat_raw(&self) -> &Col
-    {
-        &self.ds
     }
 
     fn layout(&self) -> &Layout {
@@ -325,5 +346,27 @@ mod tests {
 
         assert_eq!(table.col_count(), renamed.col_count());
         assert_eq!(renamed.names.columns[0].name, "changed".to_string());
+    }
+
+    #[test]
+    fn test_union() {
+        let table1 =  &table_1();
+        let table2 =  &table_1();
+
+        let table3 = Data::union(table1, table2);
+        println!("Union {}", table3);
+
+        assert_eq!(table1.col_count(), table3.col_count());
+        assert_eq!(table1.row_count() * 2, table3.row_count());
+    }
+
+    #[test]
+    fn test_intersection() {
+
+    }
+
+    #[test]
+    fn test_difference() {
+
     }
 }
