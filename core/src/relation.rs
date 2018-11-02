@@ -145,6 +145,7 @@ pub trait Relation {
     fn row_count(&self) -> usize;
     fn col_count(&self) -> usize;
     fn row(&self, pos: usize) -> Col;
+
     fn col(&self, pos: usize) -> Col;
     fn value(&self, row: usize, col: usize) -> &Scalar;
 
@@ -370,12 +371,38 @@ pub trait Relation {
         T::from_raw(names.clone(), layout.clone(), names.len(), total_rows, data)
     }
 
-    fn join<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> T {
+    fn cross<T:Relation, U:Relation>(from:&T, to:&U) -> T {
         let names = from.names();
-        let (left, right) = _join_late(from, to, col_from, col_to, apply);
+        let others = &from.names().join(to.names());
+        let layout = to.layout();
+        let cols = names.len() + others.len();
+        let rows = from.row_count() * to.row_count();
+        //println!("{:?} {:?} ",names, others);
+        let mut data = vec![Scalar::None; rows * cols];
+        let mut pos:usize = 0;
 
-        T::empty(names.clone())
+        for  left in &from.rows() {
+            for right in 0..to.row_count() {
+                let mut extra_row = to.tuple(right, others);
+                //println!("{:?} {:?} {} {} {}", left, extra_row, cols, rows,pos);
+                let mut row = left.clone();
+                row.append(&mut extra_row);
+
+                write_row(&mut data, layout, cols, rows, pos, row);
+                pos += 1;
+            }
+        }
+        let schema = names.extend(to.names().only(others));
+
+        T::from_raw(schema, layout.clone(), cols, rows, data)
     }
+
+//    fn join<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> T {
+//        let names = from.names().join(to.names());
+//        let (left, right) = _join_late(from, to, col_from, col_to, apply);
+//
+//        T::empty(names.clone())
+//    }
 }
 
 /// Fundamental relational operators.
@@ -394,6 +421,11 @@ pub fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
 
 pub fn where_value_late<T:Relation>(of:&T, col:usize, value:&Scalar, apply:&BoolExpr) -> T {
     T::where_value_late(of, col, value, apply)
+}
+
+pub fn cross<T:Relation, U:Relation>(from:&T, to:&U) -> T
+{
+    T::cross(from, to)
 }
 
 pub fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T
@@ -627,6 +659,24 @@ mod tests {
         let result = difference(left, right);
         println!("Difference {}", result);
         assert_eq!(result,  array(&[4i64, 1i64]));
+    }
+
+    #[test]
+    fn test_cross_join() {
+        let left = &rel_nums1();
+        let right= &rename(&rel_nums3(), &[(colp(0), "changed")]);
+
+        let both = cross(left, right);
+        println!("Cross {}", both);
+        assert_eq!(both.col_count(), 2);
+
+        let col1 = both.col(0);
+        let col2 = both.col(1);
+        let r1:Vec<i64> =vec![1, 1, 1, 2, 2, 2, 3, 3, 3];
+        let r2:Vec<i64> =vec![2, 3, 4, 2, 3, 4, 2, 3, 4];
+
+        assert_eq!(col1, col(r1.as_slice()));
+        assert_eq!(col2, col(r2.as_slice()));
     }
 
     fn _test_join(left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)

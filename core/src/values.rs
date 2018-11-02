@@ -108,7 +108,7 @@ impl Field {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scalar {
     None, //null
     Bool(bool),
@@ -248,6 +248,19 @@ impl Schema {
             names.push(pick);
         }
         Self::new(names)
+    }
+
+    pub fn join(&self, other:&Self) -> Vec<usize> {
+        let mut fields = Vec::new();
+        for (i, col) in other.columns.iter().enumerate() {
+            if self.exist(&col.name) {
+                continue;
+            } else {
+                fields.push(i);
+            }
+        }
+
+        fields
     }
 
     /// Helper for select/projection

@@ -24,11 +24,20 @@ fn size_rel(of:&[Col], layout:Layout) -> (usize, usize) {
 }
 
 /// Calculate the appropriated index in the flat array
+#[inline]
 pub fn index(layout:&Layout, col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
-    //println!("pos {}, {}, {}, {}", row, col, row_count , col_count);
+    //println!("pos {:?} {}, {}, {}, {}", layout, row, col, row_count , col_count);
     match layout {
         Layout::Col => col * row_count + row,
         Layout::Row => row * col_count + col,
+    }
+}
+
+#[inline]
+pub fn write_row(to:&mut Col, layout:&Layout, col_count:usize, row_count:usize, row:usize, data:Col) {
+    for (col, value) in data.into_iter().enumerate() {
+        let index = index(layout, col_count, row_count, row, col);
+        to[index] = value;
     }
 }
 
