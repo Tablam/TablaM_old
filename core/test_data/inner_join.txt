@@ -1,0 +1,4 @@
+[<one:I32, two:I32, three:Bool, four:I32, five:I32, six:Bool;
+1, 4, true, 1, 2, true;
+2, 5, false, 2, 3, false;
+3, 6, true, 3, 4, true >]

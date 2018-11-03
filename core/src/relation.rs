@@ -5,6 +5,7 @@ use std::collections::HashSet;
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
+use super::stdlib::*;
 use super::values::*;
 use super::types::*;
 
@@ -43,6 +44,21 @@ fn _check_not_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
 
 fn _check_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
     cmp.contains_key(&row)
+}
+
+fn _bitvector_count(of:&BitVec) -> (usize, usize) {
+    let trues = of.iter().filter(|x| *x).count();
+
+    (trues, trues - of.len())
+}
+
+fn _count_join(of:&BitVec, keep_nulls:bool) -> usize {
+    if keep_nulls {
+        let (_, total) = _bitvector_count(of);
+        total
+    } else {
+        0
+    }
 }
 
 fn _bitvector_to_pos(of:&BitVec) -> Vec<isize> {
@@ -86,13 +102,13 @@ fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize)
     (results, not_found)
 }
 
-fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> (BitVec, BitVec) {
+fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], cols_to:&[usize], apply: &BoolExpr) -> (BitVec, BitVec) {
     let mut right_not_founds = HashSet::new();
 
-    let left = from.col(col_from);
-    let right = to.col(col_to);
+    let left = from.row_count();
+    let right = to.row_count();
 
-    let total = cmp::max(left.len(), right.len());
+    let total = cmp::max(left, right);
 
     let mut cols_left  = BitVec::from_elem(total, false);
     let mut cols_right = BitVec::from_elem(total, false);
@@ -100,11 +116,13 @@ fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usi
     let mut found = false;
     let mut first = true;
 
-    for (x, l) in left.iter().enumerate() {
-        for (y, r) in right.iter().enumerate()  {
+    for x in 0..left {
+        for y in 0..right  {
             if first {
                 right_not_founds.insert(y);
             }
+            let l = &from.tuple(x, cols_from);
+            let r = &to.tuple(y, cols_to);
             if apply(l , r) {
                 //println!("{} -> {} true", x, y);
                 cols_left.set(x, true);
@@ -178,9 +196,11 @@ pub trait Relation {
         let total_rows = if keep_null {rows} else {rows - null_count};
 
         let mut data = vec![Scalar::None; cols * total_rows];
-        let positions =  pos.iter()
+        let positions:Vec<(usize, bool)> =  pos.iter()
             .enumerate()
-            .filter(|(_, x)| *x);
+            .filter(|(_, x)| *x || keep_null).collect();
+
+        //println!("Raw r:{} c:{} total: {} {}", rows, cols, total_rows, positions.len());
 
         let mut new_row = 0;
         for (row, _) in positions {
@@ -188,8 +208,8 @@ pub trait Relation {
                 let _pos = index(layout, cols, total_rows, new_row, col);
 
                 data[_pos] = self.value(row, col).clone();
-                new_row += 1;
             }
+            new_row += 1;
         }
 
         data
@@ -239,13 +259,17 @@ pub trait Relation {
         columns
     }
 
-    fn tuple(&self, row: usize, cols: &[usize]) -> Col {
+    fn row_only(&self, row: usize, cols: &[usize]) -> Col {
         let mut data = Vec::with_capacity(cols.len());
 
         for i in cols {
             data.push(self.value(row, *i).clone())
         }
         data
+    }
+
+    fn tuple(&self, row: usize, cols: &[usize]) -> Scalar {
+        Scalar::Tuple(self.row_only(row, cols))
     }
 
     fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
@@ -383,7 +407,7 @@ pub trait Relation {
 
         for  left in &from.rows() {
             for right in 0..to.row_count() {
-                let mut extra_row = to.tuple(right, others);
+                let mut extra_row = to.row_only(right, others);
                 //println!("{:?} {:?} {} {} {}", left, extra_row, cols, rows,pos);
                 let mut row = left.clone();
                 row.append(&mut extra_row);
@@ -397,12 +421,27 @@ pub trait Relation {
         T::from_raw(schema, layout.clone(), cols, rows, data)
     }
 
-//    fn join<T:Relation, U:Relation>(from:&T, to:&U, col_from:usize, col_to:usize, apply: &BoolExpr) -> T {
-//        let names = from.names().join(to.names());
-//        let (left, right) = _join_late(from, to, col_from, col_to, apply);
-//
-//        T::empty(names.clone())
-//    }
+    fn join<T:Relation, U:Relation>(from:&T, to:&U, join:Join, cols_from:&[usize], cols_to:&[usize], apply:&BoolExpr) -> T
+    {
+        let  (left, right) = _join_late(from, to, cols_from, cols_to, apply);
+        let names = from.names();
+        let others= &names.join(to.names());
+        let cols = names.len() + others.len();
+        let layout = from.layout();
+
+        let null_lefts = join.produce_null(true);
+        let null_rights = join.produce_null(false);
+        let null_count1= _count_join(&left, null_lefts);
+        let null_count2= _count_join(&right, null_rights);
+
+        let mut data = from.materialize_raw(&right, null_count2, layout, null_rights);
+        let mut data2 = to.materialize_raw(&left, null_count1, layout, null_lefts);
+        data.append(&mut data2);
+        let total_rows = cmp::max(left.len(), right.len());
+
+        let schema = names.extend(to.names().only(others));
+        T::from_raw(schema, layout.clone(), cols, total_rows, data)
+    }
 }
 
 /// Fundamental relational operators.
@@ -441,6 +480,11 @@ pub fn intersection<T:Relation, U:Relation>(from:&T, to:&U) -> T
 pub fn difference<T:Relation, U:Relation>(from:&T, to:&U) -> T
 {
     T::difference(from, to)
+}
+
+pub fn join<T:Relation, U:Relation>(from:&T, to:&U, join:Join, cols_from:&[usize], cols_to:&[usize], apply:&BoolExpr) -> T
+{
+    T::join(from, to, join, cols_from, cols_to, apply)
 }
 
 impl Relation for Data {
@@ -495,9 +539,9 @@ mod tests {
     pub fn rel_nums1() -> Data {
         array(nums_1().as_slice())
     }
-    pub fn rel_nums2() -> Data {
-        array(nums_2().as_slice())
-    }
+//    pub fn rel_nums2() -> Data {
+//        array(nums_2().as_slice())
+//    }
     pub fn rel_nums3() -> Data {
         array(nums_3().as_slice())
     }
@@ -518,6 +562,27 @@ mod tests {
         let c3 = encode(bools_1().as_slice());
 
         table_cols::<Data>(schema, &[c1, c2, c3])
+    }
+
+    pub fn table_2() -> Data {
+        let fields = [field("four", I32), field("five", I32), field("six", Bool)].to_vec();
+        let schema = Schema::new(fields);
+        let c1 = encode(nums_1().as_slice());
+        let c2 = encode(nums_3().as_slice());
+        let c3 = encode(bools_1().as_slice());
+
+        table_cols::<Data>(schema, &[c1, c2, c3])
+    }
+
+    fn open_test_file(path:&str) -> String {
+        let root = "/Users/mamcx/Proyectos/tablam/";
+        let paths = [root, "core", "test_data", path].to_vec();
+
+        let paths =  path_combine(paths.as_slice());
+        println!("{:?}, {:?}",paths, root);
+
+        let name =paths.to_str().expect("Wrong path?");
+        read_all(name).expect("File not exist")
     }
 
     #[test]
@@ -685,7 +750,7 @@ mod tests {
 
         let (ds1, ds2, p1, p2) = make_both(left, right);
 
-        let (left, right) = _join_late(&ds1, &ds2, p1, p2, &PartialEq::eq);
+        let (left, right) = _join_late(&ds1, &ds2, &[p1], &[p2], &PartialEq::eq);
         println!("BIT {:?}, {:?}", left, right);
 
         let mut l = _bitvector_to_pos(&left);
@@ -701,12 +766,34 @@ mod tests {
     }
 
     #[test]
-    fn test_join() {
+    fn test_join_raw() {
         _test_join(vec![1], vec![1], vec![0], vec![0]);
         _test_join(vec![1], vec![2], vec![-1, 0], vec![-1, 0]);
         _test_join(vec![1], vec![], vec![0], vec![-1]);
         _test_join(vec![1, 2, 3], vec![1, 2, 3], vec![0, 1, 2], vec![0, 1, 2]);
         _test_join(vec![1, 2, 3], vec![2, 3, 4], vec![0, 1, 2, -1], vec![-1, 0, 1, 2]);
         _test_join(vec![1, 1, 1], vec![2, 3, 4], vec![0, 1, 2, -1, -1, -1], vec![-1, -1, -1, 0, 1, 2]);
+    }
+
+
+    fn _test_joins(left:&Data, right:&Data, using:Join, total_cols:usize, test_file:&str)
+    {
+        let result = &join(left, right, using.clone(), &[0], &[0], &PartialEq::eq);
+        println!("Result {:?}: {}", using, result);
+        assert_eq!(result.col_count(), total_cols, "Wrong columns");
+
+        let txt = format!("{}", result);
+        let compare = open_test_file(test_file);
+        assert_eq!(compare, txt, "Bad join");
+    }
+
+    #[test]
+    fn test_joins() {
+        let table1 =  &table_1();
+        let table2 =  &table_2();
+        println!("Table1 {}", table1);
+        println!("Table2 {}", table2);
+
+        _test_joins(table1, table2, Join::Inner, 6, "inner_join.txt");
     }
 }

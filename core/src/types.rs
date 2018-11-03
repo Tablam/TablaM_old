@@ -26,7 +26,7 @@ fn size_rel(of:&[Col], layout:Layout) -> (usize, usize) {
 /// Calculate the appropriated index in the flat array
 #[inline]
 pub fn index(layout:&Layout, col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
-    //println!("pos {:?} {}, {}, {}, {}", layout, row, col, row_count , col_count);
+    //println!("pos {:?} Row:{}, Col:{}, R:{}, C:{}", layout, row, col, row_count , col_count);
     match layout {
         Layout::Col => col * row_count + row,
         Layout::Row => row * col_count + col,
@@ -305,41 +305,60 @@ fn print_values(of: &[Scalar], f: &mut fmt::Formatter) -> fmt::Result {
     Ok(())
 }
 
-impl fmt::Display for Data {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (sep1, sep2) = if self.layout == Layout::Col { ("[|", "|]") } else { ("[<", ">]") };
+fn print_columns(of: &Data, f: &mut fmt::Formatter) -> fmt::Result {
+    let (sep1, sep2) =  ("[|", "|]");
 
-        write!(f, "{} ", sep1)?;
-        if self.cols > 0 {
+    write!(f, "{}", sep1)?;
+    if of.cols > 0 {
+        for (col, field) in of.names.columns.iter().enumerate() {
+            write!(f, "{}= ", field)?;
 
-            write!(f, "{}", self.names)?;
-            write!(f, "; ")?;
-
-            if self.layout == Layout::Col {
-                for col in 0..self.cols {
-                    let item =  self.col_slice(col);
-                    print_values(item, f)?;
-                    if col < self.cols - 1 {
-                        write!(f, ";")?;
-                    }
-                }
-            } else {
-                for row in 0..self.rows {
-                    for col in 0..self.cols  {
-                        let item =  self.value_owned(row, col);
-                        if col > 0 {
-                            write!(f, ", {}", item)?;
-                        } else {
-                            write!(f, "{}", item)?;
-                        }
-                    }
-                    if row < self.rows - 1 {
-                        write!(f, "; ")?;
-                    }
-                }
+            let item =  of.col_slice(col);
+            print_values(item, f)?;
+            if col < of.cols - 1 {
+                writeln!(f, ";")?;
             }
         }
-        writeln!(f, " {}", sep2)?;
-        Ok(())
+    }
+    writeln!(f, " {}", sep2)?;
+    Ok(())
+}
+
+fn print_rows(of: &Data, f: &mut fmt::Formatter) -> fmt::Result {
+    let (sep1, sep2) =  ("[<", ">]");
+
+    write!(f, "{}", sep1)?;
+    if of.cols > 0 {
+        write!(f, "{}", of.names)?;
+        writeln!(f, ";")?;
+
+        for row in 0..of.rows {
+            for col in 0..of.cols  {
+                let item =  of.value_owned(row, col);
+                if col > 0 {
+                    write!(f, ", {}", item)?;
+                } else {
+                    write!(f, "{}", item)?;
+                }
+            }
+            if row < of.rows - 1 {
+                writeln!(f, ";")?;
+            }
+        }
+
+    }
+    writeln!(f, " {}", sep2)?;
+    Ok(())
+}
+
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.layout == Layout::Col {
+            //TODO: How use it outside display?
+            //print_columns(self, f)
+            print_rows(self, f)
+        } else {
+            print_rows(self, f)
+        }
     }
 }

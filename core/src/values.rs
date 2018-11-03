@@ -304,7 +304,7 @@ impl Schema {
         let mut cont = 0;
         //Avoid duplicated field names...
         for f in _right {
-            if right.exist(&f.name) {
+            if self.exist(&f.name) {
                 let name = format!("{}_{}", f.name, cont);
                 fields.push(Field::new(&name, f.kind));
                 cont = cont + 1;
@@ -393,7 +393,14 @@ impl fmt::Display for DataType {
 
 impl fmt::Display for Scalar {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Scalar::None =>  write!(f, "{}", "None"),
+            Scalar::Bool(x) => write!(f, "{}", x),
+            Scalar::I32(x) => write!(f, "{}", x),
+            Scalar::I64(x) => write!(f, "{}", x),
+            Scalar::UTF8(x) => write!(f, "{}", x),
+            Scalar::Tuple(x) => write!(f, "{:?}", x),
+        }
     }
 }
 
