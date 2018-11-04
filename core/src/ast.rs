@@ -1,14 +1,17 @@
-pub use core::types::*;
 pub use std::rc::Rc;
 use std::collections::HashMap;
 use std::fmt;
 
-type Return = Result<Frame, String>;
+use super::values::*;
+use super::types::*;
+use super::operations::*;
+
+type Return = Result<Data, String>;
 type ReturnUnit = Result<(), String>;
 
 #[derive(Clone)]
 pub struct Env {
-    pub vars: HashMap<String, Frame>,
+    pub vars: HashMap<String, Data>,
     pub up: Option<Rc<Env>>,
 }
 
@@ -17,16 +20,16 @@ impl Env {
         Env { vars: HashMap::new(), up: None }
     }
 
-    pub fn add(&mut self, k: String, v: Frame) {
+    pub fn add(&mut self, k: String, v: Data) {
         self.vars.insert(k, v);
     }
 
-    pub fn find(&self, k: String) -> Option<&Frame> {
+    pub fn find(&self, k: String) -> Option<&Data> {
         // TODO: make this use recursive envs
         self.vars.get(&k)
     }
 
-    pub fn add_many(&self, k: Vec<String>, v: Vec<Frame>) -> Env {
+    pub fn add_many(&self, k: Vec<String>, v: Vec<Data>) -> Env {
         let mut copy = self.clone();
         for (k, v) in k.into_iter().zip(v.iter()) {
             copy.vars.insert(k, v.clone());
@@ -36,7 +39,7 @@ impl Env {
 }
 
 // pub struct Env<'a> {
-//     pub vars: HashMap<&'a String, Frame>,
+//     pub vars: HashMap<&'a String, Data>,
 //     pub up: Option<Rc<Env<'a>>>,
 // }
 // 
@@ -45,11 +48,11 @@ impl Env {
 //         Env { vars: HashMap::new(), up: None }
 //     }
 // 
-//     pub fn add(&mut self, k: String, v: Frame) {
+//     pub fn add(&mut self, k: String, v: Data) {
 //         self.vars.insert(k, v);
 //     }
 // 
-//     pub fn add_many(&self, k: Vec<&'a String>, v: Vec<Frame>) -> Env<'a> {
+//     pub fn add_many(&self, k: Vec<&'a String>, v: Vec<Data>) -> Env<'a> {
 //         let mut copy = self.clone();
 //         for (k, v) in k.into_iter().zip(v.iter()) {
 //             copy.vars.insert(k, v.clone());
@@ -236,7 +239,7 @@ impl<T: fmt::Debug> Runnable<T> for Exp<T> {
                 let v1 = e1.run(vec!(), &env)?;
                 let v2 = e2.run(vec!(), &env)?;
                 match op {
-                    BinOp::Plus => Ok(v1 + v2),
+                    BinOp::Plus => Ok(zip_scalar(v1, v2, &math_add)),
                     // BinOp::Minus => v1 - v2,
                     // BinOp::Times => v1 * v2,
                     // BinOp::Divide => v1 / v2,

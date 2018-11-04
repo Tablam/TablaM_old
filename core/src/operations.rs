@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::ops::*;
-//use super::values::DataType::*;
+use super::types::Data;
 
 use super::values::*;
 
@@ -32,10 +32,22 @@ fn bin_op_by<T, Op>(op: Op, x:Scalar, y:Scalar) -> Scalar
 //    )
 //}
 
-fn math_add(x:Scalar, y:Scalar) -> Scalar {
+pub fn math_add(x:&Scalar, y:&Scalar) -> Scalar {
     match (x, y) {
-        (Scalar::I32(a), Scalar::I32(b)) => bin_op::<i32, _>( Add::add, a, b),
-        (Scalar::I64(a), Scalar::I64(b)) => bin_op::<i64, _>( Add::add, a, b),
+        (Scalar::I32(a), Scalar::I32(b)) => bin_op::<i32, _>( Add::add, *a, *b),
+        (Scalar::I64(a), Scalar::I64(b)) => bin_op::<i64, _>( Add::add, *a, *b),
         (a, b) => panic!("Argument {:?} <> {:?}", a, b )
     }
+}
+
+pub fn zip_scalar(x:Data, y:Data, op:&BinExpr) -> Data {
+    let a = x.col_slice(0);
+    let b = x.col_slice(0);
+
+    let result:Col = a.into_iter().zip(b.into_iter())
+        .map(|(lhs, rhs)| op(lhs, rhs)).collect();
+
+    let name = Schema::scalar_field(x.names.columns[0].kind.clone());
+
+    Data::new_cols(name, vec![result].as_slice())
 }

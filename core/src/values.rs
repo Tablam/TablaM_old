@@ -74,7 +74,7 @@ impl Join {
 }
 
 #[derive(Debug, Clone)]
-pub enum ColumnExp {
+pub enum ColumnName {
     Name(String),
     Pos(usize),
 }
@@ -212,35 +212,35 @@ impl Schema {
         self.columns.iter().map(|x| x.name.as_ref()).collect()
     }
 
-    ///Recover the column position from the relative ColumnExp
-    pub fn resolve_pos(&self, of: &ColumnExp) -> usize {
+    ///Recover the column position from the relative ColumnName
+    pub fn resolve_pos(&self, of: &ColumnName) -> usize {
         match of {
-            ColumnExp::Pos(x) => {
+            ColumnName::Pos(x) => {
                 *x
             },
-            ColumnExp::Name(x) => {
+            ColumnName::Name(x) => {
                 let (pos, _f) = self.named(x).unwrap();
                 pos
             }
         }
     }
 
-    pub fn resolve_pos_many(&self, of: &[ColumnExp]) -> Pos
+    pub fn resolve_pos_many(&self, of: &[ColumnName]) -> Pos
     {
         of.into_iter().map(|x| self.resolve_pos(x)).collect()
     }
 
-    ///Recover the column names from a list of relative ColumnExp
-    pub fn resolve_names(&self, of: &[ColumnExp]) -> Schema {
+    ///Recover the column names from a list of relative ColumnName
+    pub fn resolve_names(&self, of: &[ColumnName]) -> Schema {
         let mut names = Vec::with_capacity(of.len());
 
         for name in of.into_iter() {
             let pick =
                 match name {
-                    ColumnExp::Pos(x) => {
+                    ColumnName::Pos(x) => {
                         self.columns[*x].clone()
                     },
-                    ColumnExp::Name(x) => {
+                    ColumnName::Name(x) => {
                         let (_pos, f) = self.named(x).unwrap();
                         f.clone()
                     }
@@ -316,7 +316,7 @@ impl Schema {
         Self::new(fields)
     }
 
-    pub fn rename(&self, change:&[(ColumnExp, &str)]) -> Self {
+    pub fn rename(&self, change:&[(ColumnName, &str)]) -> Self {
         let mut names = self.columns.clone();
 
         for (col, name) in change {

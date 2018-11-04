@@ -50,6 +50,12 @@ pub struct Data {
     pub ds: Col,
 }
 
+impl From<Scalar> for Data {
+    fn from(of: Scalar) -> Self {
+        Self::new_scalar(of)
+    }
+}
+
 impl Data {
     pub fn new(names: Schema, layout: Layout, cols:usize, rows:usize, data:Col) -> Self {
         assert_eq!(cols == 0 || cols == names.len(), true, "The # of columns of schema and data must be equal");
@@ -63,6 +69,15 @@ impl Data {
         }
     }
 
+    pub fn new_scalar(data:Scalar) -> Self {
+        Data {
+            layout: Layout::Col,
+            cols:1,
+            rows:1,
+            names: Schema::scalar_field(data.kind()),
+            ds: [data].to_vec()
+        }
+    }
     pub fn empty(names: Schema, layout: Layout) -> Self {
         Self::new(names, layout, 0, 0, [].to_vec())
     }
@@ -164,11 +179,11 @@ pub fn hash_column(vec: Col) -> u64 {
     x
 }
 
-pub fn colp(pos:usize) -> ColumnExp {
-    ColumnExp::Pos(pos)
+pub fn colp(pos:usize) -> ColumnName {
+    ColumnName::Pos(pos)
 }
-pub fn coln(name:&str) -> ColumnExp {
-    ColumnExp::Name(name.to_string())
+pub fn coln(name:&str) -> ColumnName {
+    ColumnName::Name(name.to_string())
 }
 
 pub fn value<T>(x:T) -> Scalar

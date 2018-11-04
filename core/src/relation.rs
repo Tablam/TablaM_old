@@ -5,7 +5,6 @@ use std::collections::HashSet;
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
-use super::stdlib::*;
 use super::values::*;
 use super::types::*;
 
@@ -329,19 +328,19 @@ pub trait Relation {
         pos
     }
 
-    fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
+    fn rename<T:Relation>(of:&T, change:&[(ColumnName, &str)]) -> T {
         let schema = of.names().rename(change);
         T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), of.flat_raw(of.layout()))
     }
 
-    fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+    fn select<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
         let old = of.names();
         let pos = old.resolve_pos_many(pick);
         let names = old.only(pos.as_slice());
         T::new(names, of.rows_pos(pos).as_slice())
     }
 
-    fn deselect<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+    fn deselect<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
         let old = of.names();
         let pos = old.resolve_pos_many(pick);
 
@@ -446,15 +445,15 @@ pub trait Relation {
 
 /// Fundamental relational operators.
 
-pub fn select<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+pub fn select<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
     T::select(of, pick)
 }
 
-pub fn deselect<T:Relation>(of:&T, pick:&[ColumnExp]) -> T {
+pub fn deselect<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
     T::deselect(of, pick)
 }
 
-pub fn rename<T:Relation>(of:&T, change:&[(ColumnExp, &str)]) -> T {
+pub fn rename<T:Relation>(of:&T, change:&[(ColumnName, &str)]) -> T {
     T::rename(of, change)
 }
 
@@ -534,6 +533,7 @@ mod tests {
     use super::*;
     use super::super::values::test_values::*;
     use super::super::values::DataType::*;
+    use super::super::stdlib::*;
 
     pub fn rel_empty() -> Data { array_empty(I32) }
     pub fn rel_nums1() -> Data {
@@ -575,8 +575,8 @@ mod tests {
     }
 
     fn open_test_file(path:&str) -> String {
-        let root = "/Users/mamcx/Proyectos/tablam/";
-        let paths = [root, "core", "test_data", path].to_vec();
+        let root = env!("CARGO_MANIFEST_DIR");
+        let paths = [root,  "test_data", path].to_vec();
 
         let paths =  path_combine(paths.as_slice());
         println!("{:?}, {:?}",paths, root);

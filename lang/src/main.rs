@@ -3,16 +3,14 @@
 
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate lalrpop_util;
+extern crate tablam_core;
 
 // Keep until lalrpop 0.16
 lalrpop_mod!(pub tablam);
-// pub mod tablam;
-
-mod core;
 mod tok;
 
 //use std::io::{self, Write, BufRead};
-// use core::operators::*;
+// use tablam_core::operators::*;
 use tok::{TablamTokenizer};
 
 
@@ -43,11 +41,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
 //  //   println!("Sum Scalar:  {:?}", f2.clone() + s1.clone());
 
     use std::env;
-    use core::ast::*;
+    use tablam_core::ast::*;
     use std::fs::File;
     use std::io::Read;
     use tablam::ProgramParser;
-    // use core::typecheck::*;
+    // use tablam_core::typecheck::*;
 
 
     let args: Vec<String> = env::args().collect();
@@ -102,14 +100,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
     Ok(())
 }
 
-use core::ast::Exp;
+use tablam_core::ast::Exp;
 fn name<T>(s: &str) -> Exp<T> {
     Exp::Name(s.into())
 }
 
 fn stringlit<T>(s: &str) -> Exp<T> {
-    use core::types::{Scalar, encode_str};
-    Exp::Scalar(Scalar::UTF8(encode_str(s)))
+    use tablam_core::values::Scalar;
+    Exp::Scalar(Scalar::UTF8(s.to_string()))
 }
 
 use std::rc::Rc;
@@ -117,7 +115,7 @@ fn rc<T>(s: T) -> Rc<T> {
     Rc::new(s)
 }
 
-use core::ast::{Ty, Atype};
+use tablam_core::ast::{Ty, Atype};
 fn star(s: &str) -> Ty {
     Ty::Arrow(Ty::Atype(Atype::Conid(s.into()).into()).into(), None.into())
 }
@@ -125,8 +123,8 @@ fn star(s: &str) -> Ty {
 #[test]
 fn tablam() {
     use tablam::*;
-    // It is unclear why I have to import both ColumnExp and * ... ???
-    use core::ast::{ColumnExp, *};
+    // It is unclear why I have to import both ColumnName and * ... ???
+    use tablam_core::ast::{ColumnExp, *};
 
     let contents = include_str!("example.tb");
     match ProgramParser::new().parse(t(&contents)) {
