@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 
 use super::values::*;
 
+#[inline]
 fn size_rel(of:&[Col], layout:Layout) -> (usize, usize) {
     if layout == Layout::Col {
         let cols = of.len();
@@ -78,6 +79,7 @@ impl Data {
             ds: [data].to_vec()
         }
     }
+
     pub fn empty(names: Schema, layout: Layout) -> Self {
         Self::new(names, layout, 0, 0, [].to_vec())
     }
@@ -120,6 +122,14 @@ impl Data {
         row
     }
 
+    pub fn col_copy(&self, pos:usize) -> Col {
+        let mut data = Vec::with_capacity(self.cols);
+        for i in 0..self.rows {
+            data.push(self.value_owned(i, pos).clone());
+        }
+        data
+    }
+
     pub fn col_slice(&self, pos:usize) -> &[Scalar] {
         let start = pos * self.rows;
         let end = start + self.rows;
@@ -132,7 +142,27 @@ impl Data {
 
     pub fn value_owned(&self, row:usize, col:usize) -> &Scalar {
         let index = self.index(row, col);
-        &self.ds[index]
+         &self.ds[index]
+    }
+
+    pub fn add_rows(&mut self, layout: Layout, row_count:usize, rows:&[Scalar]) {
+        let mut last = self.rows;
+
+        if self.layout == layout {
+            self.ds.resize(self.rows + row_count, Scalar::None);
+
+            let pos = self.rows + 1;
+            self.ds[pos..].clone_from_slice(&rows);
+        } else {
+            let data = vec![Scalar::default(); self.rows * self.cols];
+
+            for col in 0..self.cols {
+                let mut col = self.col_copy(col);
+                col.resize(self.rows + row_count, Scalar::None);
+            }
+        }
+
+        self.rows = self.rows + (self.cols * row_count);
     }
 }
 
@@ -303,6 +333,16 @@ pub fn table_cols_infer<T>(of:&[Col]) -> Data {
     let names = Schema::generate(&types);
 
     Data::new_cols(names, of)
+}
+
+pub fn vec_to_cols(of:&[Scalar]) -> Vec<Col> {
+    let mut data = Vec::with_capacity(of.len());
+
+    for row in of {
+        data.push([row.clone()].to_vec());
+    }
+
+    data
 }
 
 pub fn table_cols<T>(schema:Schema, of:&[Col]) -> Data {

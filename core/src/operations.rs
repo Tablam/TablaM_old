@@ -42,7 +42,7 @@ pub fn math_add(x:&Scalar, y:&Scalar) -> Scalar {
 
 pub fn zip_scalar(x:Data, y:Data, op:&BinExpr) -> Data {
     let a = x.col_slice(0);
-    let b = x.col_slice(0);
+    let b = y.col_slice(0);
 
     let result:Col = a.into_iter().zip(b.into_iter())
         .map(|(lhs, rhs)| op(lhs, rhs)).collect();
