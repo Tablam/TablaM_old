@@ -168,9 +168,10 @@ fn cmp_row(row: &Row, col: usize, value: &Scalar, apply: &BoolExpr) -> Option<Co
 }
 
 pub trait Relation {
+    fn new(names: Schema, of: NDArray) -> Self;
     fn empty(names: Schema) -> Self;
     fn from_raw(names: Schema, layout: Layout, cols: usize, rows: usize, of: &[Scalar]) -> Self;
-    fn new(names: Schema, of: NDArraySlice) -> Self;
+    fn from_slice(names: Schema, layout: Layout, of: NDArraySlice) -> Self;
 
     fn layout(&self) -> &Layout;
     fn names(&self) -> &Schema;
@@ -374,7 +375,7 @@ pub trait Relation {
         let old = of.names();
         let pos = old.resolve_pos_many(pick);
         let names = old.only(pos.as_slice());
-        T::new(names, of.rows_pos(pos).as_slice())
+        T::new(names, of.rows_pos(pos))
     }
 
     fn deselect<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
@@ -383,13 +384,13 @@ pub trait Relation {
 
         let deselect = old.except(pos.as_slice());
         let names = old.only(deselect.as_slice());
-        T::new(names, of.rows_pos(deselect).as_slice())
+        T::new(names, of.rows_pos(deselect))
     }
 
     fn where_value_late<T:Relation>(of:&T, col:usize, value:&Scalar, apply:&BoolExpr) -> T {
         let rows = T::find_all_rows(of, col, value, apply);
 
-        T::new(of.names().clone(), rows.as_slice())
+        T::new(of.names().clone(), rows)
     }
 
     fn union<T:Relation, U:Relation>(from:&T, to:&U) -> T {
@@ -549,17 +550,21 @@ pub fn append<T:Relation, U:Relation>(to:&T, from:&U) -> T
 }
 
 impl Relation for Data {
+    fn new(names: Schema, of: NDArray) -> Self {
+        Data::new_rows(names, of)
+    }
+
     fn empty(names:Schema) -> Self {
         Data::empty(names, Layout::Col)
     }
 
     fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&[Scalar]) -> Self
     {
-        Data::new(names, layout, cols, rows, of)
+        Data::from_raw(names, layout, cols, rows, of)
     }
 
-    fn new(names: Schema, of: NDArraySlice) -> Self {
-        Data::new_rows(names, of)
+    fn from_slice(names: Schema, layout: Layout, of: NDArraySlice) -> Self {
+        Data::new(names, layout, of.into_array())
     }
 
     fn layout(&self) -> &Layout {

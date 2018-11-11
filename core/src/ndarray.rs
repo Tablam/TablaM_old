@@ -846,9 +846,10 @@ impl NDArray {
 
         assert_eq!(cols * rows, data.len(),
                    "NDArray does not match given dimensions.");
+
         NDArray {
-            cols,
             rows,
+            cols,
             data,
         }
     }

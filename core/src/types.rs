@@ -57,7 +57,15 @@ impl From<Scalar> for Data {
 }
 
 impl Data {
-    pub fn new(names: Schema, layout: Layout, cols:usize, rows:usize, data:&[Scalar]) -> Self {
+    pub fn new(names: Schema, layout: Layout, data:NDArray) -> Self {
+        Data {
+            layout,
+            names,
+            ds: data
+        }
+    }
+
+    pub fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, data:&[Scalar]) -> Self {
         Data {
             layout,
             names,
@@ -74,46 +82,20 @@ impl Data {
     }
 
     pub fn empty(names: Schema, layout: Layout) -> Self {
-        Self::new(names, layout, 0, 0, &[].to_vec())
+        Self::from_raw(names, layout, 0, 0, &[].to_vec())
     }
 
-    pub fn new_cols(names: Schema, of:NDArraySlice) -> Self {
-        let (cols, rows) = (of.cols(), of.rows());
-        let columns = of.pivot();
-        Self::new(names, Layout::Col, cols, rows, columns.into_array().data())
+    pub fn new_cols(names: Schema, of:NDArray) -> Self {
+        let columns = of.pivot().into_vec();
+        Self::from_raw(names, Layout::Col, of.cols(), of.rows(), &columns)
     }
 
-    pub fn new_rows(names: Schema, of:NDArraySlice) -> Self {
-        let (cols, rows) = (of.cols(), of.rows());
-
-        Self::new(names, Layout::Row, cols, rows, of.into_array().data())
+    pub fn new_rows(names: Schema, of:NDArray) -> Self {
+        Self::new(names, Layout::Row, of)
     }
 }
 
 /// Auxiliary functions and shortcuts
-//macro_rules! array {
-//    () => {
-//        {
-//            // Handle the case when called with no arguments, i.e. matrix![]
-//            use $crate::array::NDArray;
-//            NDArray::new(0, 0, vec![])
-//        }
-//    };
-//    ($( $( $x: expr ),*);*) => {
-//        {
-//            use $crate::array::NDArray;
-//            let data_as_nested_array = [ $( [ $($x),* ] ),* ];
-//            let rows = data_as_nested_array.len();
-//            let cols = data_as_nested_array[0].len();
-//            let data_as_flat_array: Vec<_> = data_as_nested_array.into_iter()
-//                .flat_map(|row| row.into_iter())
-//                .cloned()
-//                .collect();
-//            NDArray::new(rows, cols, data_as_flat_array)
-//        }
-//    }
-//}
-
 pub fn hash_column(vec: Row) -> u64 {
     //println!("HASH {:?}", vec);
     let mut hasher = DefaultHasher::new();
@@ -207,7 +189,7 @@ pub fn rcol_t<T>(name:&str, kind:DataType, of:&[T]) -> Data
 {
     let data = nd_array(of, of.len(), 1);
 
-    Data::new_cols(schema_single(name, kind), data.as_slice())
+    Data::new_cols(schema_single(name, kind), data)
 }
 
 pub fn rcol<T>(name:&str, of:&[T]) -> Data
@@ -218,7 +200,7 @@ pub fn rcol<T>(name:&str, of:&[T]) -> Data
     let data = nd_array(of, of.len(), 1);
     let kind = infer_type(&data);
 
-    Data::new_cols(schema_single(name, kind), data.as_slice())
+    Data::new_cols(schema_single(name, kind), data)
 }
 
 pub fn array<T>(of:&[T]) -> Data
@@ -248,7 +230,7 @@ pub fn row<T>(names:Schema, of:&[T]) -> Data
         T: Clone
 {
     let data = nd_array(of, 1, of.len());
-    Data::new_rows(names, data.as_slice())
+    Data::new_rows(names, data)
 }
 
 pub fn row_infer<T>(of:&[T]) -> Data
@@ -260,7 +242,7 @@ pub fn row_infer<T>(of:&[T]) -> Data
 
     let types = infer_types(&data);
     let names = Schema::generate(&types);
-    Data::new_rows(names, data.as_slice())
+    Data::new_rows(names, data)
 }
 
 pub fn table_cols_infer(of: NDArray) -> Data {
@@ -270,15 +252,15 @@ pub fn table_cols_infer(of: NDArray) -> Data {
     }
     let names = Schema::generate(&types);
 
-    Data::new_cols(names, of.as_slice())
+    Data::new_cols(names, of)
 }
 
 pub fn table_cols(schema:Schema, of: NDArray) -> Data {
-    Data::new_cols(schema, of.as_slice())
+    Data::new_cols(schema, of)
 }
 
 pub fn table_rows(schema:Schema, of: NDArray) -> Data {
-    Data::new_rows(schema, of.as_slice())
+    Data::new_rows(schema, of)
 }
 
 fn _print_cols(of: &Column, f: &mut fmt::Formatter) -> fmt::Result {
