@@ -1,6 +1,7 @@
 use super::stdlib::*;
 use super::values::*;
 use super::values::DataType::*;
+use super::ndarray::*;
 use super::types::*;
 use super::relation::*;
 
@@ -10,20 +11,20 @@ fn nums_3() -> Vec<i64> {vec![2, 3, 4]}
 
 fn bools_1() -> Vec<bool> {vec![true, false, true]}
 
-fn columns3_1() -> (Vec<Scalar>, Vec<Scalar>,Vec<Scalar>) {
-    let c1 = encode(nums_1().as_slice());
-    let c2 = encode(nums_2().as_slice());
-    let c3 = encode(bools_1().as_slice());
+fn columns3_1() -> (usize, Vec<Scalar>) {
+    let c1 = col(&nums_1());
+    let c2 = col(&nums_2());
+    let c3 =col(&bools_1());
 
-    (c1, c2, c3)
+    concat([c1, c2, c3].to_vec())
 }
 
-fn columns3_2() -> (Vec<Scalar>, Vec<Scalar>,Vec<Scalar>) {
-    let c1 = encode(nums_1().as_slice());
-    let c2 = encode(nums_3().as_slice());
-    let c3 = encode(bools_1().as_slice());
+fn columns3_2() -> (usize, Vec<Scalar>) {
+    let c1 = col(&nums_1());
+    let c2 = col(&nums_3());
+    let c3 =col(&bools_1());
 
-    (c1, c2, c3)
+    concat([c1, c2, c3].to_vec())
 }
 
 fn rel_empty() -> Data { array_empty(I32) }
@@ -55,30 +56,31 @@ fn schema2() ->  Schema {
 
 fn table_1() -> Data {
     let schema = schema1();
-    let (c1, c2, c3) = columns3_1();
-
-    table_cols::<Data>(schema, &[c1, c2, c3])
+    let (rows, data) = columns3_1();
+    table_cols(schema, nd_array(&data, rows, 3))
 }
 
 fn table_2() -> Data {
     let schema = schema2();
-    let (c1, c2, c3) = columns3_2();
+    let (rows, data) = columns3_2();
 
-    table_cols::<Data>(schema, &[c1, c2, c3])
+    table_cols(schema, nd_array(&data, rows, 3))
 }
 
 fn table_3() -> Data {
     let schema = schema1();
-    let col = vec_to_cols(&[4i64.into(), 6i64.into(), true.into()]);
+    let data:Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
+    let col = nd_array(&data, 1, 3);
 
-    table_cols::<Data>(schema, &col)
+    table_cols(schema, col)
 }
 
 fn table_4() -> Data {
     let schema = schema2();
-    let col = vec_to_cols(&[5i64.into(), 1i64.into(), false.into()]);
+    let data:Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
+    let col = nd_array(&data, 1, 3);
 
-    table_cols::<Data>(schema, &col)
+    table_cols(schema, col)
 }
 
 fn open_test_file(path:&str) -> String {
@@ -90,6 +92,19 @@ fn open_test_file(path:&str) -> String {
 
     let name =paths.to_str().expect("Wrong path?");
     read_all(name).expect("File not exist")
+}
+
+fn compare_lines(a:String, b:String) {
+    let x:Vec<&str> = a.lines().collect();
+    let y:Vec<&str> = b.lines().collect();
+    let total_x = x.len();
+    let total_y = x.len();
+
+    for (left, right) in x.into_iter().zip(y.into_iter()) {
+        assert_eq!(left, right, "Lines not equal");
+    }
+
+    assert_eq!(total_x, total_y, "Lines not equal");
 }
 
 #[test]
@@ -106,7 +121,7 @@ fn test_create() {
     assert_eq!(fnull.row_count(), 0);
 
     let fcol1 = rel_nums1();
-    println!("Array {}", fcol1);
+    println!("NDArray {}", fcol1);
     assert_eq!(fnull.names(), empty_schema);
     assert_eq!(fcol1.layout(), &Layout::Col);
 
@@ -243,13 +258,13 @@ fn test_append() {
     assert_eq!(result.col_count(), 3);
     assert_eq!(table1.row_count() + table3.row_count(), result.row_count());
 
-    let col1 = result.col(0);
-    let col2 = result.col(1);
+    let col1 = result.col(0).into_array().into_vec();
+    let col2 = result.col(1).into_array().into_vec();
     let nums:Vec<i64> = vec![1, 2, 3, 4];
     let nums2:Vec<i64> = vec![4, 5, 6, 6];
 
-    assert_eq!(col1, encode(nums.as_slice()));
-    assert_eq!(col2, encode(nums2.as_slice()));
+    assert_eq!(col1, col(nums.as_slice()));
+    assert_eq!(col2, col(nums2.as_slice()));
 }
 
 #[test]
@@ -261,8 +276,8 @@ fn test_cross_join() {
     println!("Cross {}", both);
     assert_eq!(both.col_count(), 2);
 
-    let col1 = both.col(0);
-    let col2 = both.col(1);
+    let col1 = both.col(0).into_array().into_vec();
+    let col2 = both.col(1).into_array().into_vec();
     let r1:Vec<i64> =vec![1, 1, 1, 2, 2, 2, 3, 3, 3];
     let r2:Vec<i64> =vec![2, 3, 4, 2, 3, 4, 2, 3, 4];
 
@@ -270,13 +285,16 @@ fn test_cross_join() {
     assert_eq!(col2, col(r2.as_slice()));
 }
 
-fn _test_join(left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)
+fn _test_join(join:Join, left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)
 {
-    println!("CMP {:?}, {:?}", left, right);
+    let null_lefts = join.produce_null(true);
+    let null_rights = join.produce_null(false);
+
+    println!("CMP {:?}: {:?}, {:?}", join, left, right);
 
     let (ds1, ds2, p1, p2) = make_both(left, right);
 
-    let (left, right) = _join_late(&ds1, &ds2, &[p1], &[p2], &PartialEq::eq);
+    let (left, right) = _join_late(&ds1, &ds2, &[p1], null_lefts, &[p2], null_rights, &PartialEq::eq);
     println!("BIT {:?}, {:?}", left, right);
 
     let mut l = _bitvector_to_pos(&left);
@@ -292,13 +310,13 @@ fn _test_join(left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_
 }
 
 #[test]
-fn test_join_raw() {
-    _test_join(vec![1], vec![1], vec![0], vec![0]);
-    _test_join(vec![1], vec![2], vec![-1, 0], vec![-1, 0]);
-    _test_join(vec![1], vec![], vec![0], vec![-1]);
-    _test_join(vec![1, 2, 3], vec![1, 2, 3], vec![0, 1, 2], vec![0, 1, 2]);
-    _test_join(vec![1, 2, 3], vec![2, 3, 4], vec![0, 1, 2, -1], vec![-1, 0, 1, 2]);
-    _test_join(vec![1, 1, 1], vec![2, 3, 4], vec![0, 1, 2, -1, -1, -1], vec![-1, -1, -1, 0, 1, 2]);
+fn test_joins_raw() {
+    _test_join(Join::Inner, vec![1], vec![1], vec![0], vec![0]);
+    _test_join(Join::Full, vec![1], vec![2], vec![-1, 0], vec![-1, 0]);
+    _test_join(Join::Full, vec![1], vec![], vec![0], vec![-1]);
+    _test_join(Join::Inner, vec![1, 2, 3], vec![1, 2, 3], vec![0, 1, 2], vec![0, 1, 2]);
+    _test_join(Join::Full, vec![1, 2, 3], vec![2, 3, 4], vec![0, 1, 2, -1], vec![-1, 0, 1, 2]);
+    _test_join(Join::Full, vec![1, 1, 1], vec![2, 3, 4], vec![0, 1, 2, -1, -1, -1], vec![-1, -1, -1, 0, 1, 2]);
 }
 
 fn _test_joins(left:&Data, right:&Data, using:Join, total_cols:usize, test_file:&str)
@@ -309,7 +327,7 @@ fn _test_joins(left:&Data, right:&Data, using:Join, total_cols:usize, test_file:
 
     let txt = format!("{}", result);
     let compare = open_test_file(test_file);
-    assert_eq!(compare, txt, "Bad join");
+    compare_lines(compare, txt);
 }
 
 #[test]

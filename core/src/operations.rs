@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use std::ops::*;
-use super::types::Data;
 
+use super::ndarray::*;
+use super::types::{Data, array_t};
 use super::values::*;
 
 fn bin_op<T, Op>(op: Op, x:T, y:T) -> Scalar
@@ -41,13 +42,12 @@ pub fn math_add(x:&Scalar, y:&Scalar) -> Scalar {
 }
 
 pub fn zip_scalar(x:Data, y:Data, op:&BinExpr) -> Data {
-    let a = x.col_slice(0);
-    let b = y.col_slice(0);
+    let a = x.ds.col(0);
+    let b = y.ds.col(0);
 
     let result:Col = a.into_iter().zip(b.into_iter())
         .map(|(lhs, rhs)| op(lhs, rhs)).collect();
 
-    let name = Schema::scalar_field(x.names.columns[0].kind.clone());
-
-    Data::new_cols(name, vec![result].as_slice())
+    let kind = x.names.columns[0].kind.clone();
+    array_t(kind, &result)
 }

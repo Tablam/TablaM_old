@@ -150,7 +150,7 @@ pub type BoolExpr = Fn(&Scalar, &Scalar) -> bool;
 pub type BinExpr = Fn(&Scalar, &Scalar) -> Scalar;
 pub type UnaryExpr = Fn(&Scalar) -> Scalar;
 
-//TODO: Must implement Eq/Ord/Hash manually. dd
+//TODO: Must implement Eq/Ord/Hash manually.
 #[derive(Debug, Clone, Eq, PartialOrd, Hash)]
 pub struct Schema {
     pub columns: Vec<Field>,
@@ -327,15 +327,6 @@ impl Schema {
 
         Self::new(names)
     }
-
-    pub fn is_equal(&self, to:Schema) -> bool {
-        let mut left = self.columns.clone();
-        let mut right = to.columns.clone();
-        left.sort_by(|a, b| b.name.cmp(&a.name));
-        right.sort_by(|a, b| b.name.cmp(&a.name));
-
-        left == right
-    }
 }
 
 impl Index<usize> for Schema {
@@ -373,12 +364,6 @@ macro_rules! convert {
 convert!(bool, Scalar::Bool);
 convert!(i32, Scalar::I32);
 convert!(i64, Scalar::I64);
-
-pub fn encode<'a, T>(values:&'a [T]) -> Vec<Scalar>
-where T: From<Scalar>, Scalar: From<&'a T>,
-{
-    values.into_iter().map(|x| x.into()).collect()
-}
 
 pub fn decode<T:From<Scalar>>(values:&[Scalar]) -> Vec<T> {
     values.iter().map(move |x| From::from(x.clone())).collect()

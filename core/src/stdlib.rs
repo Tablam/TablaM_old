@@ -25,3 +25,7 @@ pub fn read_all(path:&str) -> Result<String, io::Error>
 
     Ok(contents)
 }
+
+pub fn read_line<R: Read>(of:R) -> io::BufReader<R> {
+    io::BufReader::new(of)
+}

@@ -148,7 +148,7 @@ impl<T: fmt::Debug> Runnable<T> for FunDef<T> {
         }
         let arg_values = arg_values_results.flat_map(|x| x.ok()).collect();
         let fn_env = env.add_many(
-            self.params.iter().map(|(n, t)| n.to_string()).collect(),
+            self.params.iter().map(|(n, _t)| n.to_string()).collect(),
             arg_values
         );
         self.body.run(vec!(), &fn_env)
@@ -190,7 +190,7 @@ pub enum Stmt<T> {
 }
 
 impl<T: fmt::Debug> RunnableMut<T> for Stmt<T> {
-    fn run_mut(&self, args: Vec<Exp<T>>, env: &mut Env) -> ReturnUnit {
+    fn run_mut(&self, _args: Vec<Exp<T>>, env: &mut Env) -> ReturnUnit {
         match self {
             Stmt::Let(LetKind::Imm, n, _, e) => {
                 let v = e.run(vec!(), env)?;
@@ -228,7 +228,7 @@ pub enum Exp<T> {
 }
 
 impl<T: fmt::Debug> Runnable<T> for Exp<T> {
-    fn run(&self, args: Vec<Exp<T>>, env: &Env) -> Return {
+    fn run(&self, _args: Vec<Exp<T>>, env: &Env) -> Return {
         match self {
             Exp::Scalar(s) => Ok(s.clone().into()),
             Exp::Name(n) if env.vars.get(n).is_some() =>

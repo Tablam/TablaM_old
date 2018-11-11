@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug",
+            "program": "${workspaceRoot}/target/debug/deps/tablam_core-8ee7780c33310bdf",
+            "args": [],
+            "cwd": "${workspaceRoot}",
+            "sourceLanguages": ["rust"]
+        }
+    ]
+}

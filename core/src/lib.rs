@@ -1,3 +1,4 @@
+mod ndarray;
 pub mod stdlib;
 pub mod values;
 pub mod types;

@@ -5,6 +5,7 @@ use std::collections::HashSet;
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
+use super::ndarray::*;
 use super::values::*;
 use super::types::*;
 
@@ -101,7 +102,7 @@ pub fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize
     (results, not_found)
 }
 
-pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], cols_to:&[usize], apply: &BoolExpr) -> (BitVec, BitVec) {
+pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], null_from:bool, cols_to:&[usize], null_to:bool, apply: &BoolExpr) -> (BitVec, BitVec) {
     let mut right_not_founds = HashSet::new();
 
     let left = from.row_count();
@@ -117,7 +118,7 @@ pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], co
 
     for x in 0..left {
         for y in 0..right  {
-            if first {
+            if null_from && first {
                 right_not_founds.insert(y);
             }
             let l = &from.row_only(x, cols_from);
@@ -129,7 +130,7 @@ pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], co
                 found = true;
             }
         }
-        if !found {
+        if null_from && !found {
             //println!("..{} true", x);
             cols_left.set(x, true);
         }
@@ -137,7 +138,7 @@ pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], co
         first = false;
     }
 
-    if right_not_founds.len() > 0 {
+    if null_to && right_not_founds.len() > 0 {
         cols_left.grow(right_not_founds.len(), false);
         cols_right.grow(right_not_founds.len(), false);
 
@@ -155,19 +156,30 @@ pub struct JoinClause<'a> {
     pub kind: DataType,
 }
 
+fn cmp_row(row: &Row, col: usize, value: &Scalar, apply: &BoolExpr) -> Option<Col>
+{
+    let old = row.get([0, col]).unwrap();
+    //println!("CMP {:?}, {:?}", value, old);
+    if apply(old, value) {
+      Some(row.raw_slice().to_vec())
+    } else {
+      None
+    }
+}
+
 pub trait Relation {
     fn empty(names: Schema) -> Self;
-    fn from_raw(names: Schema, layout: Layout, cols: usize, rows: usize, of: Col) -> Self;
-    fn new(names: Schema, of: &[Col]) -> Self;
+    fn from_raw(names: Schema, layout: Layout, cols: usize, rows: usize, of: &[Scalar]) -> Self;
+    fn new(names: Schema, of: NDArraySlice) -> Self;
 
     fn layout(&self) -> &Layout;
     fn names(&self) -> &Schema;
 
     fn row_count(&self) -> usize;
     fn col_count(&self) -> usize;
-    fn row(&self, pos: usize) -> Col;
+    fn row(&self, pos: usize) -> Row;
 
-    fn col(&self, pos: usize) -> Col;
+    fn col(&self, pos: usize) -> Column;
     fn value(&self, row: usize, col: usize) -> &Scalar;
 
     fn flat_raw(&self, layout: &Layout) -> Col {
@@ -222,22 +234,36 @@ pub trait Relation {
         data
     }
 
-    fn rows_pos(&self, pick: Pos) -> Vec<Col> {
-        let total = self.row_count();
-        let row_size = pick.len();
-        let mut columns = Vec::with_capacity(total);
+    fn materialize_data(&self, pos:&BitVec, layout: &Layout, keep_null:bool) -> NDArray {
+        let rows = pos.len();
+        let cols = self.col_count();
+        let positions:Vec<(usize, bool)> =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x || keep_null).collect();
+        println!("Raw rpos:{:?}", positions);
 
-        for pos in 0..total {
-            let mut row = Vec::with_capacity(row_size);
-            let old = self.row(pos);
-            for p in &pick {
-                row.push(old[*p].clone());
+        let total_rows = if keep_null {rows} else { positions.len()};
+
+        let mut data = vec![Scalar::None; cols * total_rows];
+        println!("Raw r:{:?}", pos);
+
+        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
+
+        let mut new_row = 0;
+        for (row, found) in positions {
+            for col in 0..cols {
+                if found {
+                    let _pos = index(layout, cols, total_rows, new_row, col);
+                    data[_pos] = self.value(row, col).clone();
+                }
             }
-            columns.push(row)
+            new_row += 1;
         }
 
-        columns
+        NDArray::new(total_rows, cols, data)
     }
+
+    fn rows_pos(&self, pick: Pos) -> NDArray;
 
     fn hash_row(&self, row:usize) -> u64 {
         hash_column(self.row(row))
@@ -255,16 +281,7 @@ pub trait Relation {
         rows
     }
 
-    fn rows(&self) -> Vec<Col> {
-        let total = self.row_count();
-        let mut columns = Vec::with_capacity(total);
-        for pos in 0..total {
-            let row = self.row(pos);
-            columns.push(row)
-        }
-
-        columns
-    }
+    fn rows(&self) -> Rows;
 
     fn row_only(&self, row: usize, cols: &[usize]) -> Col {
         let mut data = Vec::with_capacity(cols.len());
@@ -337,21 +354,20 @@ pub trait Relation {
         pos
     }
 
-    fn find_all_rows(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<Col>
+    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> NDArray
     {
-        let mut pos = Vec::new();
-        let mut cursor = Cursor::new(start, self.row_count());
+        let rows:Vec<Scalar> = self.rows()
+            .filter_map(|x| cmp_row(&x, col, value, apply))
+            .flatten()
+            .collect();
+        let total_rows = rows.len() / self.col_count();
 
-        while let Some(next) = self.find(&mut cursor, col, value, apply) {
-            pos.push(self.row(next));
-        }
-
-        pos
+        NDArray::new(total_rows, self.col_count(), rows)
     }
 
     fn rename<T:Relation>(of:&T, change:&[(ColumnName, &str)]) -> T {
         let schema = of.names().rename(change);
-        T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), of.flat_raw(of.layout()))
+        T::from_raw(schema, of.layout().clone(), of.col_count(), of.row_count(), &of.flat_raw(of.layout()))
     }
 
     fn select<T:Relation>(of:&T, pick:&[ColumnName]) -> T {
@@ -371,7 +387,7 @@ pub trait Relation {
     }
 
     fn where_value_late<T:Relation>(of:&T, col:usize, value:&Scalar, apply:&BoolExpr) -> T {
-        let rows = T::find_all_rows(of, 0, col, value, apply);
+        let rows = T::find_all_rows(of, col, value, apply);
 
         T::new(of.names().clone(), rows.as_slice())
     }
@@ -384,9 +400,10 @@ pub trait Relation {
 
         let mut left = from.flat_raw(layout);
         let mut right = to.flat_raw(layout);
+
         left.append(&mut right);
 
-        T::from_raw(names.clone(), layout.clone(), names.len(), rows, left)
+        T::from_raw(names.clone(), layout.clone(), names.len(), rows, &left)
     }
 
     fn intersection<T:Relation, U:Relation>(from:&T, to:&U) -> T {
@@ -397,7 +414,7 @@ pub trait Relation {
 
         let data = to.materialize_raw(&pos, null_count, layout, false);
 
-        T::from_raw(names.clone(), layout.clone(), names.len(), pos.len() - null_count, data)
+        T::from_raw(names.clone(), layout.clone(), names.len(), pos.len() - null_count, &data)
     }
 
     fn difference<T:Relation, U:Relation>(from:&T, to:&U) -> T {
@@ -412,57 +429,41 @@ pub trait Relation {
         data.append(&mut data2);
         let total_rows = (pos1.len() - null_count1) + (pos2.len() - null_count2);
 
-        T::from_raw(names.clone(), layout.clone(), names.len(), total_rows, data)
+        T::from_raw(names.clone(), layout.clone(), names.len(), total_rows, &data)
     }
 
     fn cross<T:Relation, U:Relation>(from:&T, to:&U) -> T {
         let names = from.names();
         let others = &from.names().join(to.names());
-        let layout = to.layout();
+        let layout = &Layout::Row;
         let cols = names.len() + others.len();
         let rows = from.row_count() * to.row_count();
         //println!("{:?} {:?} ",names, others);
+
         let mut data = vec![Scalar::None; rows * cols];
         let mut pos:usize = 0;
 
-        for  left in &from.rows() {
+        for left in from.rows() {
             for right in 0..to.row_count() {
                 let mut extra_row = to.row_only(right, others);
-                //println!("{:?} {:?} {} {} {}", left, extra_row, cols, rows,pos);
-                let mut row = left.clone();
+                let mut row = left.into_array().into_vec();
                 row.append(&mut extra_row);
-
+                //println!("{:?} {} {} {}", row, cols, rows,pos);
                 write_row(&mut data, layout, cols, rows, pos, row);
                 pos += 1;
             }
         }
         let schema = names.extend(to.names().only(others));
 
-        T::from_raw(schema, layout.clone(), cols, rows, data)
-    }
-
-    fn join2<T:Relation, U:Relation>(from:&T, to:&U, join:Join, cols_from:&[usize], cols_to:&[usize], apply:&BoolExpr) -> T
-    {
-        let names = from.names();
-
-        let others= &names.join(to.names());
-        let cols = names.len() + others.len();
-        let layout = from.layout();
-        let null_lefts = join.produce_null(true);
-        let null_rights = join.produce_null(false);
-
-        let mut total_rows= 0;
-        let mut data = Vec::with_capacity(cols);
-
-
-
-        let schema = names.extend(to.names().only(others));
-        T::from_raw(schema, layout.clone(), cols, total_rows, data)
+        T::from_raw(schema, layout.clone(), cols, rows, &data)
     }
 
     fn join<T:Relation, U:Relation>(from:&T, to:&U, join:Join, cols_from:&[usize], cols_to:&[usize], apply:&BoolExpr) -> T
     {
-        let (left, right) = _join_late(from, to, cols_from, cols_to, apply);
+        let null_lefts = join.produce_null(true);
+        let null_rights = join.produce_null(false);
+
+        let (left, right) = _join_late(from, to, cols_from, null_lefts, cols_to, null_rights, apply);
         let names = from.names();
 
         let others= &names.join(to.names());
@@ -470,22 +471,17 @@ pub trait Relation {
 
         let layout = from.layout();
 
-        let null_lefts = join.produce_null(true);
-        let null_rights = join.produce_null(false);
-        let null_count1= _count_join(&left, null_lefts);
-        let null_count2= _count_join(&right, null_rights);
-
-        let mut data = from.materialize_raw(&left, null_count1, layout, null_lefts);
-        let mut data2 = to.materialize_raw(&right, null_count2, layout, null_rights);
+        let data = from.materialize_data(&left, layout, null_lefts);
+        let data2 = to.materialize_data(&right, layout, null_rights);
 
         println!("L: {:?}", data);
         println!("R: {:?}", data2);
 
-        data.append(&mut data2);
-        let total_rows = cmp::max(left.len(), right.len());
+        let result = data.hcat(&data2);
 
+        println!("RESULT: {:?}", result);
         let schema = names.extend(to.names().only(others));
-        T::from_raw(schema, layout.clone(), cols, total_rows, data)
+        T::from_raw(schema, layout.clone(), cols, result.rows(), result.into_vec().as_slice())
     }
 
     fn append<T:Relation, U:Relation>(to:&T, from:&U) -> T {
@@ -500,7 +496,7 @@ pub trait Relation {
         left.append(&mut right);
         //println!("R: {:?}", left);
 
-        T::from_raw(to.names().clone(), layout.clone(), to.col_count(), total_rows, left)
+        T::from_raw(to.names().clone(), layout.clone(), to.col_count(), total_rows, &left)
     }
 }
 
@@ -557,12 +553,12 @@ impl Relation for Data {
         Data::empty(names, Layout::Col)
     }
 
-    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:Col) -> Self
+    fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, of:&[Scalar]) -> Self
     {
         Data::new(names, layout, cols, rows, of)
     }
 
-    fn new(names: Schema, of:&[Col]) -> Self {
+    fn new(names: Schema, of: NDArraySlice) -> Self {
         Data::new_rows(names, of)
     }
 
@@ -574,30 +570,28 @@ impl Relation for Data {
     }
 
     fn row_count(&self) -> usize {
-        self.rows
+        self.ds.rows()
     }
 
     fn col_count(&self) -> usize {
-        self.cols
+        self.ds.cols()
     }
 
-    fn row(&self, pos:usize) -> Col {
-        self.row_copy(pos)
+    fn row(&self, pos:usize) -> Row {
+        self.ds.row(pos)
     }
-
-    fn col(&self, pos:usize) -> Col {
-        if self.layout == Layout::Col {
-            self.col_slice(pos).to_vec()
-        } else {
-            let mut data = Vec::with_capacity(self.cols);
-            for i in 0..self.rows {
-                data.push(self.value(i, pos).clone());
-            }
-            data
-        }
+    fn rows(&self) -> Rows {
+        self.ds.row_iter()
+    }
+    fn col(&self, pos:usize) -> Column {
+        self.ds.col(pos)
     }
 
     fn value(&self, row:usize, col:usize) -> &Scalar {
-        self.value_owned(row, col)
+        self.ds.get([row, col]).unwrap()
+    }
+
+    fn rows_pos(&self, pick: Pos) -> NDArray {
+        self.ds.select_rows(&pick)
     }
 }
