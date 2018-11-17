@@ -1,6 +1,7 @@
 mod ndarray;
 pub mod stdlib;
 pub mod values;
+pub mod schema;
 pub mod types;
 pub mod operations;
 pub mod relation;

@@ -585,9 +585,6 @@ impl Relation for Data {
     fn row(&self, pos:usize) -> Row {
         self.ds.row(pos)
     }
-    fn rows(&self) -> Rows {
-        self.ds.row_iter()
-    }
     fn col(&self, pos:usize) -> Column {
         self.ds.col(pos)
     }
@@ -598,5 +595,9 @@ impl Relation for Data {
 
     fn rows_pos(&self, pick: Pos) -> NDArray {
         self.ds.select_rows(&pick)
+    }
+
+    fn rows(&self) -> Rows {
+        self.ds.row_iter()
     }
 }
