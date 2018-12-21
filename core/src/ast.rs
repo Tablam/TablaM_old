@@ -2,9 +2,9 @@ pub use std::rc::Rc;
 use std::collections::HashMap;
 use std::fmt;
 
-use super::values::*;
 use super::types::*;
 use super::operations::*;
+use super::dsl::*;
 
 type Return = Result<Data, String>;
 type ReturnUnit = Result<(), String>;
@@ -230,7 +230,7 @@ pub enum Exp<T> {
 impl<T: fmt::Debug> Runnable<T> for Exp<T> {
     fn run(&self, _args: Vec<Exp<T>>, env: &Env) -> Return {
         match self {
-            Exp::Scalar(s) => Ok(s.clone().into()),
+            Exp::Scalar(s) => Ok(value_t(s.clone())),
             Exp::Name(n) if env.vars.get(n).is_some() =>
                 Ok(env.find(n.to_string()).unwrap().clone()),
             Exp::Name(n) =>

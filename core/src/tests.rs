@@ -1,15 +1,13 @@
-use super::stdlib::*;
-use super::values::*;
-use super::values::DataType::*;
-use super::ndarray::*;
 use super::types::*;
-use super::relation::*;
+use super::types::DataType::*;
+use super::stdlib::*;
+use super::dsl::*;
 
 fn nums_1() -> Vec<i64> {vec![1, 2, 3]}
 fn nums_2() -> Vec<i64> {vec![4, 5, 6]}
 fn nums_3() -> Vec<i64> {vec![2, 3, 4]}
-
 fn bools_1() -> Vec<bool> {vec![true, false, true]}
+fn bools_2() -> Vec<bool> {vec![false, true, false]}
 
 fn columns3_1() -> (usize, Vec<Scalar>) {
     let c1 = col(&nums_1());
@@ -27,13 +25,24 @@ fn columns3_2() -> (usize, Vec<Scalar>) {
     concat([c1, c2, c3].to_vec())
 }
 
-fn rel_empty() -> Data { array_empty(I32) }
+fn reverse(of:Col) -> Col {
+    let mut col = of.clone();
+    col.reverse();
+    col
+}
+
+fn columns3_3() -> (usize, Vec<Scalar>) {
+    let c1 = reverse(col(&nums_1()));
+    let c2 = reverse(col(&nums_2()));
+    let c3 = col(&bools_2());
+
+    concat([c1, c2, c3].to_vec())
+}
+
+fn rel_empty() -> Data { array_empty(DataType::I32) }
 fn rel_nums1() -> Data {
     array(nums_1().as_slice())
 }
-//    fn rel_nums2() -> Data {
-//        array(nums_2().as_slice())
-//    }
 fn rel_nums3() -> Data {
     array(nums_3().as_slice())
 }
@@ -60,6 +69,18 @@ fn table_1() -> Data {
     table_cols(schema, nd_array(&data, rows, 3))
 }
 
+fn btree_1() -> BTree {
+    let schema = schema1().deselect(&[2]);
+    let (rows, data) = columns3_1();
+    table_btree(schema, nd_array(&data, rows, 3))
+}
+
+fn btree_2() -> BTree {
+    let schema = schema1().deselect(&[2]);
+    let (rows, data) = columns3_3();
+    table_btree(schema, nd_array(&data, rows, 3))
+}
+
 fn table_2() -> Data {
     let schema = schema2();
     let (rows, data) = columns3_2();
@@ -70,7 +91,7 @@ fn table_2() -> Data {
 fn table_3() -> Data {
     let schema = schema1();
     let data:Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
-    let col = nd_array(&data, 1, 3);
+    let col = nd_array(&data, 3, 1);
 
     table_cols(schema, col)
 }
@@ -78,7 +99,7 @@ fn table_3() -> Data {
 fn table_4() -> Data {
     let schema = schema2();
     let data:Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
-    let col = nd_array(&data, 1, 3);
+    let col = nd_array(&data, 3, 1);
 
     table_cols(schema, col)
 }
@@ -101,10 +122,15 @@ fn compare_lines(a:String, b:String) {
     let total_y = x.len();
 
     for (left, right) in x.into_iter().zip(y.into_iter()) {
-        assert_eq!(left, right, "Lines not equal");
+        assert_eq!(left, right, "Line not equal");
     }
 
     assert_eq!(total_x, total_y, "Lines not equal");
+}
+
+#[test]
+fn test_mem_size() {
+    println!("Max MemSize {}", std::mem::size_of::<Scalar>());
 }
 
 #[test]
@@ -113,24 +139,20 @@ fn test_create() {
     let empty_schema = &Schema::scalar_field(I32);
 
     let fnull = rel_empty();
-    assert_eq!(fnull.names(), empty_schema);
-    assert_eq!(fnull.layout(), &Layout::Col);
+    assert_eq!(fnull.schema(), empty_schema);
     println!("Empty {:?}", fnull);
 
-    assert_eq!(fnull.col_count(), 0);
+    assert_eq!(fnull.col_count(), 1);
     assert_eq!(fnull.row_count(), 0);
 
     let fcol1 = rel_nums1();
     println!("NDArray {}", fcol1);
-    assert_eq!(fnull.names(), empty_schema);
-    assert_eq!(fcol1.layout(), &Layout::Col);
+    assert_eq!(fnull.schema(), empty_schema);
 
     assert_eq!(fcol1.col_count(), 1);
     assert_eq!(fcol1.row_count(), 3);
 
     let frow1 = row_infer(num1.as_slice());
-    assert_eq!(frow1.layout(), &Layout::Row);
-
     println!("Rows {}", frow1);
     assert_eq!(frow1.col_count(), 3);
     assert_eq!(frow1.row_count(), 1);
@@ -139,71 +161,77 @@ fn test_create() {
     println!("Table Cols {}", table1);
     assert_eq!(table1.col_count(), 3);
     assert_eq!(table1.row_count(), 3);
-    println!("Table Col1 {:?}", table1.names());
-    println!("Table Col1 {:?}", table1.col(0));
+}
+
+fn _test_select<T:Relation>(table:&T, total_deselect:usize)
+{
+    let (pick1, pick2) = (colp(0),  coln("two"));
+
+    println!("Table {}", table);
+    let query_empty = select(table, &[]);
+    println!("Select 0 {}", query_empty);
+    assert_eq!(query_empty.schema().len(), 0);
+
+    let query1 = select(table, &[pick1]);
+    println!("Select 0 {}", query1);
+    assert_eq!(query1.schema().len(), 1);
+    let query2 = select(table, &[pick2.clone()]);
+    println!("Select 1 {}", query2);
+    assert_eq!(query2.schema().len(), 1);
+
+    let query3 = deselect(table, &[pick2]);
+    println!("DeSelect 1 {}", query3);
+    assert_eq!(query3.schema().len(), total_deselect);
+    //assert_eq!(query1.schema(), query3.schema());
 }
 
 #[test]
 fn test_select() {
-    let (pick1, pick2, pick3) = (colp(0),  colp(1),  coln("three"));
+    let table1 = table_1();
+    let table2= btree_1();
 
-    let table1 = &table_1();
-    println!("Table1 {}", table1);
-    let query_empty = select(table1, &[]);
-    println!("Select 0 {}", query_empty);
-    assert_eq!(query_empty.names.len(), 0);
+    _test_select(&table1, 2);
+    _test_select(&table2, 1);
+}
 
-    let query1 = select(table1, &[pick1]);
-    println!("Select 0 {}", query1);
-    assert_eq!(query1.names.len(), 1);
-    let query2 = select(table1, &[pick2.clone()]);
-    println!("Select 1 {}", query2);
-    assert_eq!(query2.names.len(), 1);
+fn _test_rename<T:Relation>(table:&T) {
+    let renamed = rename(table, &[(colp(0), "changed")]);
 
-    let query3 = deselect(table1, &[pick2, pick3]);
-    println!("DeSelect 1 {}", query3);
-    assert_eq!(query3.names.len(), 1);
-    assert_eq!(query1.names, query3.names);
+    assert_eq!(table.col_count(), renamed.col_count());
+    assert_eq!(renamed.schema().columns[0].name, "changed".to_string());
 }
 
 #[test]
-fn test_compare() {
-    let table1 = &table_1();
-    println!("Table1 {}", table1);
+fn test_rename() {
+    let table1 = table_1();
+    let table2= btree_1();
+    _test_rename( &table1);
+    _test_rename( &table2);
+}
+
+fn _test_compare<T:Relation>(table:&T, pos:usize) {
+    println!("Table CMP {}", table);
     let none = &none();
     let one = &value(1i64);
 
-    let pos1 = table1.find_all(0, 0, one, &PartialEq::eq);
-    assert_eq!(pos1, [0].to_vec());
+    let pos1 = table.find_all(0, 0, one, &PartialEq::eq);
+    assert_eq!(pos1, [pos].to_vec());
 
-    let query1 = where_value_late(table1, 0, none, &PartialEq::eq);
+    let query1 = where_value_late(table, 0, none, &PartialEq::eq);
     println!("Where1 = None {}", query1);
     assert_eq!(query1.row_count(), 0);
 
-    let query2 = where_value_late(table1,0, one, &PartialEq::eq);
+    let query2 = where_value_late(table,0, one, &PartialEq::eq);
     println!("Where2 = 1 {}", query2);
     assert_eq!(query2.row_count(), 1);
 }
 
 #[test]
-fn test_rename() {
-    let table =  &table_1();
-    let renamed = rename(table, &[(colp(0), "changed")]);
-
-    assert_eq!(table.col_count(), renamed.col_count());
-    assert_eq!(renamed.names.columns[0].name, "changed".to_string());
-}
-
-#[test]
-fn test_union() {
-    let table1 =  &table_1();
-    let table2 =  &table_1();
-
-    let table3 = union(table1, table2);
-    println!("Union {}", table3);
-
-    assert_eq!(table1.col_count(), table3.col_count());
-    assert_eq!(table1.row_count() * 2, table3.row_count());
+fn test_compare() {
+    let table1 = table_1();
+    let table2= btree_1();
+    _test_compare(&table1, 0);
+    _test_compare(&table2, 0); //Btree order by key
 }
 
 #[test]
@@ -212,7 +240,20 @@ fn test_hash() {
     let hashed = table1.hash_rows();
     println!("Hash {:?}", hashed);
     assert_eq!(hashed.len(), table1.row_count());
-    assert_eq!(hashed.contains_key(&hash_column(table1.row(0))), true);
+    assert_eq!(hashed.contains_key(&hash_column(&table1.get_row(0).unwrap())), true);
+}
+
+#[test]
+fn test_union() {
+    let table1 = &deselect(&table_1(), &[(colp(2))]);
+    let table2 =  &btree_2();
+    println!("Union {} U {}", table1, table2);
+
+    let table3 = union(table1, table2);
+    println!("Union {}", table3);
+
+    assert_eq!(table1.col_count(), table3.col_count());
+    assert_eq!(table1.row_count() * 2, table3.row_count());
 }
 
 #[test]
@@ -232,6 +273,24 @@ fn test_intersection() {
 }
 
 #[test]
+fn test_cross_join() {
+    let left = &rel_nums1();
+    let right= &rename(&rel_nums3(), &[(colp(0), "changed")]);
+
+    let both = cross(left, right);
+    println!("Cross {}", both);
+    assert_eq!(both.col_count(), 2);
+
+    let col1 = both.col(0);
+    let col2 = both.col(1);
+    let r1:Vec<i64> =vec![1, 1, 1, 2, 2, 2, 3, 3, 3];
+    let r2:Vec<i64> =vec![2, 3, 4, 2, 3, 4, 2, 3, 4];
+
+    assert_eq!(col1, col(&r1));
+    assert_eq!(col2, col(&r2));
+}
+
+#[test]
 fn test_difference() {
     let left = &rel_nums1();
     let right = &rel_nums3();
@@ -246,43 +305,6 @@ fn test_difference() {
     let result = difference(left, right);
     println!("Difference {}", result);
     assert_eq!(result,  array(&[4i64, 1i64]));
-}
-
-#[test]
-fn test_append() {
-    let table1 =  &table_1();
-    let table3 =  &table_3();
-
-    let result = &append(table1, table3);
-
-    assert_eq!(result.col_count(), 3);
-    assert_eq!(table1.row_count() + table3.row_count(), result.row_count());
-
-    let col1 = result.col(0).into_array().into_vec();
-    let col2 = result.col(1).into_array().into_vec();
-    let nums:Vec<i64> = vec![1, 2, 3, 4];
-    let nums2:Vec<i64> = vec![4, 5, 6, 6];
-
-    assert_eq!(col1, col(nums.as_slice()));
-    assert_eq!(col2, col(nums2.as_slice()));
-}
-
-#[test]
-fn test_cross_join() {
-    let left = &rel_nums1();
-    let right= &rename(&rel_nums3(), &[(colp(0), "changed")]);
-
-    let both = cross(left, right);
-    println!("Cross {}", both);
-    assert_eq!(both.col_count(), 2);
-
-    let col1 = both.col(0).into_array().into_vec();
-    let col2 = both.col(1).into_array().into_vec();
-    let r1:Vec<i64> =vec![1, 1, 1, 2, 2, 2, 3, 3, 3];
-    let r2:Vec<i64> =vec![2, 3, 4, 2, 3, 4, 2, 3, 4];
-
-    assert_eq!(col1, col(r1.as_slice()));
-    assert_eq!(col2, col(r2.as_slice()));
 }
 
 fn _test_join(join:Join, left:Vec<i64>, right:Vec<i64>, mut join_left:Vec<isize>, mut join_right:Vec<isize>)

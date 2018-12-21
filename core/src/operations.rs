@@ -2,8 +2,8 @@
 use std::ops::*;
 
 use super::ndarray::*;
-use super::types::{Data, array_t};
-use super::values::*;
+use super::types::*;
+use super::dsl::*;
 
 fn bin_op<T, Op>(op: Op, x:T, y:T) -> Scalar
     where
@@ -42,12 +42,12 @@ pub fn math_add(x:&Scalar, y:&Scalar) -> Scalar {
 }
 
 pub fn zip_scalar(x:Data, y:Data, op:&BinExpr) -> Data {
-    let a = x.ds.col(0);
-    let b = y.ds.col(0);
+    let a = x.data.col(0);
+    let b = y.data.col(0);
 
     let result:Col = a.into_iter().zip(b.into_iter())
         .map(|(lhs, rhs)| op(lhs, rhs)).collect();
 
-    let kind = x.names.columns[0].kind.clone();
+    let kind = x.schema.columns[0].kind.clone();
     array_t(kind, &result)
 }

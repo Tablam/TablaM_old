@@ -7,10 +7,7 @@ use std::slice;
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 
-use super::values::{Scalar, Layout};
-
-type Phantom<'a> = PhantomData<&'a Scalar>;
-type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
+use super::types::*;
 
 pub fn in_place_vec_bin_op<F>(u: &mut [Scalar], v: &[Scalar], mut f: F)
     where F: FnMut(&mut Scalar, &Scalar)
@@ -49,14 +46,6 @@ pub fn vec_bin_op<F>(u: &[Scalar], v: &[Scalar], f: F) -> Vec<Scalar>
     }
 
     out_vec
-}
-
-/// The `NDArray` struct, for storing relational/table data (2d)
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub struct NDArray {
-    rows: usize,
-    cols: usize,
-    data: Vec<Scalar>,
 }
 
 /// A `NDArraySlice`
@@ -198,7 +187,7 @@ impl<'a> NDArraySlice<'a> {
                      start: [usize; 2],
                      rows: usize,
                      cols: usize)
-                     -> NDArraySlice {
+                     -> NDArraySlice<'_> {
         assert!(start[0] + rows <= mat.rows,
                 "View dimensions exceed NDArray dimensions.");
         assert!(start[1] + cols <= mat.cols,
@@ -244,7 +233,7 @@ impl<'a> NDArraySliceMut<'a> {
                      start: [usize; 2],
                      rows: usize,
                      cols: usize)
-                     -> NDArraySliceMut {
+                     -> NDArraySliceMut<'_> {
         assert!(start[0] + rows <= mat.rows,
                 "View dimensions exceed NDArray dimensions.");
         assert!(start[1] + cols <= mat.cols,
@@ -899,7 +888,7 @@ pub trait BaseNDArray: Sized {
     /// Row stride in the NDArray.
     fn row_stride(&self) -> usize;
 
-    /// Returns true if the NDArray contais no elements
+    /// Returns true if the NDArray contains no elements
     fn is_empty(&self) -> bool {
         self.rows() == 0 || self.cols() == 0
     }
@@ -907,7 +896,7 @@ pub trait BaseNDArray: Sized {
     /// Top left index of the NDArray.
     fn as_ptr(&self) -> *const Scalar;
 
-    fn as_slice(&self) -> NDArraySlice {
+    fn as_slice(&self) -> NDArraySlice<'_> {
         unsafe {
             NDArraySlice::from_raw_parts(self.as_ptr(), self.rows(), self.cols(), self.row_stride())
         }
@@ -930,7 +919,7 @@ pub trait BaseNDArray: Sized {
         }
     }
 
-    fn col(&self, index: usize) -> Column {
+    fn col(&self, index: usize) -> Column<'_> {
         if index < self.cols() {
             unsafe { self.col_unchecked(index) }
         } else {
@@ -940,7 +929,7 @@ pub trait BaseNDArray: Sized {
 
     /// Returns the column of a NDArray at the given
     /// index without doing a bounds check.
-    unsafe fn col_unchecked(&self, index: usize) -> Column {
+    unsafe fn col_unchecked(&self, index: usize) -> Column<'_> {
         let ptr = self.as_ptr().offset(index as isize);
         Column { col: NDArraySlice::from_raw_parts(ptr, self.rows(), 1, self.row_stride()) }
     }
@@ -950,7 +939,7 @@ pub trait BaseNDArray: Sized {
     /// # Panics
     ///
     /// Will panic if the row index is out of bounds.
-    fn row(&self, index: usize) -> Row {
+    fn row(&self, index: usize) -> Row<'_> {
         if index < self.rows() {
             unsafe { self.row_unchecked(index) }
         } else {
@@ -959,7 +948,7 @@ pub trait BaseNDArray: Sized {
     }
 
     /// Returns the row of a NDArray at the given index without doing bounds checking
-    unsafe fn row_unchecked(&self, index: usize) -> Row {
+    unsafe fn row_unchecked(&self, index: usize) -> Row<'_> {
         let ptr = self.as_ptr().offset((self.row_stride() * index) as isize);
         Row { row: NDArraySlice::from_raw_parts(ptr, 1, self.cols(), self.row_stride()) }
     }
@@ -977,7 +966,7 @@ pub trait BaseNDArray: Sized {
         }
     }
 
-    fn col_iter(&self) -> Cols {
+    fn col_iter(&self) -> Cols<'_> {
         Cols {
             _marker: PhantomData::<&Scalar>,
             col_pos: 0,
@@ -988,7 +977,7 @@ pub trait BaseNDArray: Sized {
         }
     }
 
-    fn row_iter(&self) -> Rows {
+    fn row_iter(&self) -> Rows<'_> {
         Rows {
             slice_start: self.as_ptr(),
             row_pos: 0,
@@ -1177,39 +1166,23 @@ pub trait BaseNDArray: Sized {
     }
 
     /// Split the NDArray at the specified layout returning two `NDArraySlice`s.
-    fn split_at(&self, mid: usize, layout: Layout) -> (NDArraySlice, NDArraySlice) {
-        let slice_1: NDArraySlice;
-        let slice_2: NDArraySlice;
+    fn split_at(&self, mid: usize) -> (NDArraySlice<'_>, NDArraySlice<'_>) {
+        let slice_1: NDArraySlice<'_>;
+        let slice_2: NDArraySlice<'_>;
 
-        match layout {
-            Layout::Row => {
-                assert!(mid < self.rows());
-                unsafe {
-                    slice_1 = NDArraySlice::from_raw_parts(self.as_ptr(),
-                                                         mid,
-                                                         self.cols(),
-                                                         self.row_stride());
-                    slice_2 = NDArraySlice::from_raw_parts(self.as_ptr()
-                                                             .offset((mid * self.row_stride()) as
-                                                                 isize),
-                                                         self.rows() - mid,
-                                                         self.cols(),
-                                                         self.row_stride());
-                }
-            }
-            Layout::Col => {
-                assert!(mid < self.cols());
-                unsafe {
-                    slice_1 = NDArraySlice::from_raw_parts(self.as_ptr(),
-                                                         self.rows(),
-                                                         mid,
-                                                         self.row_stride());
-                    slice_2 = NDArraySlice::from_raw_parts(self.as_ptr().offset(mid as isize),
-                                                         self.rows(),
-                                                         self.cols() - mid,
-                                                         self.row_stride());
-                }
-            }
+
+        assert!(mid < self.rows());
+        unsafe {
+            slice_1 = NDArraySlice::from_raw_parts(self.as_ptr(),
+                                                   mid,
+                                                   self.cols(),
+                                                   self.row_stride());
+            slice_2 = NDArraySlice::from_raw_parts(self.as_ptr()
+                                                       .offset((mid * self.row_stride()) as
+                                                           isize),
+                                                   self.rows() - mid,
+                                                   self.cols(),
+                                                   self.row_stride());
         }
 
         (slice_1, slice_2)
@@ -1225,11 +1198,11 @@ pub trait BaseNDArray: Sized {
 
         unsafe {
             NDArraySlice::from_raw_parts(self.as_ptr()
-                                           .offset((start[0] * self.row_stride() + start[1]) as
-                                               isize),
-                                       rows,
-                                       cols,
-                                       self.row_stride())
+                                             .offset((start[0] * self.row_stride() + start[1]) as
+                                                 isize),
+                                         rows,
+                                         cols,
+                                         self.row_stride())
         }
     }
 }
@@ -1239,12 +1212,12 @@ pub trait BaseNDArrayMut: BaseNDArray {
     /// Top left index of the slice.
     fn as_mut_ptr(&mut self) -> *mut Scalar;
 
-    fn as_mut_slice(&mut self) -> NDArraySliceMut {
+    fn as_mut_slice(&mut self) -> NDArraySliceMut<'_> {
         unsafe {
             NDArraySliceMut::from_raw_parts(self.as_mut_ptr(),
-                                          self.rows(),
-                                          self.cols(),
-                                          self.row_stride())
+                                            self.rows(),
+                                            self.cols(),
+                                            self.row_stride())
         }
     }
 
@@ -1277,7 +1250,7 @@ pub trait BaseNDArrayMut: BaseNDArray {
         }
     }
 
-    fn col_mut(&mut self, index: usize) -> ColumnMut {
+    fn col_mut(&mut self, index: usize) -> ColumnMut<'_> {
         if index < self.cols() {
             unsafe { self.col_unchecked_mut(index) }
         } else {
@@ -1285,19 +1258,19 @@ pub trait BaseNDArrayMut: BaseNDArray {
         }
     }
 
-    unsafe fn col_unchecked_mut(&mut self, index: usize) -> ColumnMut {
+    unsafe fn col_unchecked_mut(&mut self, index: usize) -> ColumnMut<'_> {
         let ptr = self.as_mut_ptr().offset(index as isize);
         ColumnMut { col: NDArraySliceMut::from_raw_parts(ptr, self.rows(), 1, self.row_stride()) }
     }
 
-    fn row_mut(&mut self, index: usize) -> RowMut {
+    fn row_mut(&mut self, index: usize) -> RowMut<'_> {
         if index < self.rows() {
             unsafe { self.row_unchecked_mut(index) }
         } else {
             panic!("Row index out of bounds.")
         }
     }
-    unsafe fn row_unchecked_mut(&mut self, index: usize) -> RowMut {
+    unsafe fn row_unchecked_mut(&mut self, index: usize) -> RowMut<'_> {
         let ptr = self.as_mut_ptr().offset((self.row_stride() * index) as isize);
         RowMut { row: NDArraySliceMut::from_raw_parts(ptr, 1, self.cols(), self.row_stride()) }
     }
@@ -1345,7 +1318,7 @@ pub trait BaseNDArrayMut: BaseNDArray {
 
     }
 
-    fn col_iter_mut(&mut self) -> ColsMut {
+    fn col_iter_mut(&mut self) -> ColsMut<'_> {
         ColsMut {
             _marker: PhantomData::<&mut Scalar>,
             col_pos: 0,
@@ -1356,7 +1329,7 @@ pub trait BaseNDArrayMut: BaseNDArray {
         }
     }
 
-    fn row_iter_mut(&mut self) -> RowsMut {
+    fn row_iter_mut(&mut self) -> RowsMut<'_> {
         RowsMut {
             slice_start: self.as_mut_ptr(),
             row_pos: 0,
@@ -1380,7 +1353,7 @@ pub trait BaseNDArrayMut: BaseNDArray {
     }
 
     /// Applies a function to each element in the NDArray.
-    fn apply(mut self, f: &Fn(Scalar) -> Scalar) -> Self
+    fn apply(mut self, f: &dyn Fn(Scalar) -> Scalar) -> Self
     {
         for val in self.iter_mut() {
             *val = f(val.clone());
@@ -1389,42 +1362,23 @@ pub trait BaseNDArrayMut: BaseNDArray {
     }
 
     /// Split the NDArray at the specified layout returning two `NDArraySliceMut`s.
-    fn split_at_mut(&mut self, mid: usize, layout: Layout) -> (NDArraySliceMut, NDArraySliceMut) {
+    fn split_at_mut(&mut self, mid: usize) -> (NDArraySliceMut<'_>, NDArraySliceMut<'_>) {
+        let slice_1: NDArraySliceMut<'_>;
+        let slice_2: NDArraySliceMut<'_>;
 
-        let slice_1: NDArraySliceMut;
-        let slice_2: NDArraySliceMut;
-
-        match layout {
-            Layout::Row => {
-                assert!(mid < self.rows());
-                unsafe {
-                    slice_1 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr(),
-                                                            mid,
-                                                            self.cols(),
-                                                            self.row_stride());
-                    slice_2 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr()
-                                                                .offset((mid *
-                                                                    self.row_stride()) as
-                                                                    isize),
-                                                            self.rows() - mid,
-                                                            self.cols(),
-                                                            self.row_stride());
-                }
-            }
-            Layout::Col => {
-                assert!(mid < self.cols());
-                unsafe {
-                    slice_1 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr(),
-                                                            self.rows(),
-                                                            mid,
-                                                            self.row_stride());
-                    slice_2 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr()
-                                                                .offset(mid as isize),
-                                                            self.rows(),
-                                                            self.cols() - mid,
-                                                            self.row_stride());
-                }
-            }
+        assert!(mid < self.rows());
+        unsafe {
+            slice_1 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr(),
+                                                      mid,
+                                                      self.cols(),
+                                                      self.row_stride());
+            slice_2 = NDArraySliceMut::from_raw_parts(self.as_mut_ptr()
+                                                          .offset((mid *
+                                                              self.row_stride()) as
+                                                              isize),
+                                                      self.rows() - mid,
+                                                      self.cols(),
+                                                      self.row_stride());
         }
 
         (slice_1, slice_2)
@@ -1444,11 +1398,11 @@ pub trait BaseNDArrayMut: BaseNDArray {
 
         unsafe {
             NDArraySliceMut::from_raw_parts(self.as_mut_ptr()
-                                              .offset((start[0] * self.row_stride() + start[1]) as
-                                                  isize),
-                                          rows,
-                                          cols,
-                                          self.row_stride())
+                                                .offset((start[0] * self.row_stride() + start[1]) as
+                                                    isize),
+                                            rows,
+                                            cols,
+                                            self.row_stride())
         }
     }
 }

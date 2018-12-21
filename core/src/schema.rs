@@ -1,9 +1,9 @@
-use std::ops::Index;
-
-extern crate bit_vec;
+use bit_vec;
 use self::bit_vec::BitVec;
 
-use super::values::*;
+use std::ops::Index;
+
+use super::types::*;
 
 impl Field {
     pub fn new(name: &str, kind: DataType) -> Self {
@@ -25,21 +25,6 @@ impl Field {
 
     pub fn kind(&self) -> &DataType {
         &self.kind
-    }
-}
-
-impl PartialEq for Schema {
-    fn eq(&self, other: &Schema) -> bool
-    {
-        if self.columns.len() == other.columns.len() {
-            let mut a = self.columns.clone();
-            let mut b = other.columns.clone();
-            a.sort();
-            b.sort();
-            a == b
-        } else {
-            false
-        }
     }
 }
 
@@ -160,6 +145,11 @@ impl Schema {
         pos
     }
 
+    pub fn deselect(&self, remove:&[usize]) -> Self {
+        let deselect = self.except(remove);
+        self.only(deselect.as_slice())
+    }
+
     pub fn exist(&self, field:&str) -> bool {
         let mut find = self.columns.iter().filter(|x| x.name == field);
 
@@ -206,5 +196,20 @@ impl Index<usize> for Schema {
 
     fn index(&self, pos: usize) -> &Field {
         &self.columns[pos]
+    }
+}
+
+impl PartialEq for Schema {
+    fn eq(&self, other: &Schema) -> bool
+    {
+        if self.columns.len() == other.columns.len() {
+            let mut a = self.columns.clone();
+            let mut b = other.columns.clone();
+            a.sort();
+            b.sort();
+            a == b
+        } else {
+            false
+        }
     }
 }

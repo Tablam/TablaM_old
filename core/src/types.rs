@@ -1,271 +1,467 @@
-use std::fmt;
+#![allow(dead_code)]
+#![allow(unused_variables)]
+//#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
-//use std::rc::Rc;
+use std::marker::PhantomData;
+use std::fmt;
+use std::fmt::Debug;
 
-use super::ndarray::*;
-use super::values::*;
+extern crate bit_vec;
+use self::bit_vec::BitVec;
+
+//use decorum::N64;
+#[derive(Debug, Clone)]
+pub enum Join { Left, Right, Inner, Full //, Natural, Cross
+}
+
+impl Join {
+    pub fn produce_null(&self, is_left:bool) -> bool
+    {
+        match self {
+            Join::Left  => !is_left,
+            Join::Right => is_left,
+            Join::Inner => false,
+            Join::Full  => true,
+        }
+    }
+}
+
+//NOTE: This define a total order, so it matter what is the order
+//of the enum! The overall sorting order is defined as:
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DataType {
+    None, Bool,
+    //Numeric
+    I32, I64, // Planed: F64, Decimal,
+    //Dates
+    //Time, Date, DateTime,
+    //Text
+    UTF8,
+    //Complex
+    Tuple, // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
+}
+
+//Type Alias...
+pub type BoolExpr = dyn Fn(&Scalar, &Scalar) -> bool;
+pub type BinExpr = dyn Fn(&Scalar, &Scalar) -> Scalar;
+pub type UnaryExpr = dyn Fn(&Scalar) -> Scalar;
+pub type Col = Vec<Scalar>;
+pub type Pos = Vec<usize>;
+pub type Tree = BTreeMap<Scalar, Scalar>;
+
+pub type Phantom<'a> = PhantomData<&'a Scalar>;
+pub type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BinOp {
+    Add, Minus, Mul, Div
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum CompareOp {
+    Eq, NotEq, Less, LessEq, Greater, GreaterEq, Not
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum RelOp {
+    Union, Diff
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum CrudOp {
+    Create, Update, Delete
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum IndexOp {
+    Pos, Name,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Scalar {
+    None, //null
+    Bool(bool),
+    I32(i32),
+    I64(i64),
+    UTF8(String),
+    //F64(N64),
+    //Dec(Decimal),
+    //Rows(Box<Data>),
+}
+
+impl Default for Scalar {
+    fn default() -> Scalar { Scalar::None }
+}
+
+impl Scalar {
+    pub fn repeat(of:&Scalar, times:usize) -> Vec<Scalar> {
+        vec![of.clone(); times]
+    }
+
+    pub fn kind(self:&Scalar) -> DataType {
+        match self {
+            Scalar::None    => DataType::None,
+            Scalar::Bool(_) => DataType::Bool,
+            Scalar::I32(_)  => DataType::I32,
+            Scalar::I64(_)  => DataType::I64,
+            Scalar::UTF8(_) => DataType::UTF8,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Union {
+    tag:i16,
+    data:Col
+}
+
+#[derive(Debug, Clone)]
+pub enum ColumnName {
+    Name(String),
+    Pos(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Field {
+    pub name: String,
+    pub kind: DataType,
+}
+
+#[derive(Debug, Clone, PartialOrd, Hash)]
+pub struct Schema {
+    pub columns: Vec<Field>,
+}
+
+/// The `NDArray` struct, for storing relational/table data (2d)
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct NDArray {
+    pub rows: usize,
+    pub cols: usize,
+    pub data: Col,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Index {
+    data: BTreeMap<Scalar, usize>
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Row<T:Relation>  {
+    pub source: T,
+}
+
+//#[derive(Debug, Clone, PartialEq, PartialOrd)]
+//pub struct Dict {
+//    index: HashMap<Scalar, Col>,
+//}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct BTree {
+    pub schema: Schema,
+    pub data:  BTreeMap<Scalar, Scalar>,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Data {
+    pub schema: Schema,
+    pub data: NDArray,
+}
+
+#[derive(Debug, Clone)]
+pub struct DataSource<T> {
+    pub schema: Schema,
+    pos  :usize,
+    batch:usize,
+    pub source: T,
+}
+
+#[derive(Debug)]
+pub struct ColIter<'a, R> {
+    pub pos: usize,
+    pub col: usize,
+    pub rel: &'a R
+}
+
+/// Scalar iterator.
+#[derive(Debug)]
+pub struct RelIter<'a, R> {
+    pub pos: usize,
+    pub rel: &'a R
+}
+
+pub struct Cursor
+{
+    start: usize,
+    last: usize,
+}
+
+impl Cursor
+{
+    pub fn new(start:usize, last:usize) -> Self {
+        Cursor {
+            last,
+            start
+        }
+    }
+
+    pub fn set(&mut self, pos:usize) {
+        self.start = pos;
+    }
+
+    pub fn next(&mut self) {
+        let pos = self.start;
+        self.set(pos + 1)
+    }
+
+    pub fn eof(&self) -> bool {
+        self.start >= self.last
+    }
+}
+
 
 #[inline]
-fn size_rel(of:&[Col], layout:Layout) -> (usize, usize) {
-    if layout == Layout::Col {
-        let cols = of.len();
-        if cols > 0 {
-            (cols, of[0].len())
-        } else {
-            (0, 0)
-        }
+fn size_rel(of:&[Col]) -> (usize, usize) {
+    let rows = of.len();
+    if rows > 0 {
+        (of[0].len(), rows)
     } else {
-        let rows = of.len();
-        if rows > 0 {
-            (of[0].len(), rows)
-        } else {
-            (0, 0)
-        }
+        (0, 0)
     }
 }
 
 /// Calculate the appropriated index in the flat array
 #[inline]
-pub fn index(layout:&Layout, col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
+pub fn index(col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
     //println!("pos {:?} Row:{}, Col:{}, R:{}, C:{}", layout, row, col, row_count , col_count);
-    match layout {
-        Layout::Col => col * row_count + row,
-        Layout::Row => row * col_count + col,
-    }
+    row * col_count + col
 }
 
 #[inline]
-pub fn write_row(to:&mut Col, layout:&Layout, col_count:usize, row_count:usize, row:usize, data:Col) {
+pub fn write_row(to:&mut Col, col_count:usize, row_count:usize, row:usize, data:Col) {
     for (col, value) in data.into_iter().enumerate() {
-        let index = index(layout, col_count, row_count, row, col);
+        let index = index(col_count, row_count, row, col);
         to[index] = value;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub struct Data {
-    pub layout: Layout,
-    pub names: Schema,
-    pub ds: NDArray,
+pub trait Relation:Sized + fmt::Display {
+    fn type_name<'a>() -> &'a str;
+    fn new_from<R: Relation>(names: Schema, of: &R) -> Self;
+    fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self;
+    fn to_ndarray(&self) -> NDArray;
+    fn flat_raw(&self) -> Col {
+        let rows = self.row_count();
+        let cols = self.col_count();
+
+        let mut data = Vec::with_capacity(cols * rows);
+
+        for row in 0..rows {
+            for col in 0..cols {
+                data.push(self.value(row, col).clone())
+            }
+        }
+
+        data
+    }
+
+    fn clone_schema(&self, schema:&Schema) -> Self;
+    fn schema(&self) -> &Schema;
+
+    fn len(&self) -> usize {self.row_count() * self.col_count()}
+    fn row_count(&self) -> usize;
+    fn col_count(&self) -> usize;
+    fn is_empty(&self) -> bool { self.len() == 0}
+
+    fn value(&self, row:usize, col:usize) -> &Scalar;
+    fn get_value(&self, row:usize, col:usize) -> Option<&Scalar>;
+
+    //fn pk(&self) -> Option<usize>;
+    fn get_row(&self, pos:usize) -> Option<Col>;
+    fn rows_iter(&self) -> RelIter<'_, Self>;
+    fn col_iter(&self, col: usize) -> ColIter<'_, Self>;
+    fn col(&self, col: usize) -> Col;
+    fn rows_pos(&self, pick: Pos) -> Self;
+
+    fn hash_rows(&self) -> HashMap<u64, usize> {
+        let mut rows = HashMap::with_capacity(self.row_count());
+
+        for (i, row) in self.rows_iter().enumerate() {
+            rows.insert(hash_column(&row), i);
+        }
+
+        rows
+    }
+
+    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
+    {
+        let old = self.value(row, col);
+        //println!("CMP {:?}, {:?}", value, old);
+        apply(old, value)
+    }
+
+    fn cmp_cols(&self, row: usize, cols: &[usize], tuple: &[Scalar], apply: &BoolExpr) -> bool
+    {
+        let values = cols.iter().zip(tuple.iter());
+
+        for (col, value) in values {
+            let old = self.value(row, *col);
+            if !apply(old, value) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
+    {
+        //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
+        while !cursor.eof() {
+            let row = cursor.start;
+            cursor.next();
+            if self.cmp(row, col, value, apply) {
+                return Some(row)
+            }
+        }
+
+        Option::None
+    }
+
+    fn row_only(&self, row: usize, cols: &[usize]) -> Col {
+        let mut data = Vec::with_capacity(cols.len());
+
+        for i in cols {
+            data.push(self.value(row, *i).clone())
+        }
+        data
+    }
+
+    fn materialize_raw(&self, pos:&BitVec, null_count:usize, keep_null:bool) -> Col {
+        let rows = pos.len();
+        let cols = self.col_count();
+        let total_rows = if keep_null {rows} else {rows - null_count};
+
+        let mut data = vec![Scalar::None; cols * total_rows];
+        println!("Raw r:{:?}", pos);
+
+        let positions:Vec<(usize, bool)> =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x || keep_null).collect();
+        println!("Raw r:{:?}", positions);
+
+        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
+
+        let mut new_row = 0;
+        for (row, found) in positions {
+            for col in 0..cols {
+                let _pos = index( cols, total_rows, new_row, col);
+                if found {
+                    data[_pos] = self.value(row, col).clone();
+                }
+            }
+            new_row += 1;
+        }
+
+        data
+    }
+
+    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> NDArray {
+        let rows = pos.len();
+        let cols = self.col_count();
+        let positions:Vec<(usize, bool)> =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x || keep_null).collect();
+        println!("Raw rpos:{:?}", positions);
+
+        let total_rows = if keep_null {rows} else { positions.len()};
+
+        let mut data = vec![Scalar::None; cols * total_rows];
+        println!("Raw r:{:?}", pos);
+
+        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
+
+        let mut new_row = 0;
+        for (row, found) in positions {
+            for col in 0..cols {
+                if found {
+                    let _pos = index(cols, total_rows, new_row, col);
+                    data[_pos] = self.value(row, col).clone();
+                }
+            }
+            new_row += 1;
+        }
+
+        NDArray::new(total_rows, cols, data)
+    }
+
+    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>
+    {
+        let mut pos = Vec::new();
+
+        let mut cursor = Cursor::new(start, self.row_count());
+
+        while let Some(next) = self.find(&mut cursor, col, value, apply) {
+            pos.push(next);
+        }
+
+        pos
+    }
+    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self;
+
+
+    fn union<T:Relation>(&self, to:&T) -> Self;
 }
 
-impl From<Scalar> for Data {
-    fn from(of: Scalar) -> Self {
-        Self::new_scalar(of)
+pub trait RelationMut:Sized {
+
+}
+
+impl<'a, T:Relation> Iterator for RelIter<'a, T>
+{
+    type Item = Col;
+
+    fn next (&mut self) -> Option<Self::Item> {
+        let next = self.rel.get_row(self.pos);
+
+        if next.is_some() {
+            self.pos = self.pos + 1;
+            next
+        } else {
+            None
+        }
     }
 }
 
-impl Data {
-    pub fn new(names: Schema, layout: Layout, data:NDArray) -> Self {
-        Data {
-            layout,
-            names,
-            ds: data
-        }
-    }
+impl<'a, T:Relation> Iterator for ColIter<'a, T>
+{
+    type Item = &'a Scalar;
 
-    pub fn from_raw(names: Schema, layout: Layout, cols:usize, rows:usize, data:&[Scalar]) -> Self {
-        Data {
-            layout,
-            names,
-            ds: NDArray::new(rows, cols, data)
-        }
-    }
-
-    pub fn new_scalar(data:Scalar) -> Self {
-        Data {
-            layout: Layout::Col,
-            names: Schema::scalar_field(data.kind()),
-            ds: NDArray::new(1, 1, [data].to_vec())
-        }
-    }
-
-    pub fn empty(names: Schema, layout: Layout) -> Self {
-        Self::from_raw(names, layout, 0, 0, &[].to_vec())
-    }
-
-    pub fn new_cols(names: Schema, of:NDArray) -> Self {
-        let columns = of.pivot().into_vec();
-        Self::from_raw(names, Layout::Col, of.cols(), of.rows(), &columns)
-    }
-
-    pub fn new_rows(names: Schema, of:NDArray) -> Self {
-        Self::new(names, Layout::Row, of)
+    fn next (&mut self) -> Option<Self::Item> {
+        self.rel.get_value(self.pos, self.col)
     }
 }
 
 /// Auxiliary functions and shortcuts
-pub fn hash_column(vec: Row) -> u64 {
+pub fn hash_column(vec: &[Scalar]) -> u64 {
     //println!("HASH {:?}", vec);
     let mut hasher = DefaultHasher::new();
 
     vec.into_iter().for_each(| x | x.hash(&mut hasher));
 
-    let x = hasher.finish();
-    //println!("HASH {:?}",x);
-    x
+    hasher.finish()
+    //println!("HASH {:?}",x);    
 }
 
-pub fn colp(pos:usize) -> ColumnName {
-    ColumnName::Pos(pos)
-}
-pub fn coln(name:&str) -> ColumnName {
-    ColumnName::Name(name.to_string())
-}
-
-
-pub fn value<T>(x:T) -> Scalar
-    where T:From<Scalar>, Scalar: From<T>
-{
-    Scalar::from(x)
-}
-
-pub fn none() -> Scalar
-{
-    Scalar::default()
-}
-
-pub fn infer_type(of:&NDArray) -> DataType {
-    if of.is_empty() {
-        DataType::None
-    } else {
-        of.get([0, 0]).unwrap().kind()
-    }
-}
-
-pub fn infer_types(of:&NDArray) -> Vec<DataType> {
-    of.iter().map(|x| x.kind()).collect()
-}
-
-pub fn col<T>(x:&[T]) -> Vec<Scalar>
-where
-    T:From<Scalar>, Scalar: From<T>,
-    T: Clone
-{
-    x.iter().map( |v| value(v.clone())).collect()
-}
-
-pub fn concat(values:Vec<Col>) -> (usize, Col)
-{
-    let mut data = Vec::new();
-    let mut rows = 0;
-    for mut row in values {
-        rows += 1;
-        data.extend(row.into_iter());
-    }
-
-    (rows, data)
-}
-
-pub fn nd_array<T>(of:&[T], rows:usize, cols:usize) -> NDArray
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    let col = col(of);
-    NDArray::new(rows, cols, col)
-}
-
-pub fn field(name:&str, kind:DataType) -> Field {
-    Field::new(name, kind)
-}
-
-pub fn schema_single(name:&str, kind:DataType) -> Schema {
-    Schema::new_single(name, kind)
-}
-pub fn schema(names:&[(&str, DataType)]) -> Schema {
-    let fields = names
-            .into_iter()
-            .map(|(name, kind)| Field::new(name, kind.clone())).collect();
-
-    Schema::new(fields)
-}
-
-pub fn rcol_t<T>(name:&str, kind:DataType, of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    let data = nd_array(of, of.len(), 1);
-
-    Data::new_cols(schema_single(name, kind), data)
-}
-
-pub fn rcol<T>(name:&str, of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    let data = nd_array(of, of.len(), 1);
-    let kind = infer_type(&data);
-
-    Data::new_cols(schema_single(name, kind), data)
-}
-
-pub fn array<T>(of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    rcol("it", of)
-}
-
-pub fn array_t<T>(kind:DataType, of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    rcol_t("it", kind, of)
-}
-
-pub fn array_empty(kind:DataType) -> Data
-{
-    Data::empty(Schema::scalar_field(kind), Layout::Col)
-}
-
-pub fn row<T>(names:Schema, of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    let data = nd_array(of, 1, of.len());
-    Data::new_rows(names, data)
-}
-
-pub fn row_infer<T>(of:&[T]) -> Data
-    where
-        T:From<Scalar>, Scalar: From<T>,
-        T: Clone
-{
-    let data = nd_array(of, 1, of.len());
-
-    let types = infer_types(&data);
-    let names = Schema::generate(&types);
-    Data::new_rows(names, data)
-}
-
-pub fn table_cols_infer(of: NDArray) -> Data {
-    let mut types = Vec::with_capacity(of.cols());
-    for c in of.col_iter() {
-        types.push(infer_type(&c.into_array()));
-    }
-    let names = Schema::generate(&types);
-
-    Data::new_cols(names, of)
-}
-
-pub fn table_cols(schema:Schema, of: NDArray) -> Data {
-    Data::new_cols(schema, of)
-}
-
-pub fn table_rows(schema:Schema, of: NDArray) -> Data {
-    Data::new_rows(schema, of)
-}
-
-fn _print_cols(of: &Column, f: &mut fmt::Formatter) -> fmt::Result {
+/// Pretty printers..
+fn _print_rows(of: &[Scalar], f: &mut fmt::Formatter) -> fmt::Result {
     for (i, value) in of.iter().enumerate() {
-        if i == of.cols() - 1{
+        if i == of.len() - 1{
             write!(f, "{}", value)?;
         } else {
             write!(f, "{}, ", value)?;
@@ -274,47 +470,18 @@ fn _print_cols(of: &Column, f: &mut fmt::Formatter) -> fmt::Result {
     Ok(())
 }
 
-fn _print_rows(of: &Row, f: &mut fmt::Formatter) -> fmt::Result {
-    for (i, value) in of.iter().enumerate() {
-        if i == of.cols() - 1{
-            write!(f, "{}", value)?;
-        } else {
-            write!(f, "{}, ", value)?;
-        }
-    }
-    Ok(())
-}
-
-fn print_columns(of: &Data, f: &mut fmt::Formatter) -> fmt::Result {
-    let (sep1, sep2) =  ("[|", "|]");
-
-    write!(f, "{}", sep1)?;
-    if of.ds.cols() > 0 {
-        for (col, field) in of.names.columns.iter().enumerate() {
-            write!(f, "{}= ", field)?;
-
-            let item =  of.ds.col(col);
-            _print_cols(&item, f)?;
-            if col < of.ds.cols() - 1 {
-                writeln!(f, ";")?;
-            }
-        }
-    }
-    writeln!(f, " {}", sep2)?;
-    Ok(())
-}
-
-fn print_rows(of: &Data, f: &mut fmt::Formatter) -> fmt::Result {
+pub fn print_rows<T:Relation>(kind:&str, of: &T, f: &mut fmt::Formatter) -> fmt::Result {
     let (sep1, sep2) =  ("[<", ">]");
 
-    write!(f, "{}", sep1)?;
-    if of.ds.cols() > 0 {
-        write!(f, "{}", of.names)?;
+    write!(f, "{}{}", kind, sep1)?;
+    if of.col_count() > 0 {
+        write!(f, "{}", of.schema())?;
         writeln!(f, ";")?;
+        let rows = of.rows_iter();
 
-        for (pos, row) in of.ds.row_iter().enumerate() {
+        for (pos, row) in rows.enumerate() {
             _print_rows(&row, f)?;
-            if pos < of.ds.rows() - 1 {
+            if pos < of.row_count() - 1 {
                 writeln!(f, ";")?;
             }
         }
@@ -324,12 +491,42 @@ fn print_rows(of: &Data, f: &mut fmt::Formatter) -> fmt::Result {
     Ok(())
 }
 
-impl fmt::Display for Data {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.layout == Layout::Col {
-            print_columns(self, f)
-        } else {
-            print_rows(self, f)
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Display for Scalar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Scalar::None =>  write!(f, "None"),
+            Scalar::Bool(x) => write!(f, "{}", x),
+            Scalar::I32(x) => write!(f, "{}", x),
+            Scalar::I64(x) => write!(f, "{}", x),
+            Scalar::UTF8(x) => write!(f, "{}", x),
+//            Scalar::Tuple(x) => write!(f, "{:?}", x),
         }
+    }
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.name, self.kind)
+    }
+}
+
+impl fmt::Display for Schema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in 0..self.len() {
+            let item =  &self.columns[i];
+            if i > 0 {
+                write!(f, ", {}",item)?;
+            } else {
+                write!(f, "{}", item)?;
+            }
+        }
+
+        Ok(())
     }
 }
