@@ -1,14 +1,17 @@
-pub use core::types::*;
 pub use std::rc::Rc;
 use std::collections::HashMap;
 use std::fmt;
 
-type Return = Result<Frame, String>;
+use super::types::*;
+use super::operations::*;
+use super::dsl::*;
+
+type Return = Result<Data, String>;
 type ReturnUnit = Result<(), String>;
 
 #[derive(Clone)]
 pub struct Env {
-    pub vars: HashMap<String, Frame>,
+    pub vars: HashMap<String, Data>,
     pub up: Option<Rc<Env>>,
 }
 
@@ -17,16 +20,16 @@ impl Env {
         Env { vars: HashMap::new(), up: None }
     }
 
-    pub fn add(&mut self, k: String, v: Frame) {
+    pub fn add(&mut self, k: String, v: Data) {
         self.vars.insert(k, v);
     }
 
-    pub fn find(&self, k: String) -> Option<&Frame> {
+    pub fn find(&self, k: String) -> Option<&Data> {
         // TODO: make this use recursive envs
         self.vars.get(&k)
     }
 
-    pub fn add_many(&self, k: Vec<String>, v: Vec<Frame>) -> Env {
+    pub fn add_many(&self, k: Vec<String>, v: Vec<Data>) -> Env {
         let mut copy = self.clone();
         for (k, v) in k.into_iter().zip(v.iter()) {
             copy.vars.insert(k, v.clone());
@@ -36,7 +39,7 @@ impl Env {
 }
 
 // pub struct Env<'a> {
-//     pub vars: HashMap<&'a String, Frame>,
+//     pub vars: HashMap<&'a String, Data>,
 //     pub up: Option<Rc<Env<'a>>>,
 // }
 // 
@@ -45,11 +48,11 @@ impl Env {
 //         Env { vars: HashMap::new(), up: None }
 //     }
 // 
-//     pub fn add(&mut self, k: String, v: Frame) {
+//     pub fn add(&mut self, k: String, v: Data) {
 //         self.vars.insert(k, v);
 //     }
 // 
-//     pub fn add_many(&self, k: Vec<&'a String>, v: Vec<Frame>) -> Env<'a> {
+//     pub fn add_many(&self, k: Vec<&'a String>, v: Vec<Data>) -> Env<'a> {
 //         let mut copy = self.clone();
 //         for (k, v) in k.into_iter().zip(v.iter()) {
 //             copy.vars.insert(k, v.clone());
@@ -145,7 +148,7 @@ impl<T: fmt::Debug> Runnable<T> for FunDef<T> {
         }
         let arg_values = arg_values_results.flat_map(|x| x.ok()).collect();
         let fn_env = env.add_many(
-            self.params.iter().map(|(n, t)| n.to_string()).collect(),
+            self.params.iter().map(|(n, _t)| n.to_string()).collect(),
             arg_values
         );
         self.body.run(vec!(), &fn_env)
@@ -187,7 +190,7 @@ pub enum Stmt<T> {
 }
 
 impl<T: fmt::Debug> RunnableMut<T> for Stmt<T> {
-    fn run_mut(&self, args: Vec<Exp<T>>, env: &mut Env) -> ReturnUnit {
+    fn run_mut(&self, _args: Vec<Exp<T>>, env: &mut Env) -> ReturnUnit {
         match self {
             Stmt::Let(LetKind::Imm, n, _, e) => {
                 let v = e.run(vec!(), env)?;
@@ -225,9 +228,9 @@ pub enum Exp<T> {
 }
 
 impl<T: fmt::Debug> Runnable<T> for Exp<T> {
-    fn run(&self, args: Vec<Exp<T>>, env: &Env) -> Return {
+    fn run(&self, _args: Vec<Exp<T>>, env: &Env) -> Return {
         match self {
-            Exp::Scalar(s) => Ok(s.clone().into()),
+            Exp::Scalar(s) => Ok(value_t(s.clone())),
             Exp::Name(n) if env.vars.get(n).is_some() =>
                 Ok(env.find(n.to_string()).unwrap().clone()),
             Exp::Name(n) =>
@@ -236,7 +239,7 @@ impl<T: fmt::Debug> Runnable<T> for Exp<T> {
                 let v1 = e1.run(vec!(), &env)?;
                 let v2 = e2.run(vec!(), &env)?;
                 match op {
-                    BinOp::Plus => Ok(v1 + v2),
+                    BinOp::Plus => Ok(zip_scalar(v1, v2, &math_add)),
                     // BinOp::Minus => v1 - v2,
                     // BinOp::Times => v1 * v2,
                     // BinOp::Divide => v1 / v2,

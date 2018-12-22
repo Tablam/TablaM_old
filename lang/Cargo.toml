@@ -9,16 +9,13 @@ build = "build.rs"
 keywords = ["database", "interpreter", "language", "relational", "columnar"]
 categories = ["database", "language", "relational"]
 
+
 [dependencies]
-time = "0.1.0"
-rand = "0.5"
-num = "*"
-bytes = "0.4"
+tablam-core = { path = "../core" }
 # For parsing -- use master until 0.16 is released
 # This is due to some bullshit with the lalrpop_mod macro
 lalrpop-util = { git = "https://github.com/lalrpop/lalrpop.git" }
 regex = "0.2"
-bit-vec = "*"
 radix_trie = "0.1"
 lazy_static = "1"
 
@@ -27,5 +24,5 @@ lazy_static = "1"
 lalrpop = "0.15"
 
 [[bin]]
-name = "table"
+name = "tablam"
 path = "src/main.rs"

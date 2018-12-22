@@ -1,5 +1,7 @@
 use std::str::FromStr;
-use core::ast::*;
+use tablam_core::values::*;
+use tablam_core::types::*;
+use tablam_core::ast::*;
 use tok::{self, Tok};
 
 grammar;
@@ -249,7 +251,7 @@ NumLiteral: Scalar = {
 StringLiteral: Scalar = {
     <s:"STRINGLITERAL"> => {
         let literal = &s[1..s.len()-1];
-        Scalar::UTF8(encode_str(literal))
+        Scalar::UTF8(literal.to_string())
     },
 };
 

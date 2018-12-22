@@ -1,0 +1,4 @@
+Rel[<one:I64, two:I64, three:Bool, four:I64, five:I64, six:Bool;
+1, 4, true, 1, 2, true;
+2, 5, false, 2, 3, false;
+3, 6, true, 3, 4, true >]
