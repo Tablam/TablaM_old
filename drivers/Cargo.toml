@@ -9,7 +9,7 @@ repository = "https://bitbucket.org/tablam/tablam/"
 homepage = "https://bitbucket.org/tablam/tablam/"
 
 [dependencies.rusqlite]
-version = "0.13.0"
+version = "*"
 features = ["bundled"]
 
 [lib]
