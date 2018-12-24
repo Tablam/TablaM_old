@@ -7,6 +7,7 @@ keywords = ["database", "relational", "sqlite"]
 categories = ["database", "relational"]
 repository = "https://bitbucket.org/tablam/tablam/"
 homepage = "https://bitbucket.org/tablam/tablam/"
+edition = "2018"
 
 [dependencies.rusqlite]
 version = "*"

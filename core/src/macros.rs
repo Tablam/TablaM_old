@@ -13,6 +13,7 @@ macro_rules! convert {
                 $bound(i)
             }
         }
+
         impl From<Scalar> for $kind {
             fn from(i: Scalar) -> Self {
                 match i {
@@ -33,7 +34,7 @@ convert!(String, Scalar::UTF8);
 macro_rules! convert_rel {
     ($source:ident, $dest:ident) => (
 
-        impl  <'a> From<&'a $source> for $dest {
+        impl <'a> From<&'a $source> for $dest {
             fn from(source: &'a $source) -> Self {
                 $dest::new_from(source.schema.clone(), source)
             }
