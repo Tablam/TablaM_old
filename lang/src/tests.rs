@@ -1,10 +1,7 @@
-use tablam_core::types as TT;
 use super::ast::*;
-use super::interpreter::*;
-
 
 fn _eval_expr(input:&Expr, output:&Expr) {
-    let mut program = Program::new();
+    let program = Program::new();
     let result = &program.eval_expr(input);
 
     assert_eq!(result, output);
@@ -20,11 +17,11 @@ fn eval_const()
 #[test]
 fn eval_cmp()
 {
-    let one:TT::Scalar = 1.into();
-    let two:TT::Scalar = 2.into();
+    let one:Value = 1.into();
+    let two:Value = 2.into();
 
-    let cmp1 = eq( one.clone().into(), two.clone().into());
-    let cmp2 = not_eq( one.into(), two.into());
+    let cmp1 = eq( one.clone().into(), two.clone().into()).into();
+    let cmp2 = not_eq( one.into(), two.into()).into();
 
     _eval_expr(&cmp1, &false.into());
     _eval_expr(&cmp2, &true.into());
@@ -39,4 +36,20 @@ fn eval_if()
     let if1 = eif(false, one.clone().into(), two.clone().into());
 
     _eval_expr(&if1, &two.clone())
+}
+
+#[test]
+fn eval_while()
+{
+    let one:Expr = 1.into();
+    let two:Expr = 2.into();
+    let check = less(var("x"), two.clone().into());
+
+    let v1 = set_var_mut("x", one.into());
+    let body = set_var_mut("x", two.into());
+
+    let loop1 = ewhile_cmp(check, body.into());
+    let full = lines(vec![v1, loop1]);
+
+    _eval_expr(&full, &Expr::Pass)
 }
