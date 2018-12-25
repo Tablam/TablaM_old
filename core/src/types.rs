@@ -39,7 +39,7 @@ impl Join {
 pub enum DataType {
     None, Bool,
     //Numeric
-    I32, I64, // Planed: F64, Decimal,
+    ISIZE, I32, I64, // Planed: F64, Decimal,
     //Dates
     //Time, Date, DateTime,
     //Text
@@ -88,6 +88,7 @@ pub enum IndexOp {
 pub enum Scalar {
     None, //null
     Bool(bool),
+    ISize(isize),
     I32(i32),
     I64(i64),
     UTF8(String),
@@ -109,6 +110,7 @@ impl Scalar {
         match self {
             Scalar::None    => DataType::None,
             Scalar::Bool(_) => DataType::Bool,
+            Scalar::ISize(_)=> DataType::ISIZE,
             Scalar::I32(_)  => DataType::I32,
             Scalar::I64(_)  => DataType::I64,
             Scalar::UTF8(_) => DataType::UTF8,
@@ -150,6 +152,13 @@ pub struct NDArray {
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Index {
     data: BTreeMap<Scalar, usize>
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Range {
+    pub start:isize,
+    pub end:  isize,
+    pub step: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -502,6 +511,7 @@ impl fmt::Display for Scalar {
         match self {
             Scalar::None =>  write!(f, "None"),
             Scalar::Bool(x) => write!(f, "{}", x),
+            Scalar::ISize(x) => write!(f, "{}", x),
             Scalar::I32(x) => write!(f, "{}", x),
             Scalar::I64(x) => write!(f, "{}", x),
             Scalar::UTF8(x) => write!(f, "{}", x),

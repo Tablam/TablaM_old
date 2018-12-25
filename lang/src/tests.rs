@@ -46,10 +46,23 @@ fn eval_while()
     let check = less(var("x"), two.clone().into());
 
     let v1 = set_var_mut("x", one.into());
-    let body = set_var_mut("x", two.into());
+    let body = lines(vec![set_var_mut("x", two.into())]);
 
-    let loop1 = ewhile_cmp(check, body.into());
-    let full = lines(vec![v1, loop1]);
+    let loop1= ewhile_cmp(check, body);
+    let full = block_lines(vec![v1, loop1]);
 
     _eval_expr(&full, &Expr::Pass)
+}
+
+#[test]
+fn eval_for()
+{
+    let one:Expr = 1.into();
+    let ten:Expr = 10isize.into();
+    let body = lines(vec![pass()]);
+
+    let loop1= efor("x", 0, 11, body);
+    let full = block_lines(vec![loop1, evar("x")]);
+
+    _eval_expr(&full, &ten)
 }

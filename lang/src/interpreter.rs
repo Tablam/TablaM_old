@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::ast::*;
-//use tablam_core::types as TT;
+use tablam_core::types as TT;
 use tablam_core::types::CompareOp as CP;
 
 impl Program {
@@ -66,11 +66,39 @@ impl Program {
         }
     }
 
-    fn eval_while(&self, test: &BoolExpr, code:&Expr) -> Expr {
+    fn eval_while(&self, test: &BoolExpr, code:&ExprList) -> Expr {
         while self._decode_bool(test) {
-            self.eval_expr(code);
+            for line in code {
+                if line.is_loop_control() {
+                    if line.is_break() {
+                        break
+                    } else {
+                        continue
+                    }
+                }
+
+                self.eval_expr(line);
+            }
         }
 
+        Expr::Pass
+    }
+
+    fn eval_for_range(&self, name:&String, range:&TT::Range, code:&ExprList) -> Expr {
+        for i in (range.start..range.end).step_by(range.step) {
+            self.set_var(&LetKind::Imm, &name, i.into());
+            for line in code {
+                if line.is_loop_control() {
+                    if line.is_break() {
+                        break
+                    } else {
+                        continue
+                    }
+                }
+
+                self.eval_expr(line);
+            }
+        }
         Expr::Pass
     }
 
@@ -100,6 +128,8 @@ impl Program {
                 self.eval_block(code),
             Expr::While(test, code) =>
                 self.eval_while(test, code),
+            Expr::ForI(name, range, code) =>
+                self.eval_for_range(name, range, code),
             Expr::If(code, if_ok, if_false) =>
                 self.eval_if(code, if_ok, if_false),
             Expr::CmpOp(code) =>

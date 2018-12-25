@@ -98,8 +98,9 @@ pub enum Expr {
     Block(ExprList),
     //Control flow
     If(BoolExpr, BExpr, BExpr),
-    While(BoolExpr, BExpr),
-//    For(Expr, BExpr),
+    While(BoolExpr, ExprList),
+    ForI(String, TT::Range, ExprList),
+//    ForEach(String, TT::Range),
 //    Match(Expr, BExpr),
     //Operators
 //    RelOp(TT::RelOp, BExpr),
@@ -109,6 +110,20 @@ pub enum Expr {
     //Vars
     Var(String),
     Let(LetKind, String, Value),
+}
+
+impl Expr {
+    pub fn is_break(&self) -> bool {
+        self == &Expr::Break
+    }
+
+    pub fn is_continue(&self) -> bool {
+        self == &Expr::Continue
+    }
+
+    pub fn is_loop_control(&self) -> bool {
+        self.is_break() || self.is_continue()
+    }
 }
 
 impl <T> From<T> for Value
@@ -145,8 +160,16 @@ pub fn pass() -> Expr {
     Expr::Pass
 }
 
-pub fn lines(of:Vec<Expr>) -> Expr {
-    Expr::Block(of.into_iter().map(|x| x.into()).collect())
+pub fn lines(of:Vec<Expr>) -> ExprList {
+   of.into_iter().map(|x| x.into()).collect()
+}
+
+pub fn block(of:ExprList) -> Expr {
+    Expr::Block(of)
+}
+
+pub fn block_lines(of:Vec<Expr>) -> Expr {
+    block(lines(of))
 }
 
 pub fn get_value(of: &Expr) -> Option<&Value> {
@@ -159,6 +182,11 @@ pub fn get_value(of: &Expr) -> Option<&Value> {
 pub fn var(name:&str) -> Value {
     Value::Var(name.to_string())
 }
+
+pub fn evar(name:&str) -> Expr {
+    Expr::Var(name.to_string())
+}
+
 
 pub fn set_var_imm(name:&str, of:Value) -> Expr {
     Expr::Let(LetKind::Imm, name.to_string(), of)
@@ -194,10 +222,20 @@ pub fn eif_cmp(of:CmOp, if_true:BExpr, if_false:BExpr) -> Expr {
     Expr::If(BoolExpr::Cmp(of), if_true, if_false)
 }
 
-pub fn ewhile(of:bool, body:BExpr) -> Expr {
+pub fn ewhile(of:bool, body:ExprList) -> Expr {
     Expr::While(BoolExpr::Const(of), body)
 }
 
-pub fn ewhile_cmp(of:CmOp, body:BExpr) -> Expr {
+pub fn ewhile_cmp(of:CmOp, body:ExprList) -> Expr {
     Expr::While(BoolExpr::Cmp(of), body)
+}
+
+pub fn efor_step(name:&str, start:isize, end:isize, step:usize, body:ExprList) -> Expr {
+    let range = TT::Range::new(start, end, step);
+    Expr::ForI(name.to_string(), range, body)
+}
+
+pub fn efor(name:&str, start:isize, end:isize, body:ExprList) -> Expr {
+    let range = TT::Range::new(start, end, 1);
+    Expr::ForI(name.to_string(), range, body)
 }

@@ -26,10 +26,10 @@ macro_rules! convert {
 }
 
 convert!(bool, Scalar::Bool);
+convert!(isize, Scalar::ISize);
 convert!(i32, Scalar::I32);
 convert!(i64, Scalar::I64);
 convert!(String, Scalar::UTF8);
-
 
 macro_rules! convert_rel {
     ($source:ident, $dest:ident) => (
