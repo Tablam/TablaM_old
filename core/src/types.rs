@@ -66,7 +66,7 @@ pub enum BinOp {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CompareOp {
-    Eq, NotEq, Less, LessEq, Greater, GreaterEq, Not
+    Eq, NotEq, Less, LessEq, Greater, GreaterEq
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

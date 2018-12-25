@@ -13,7 +13,8 @@ pub struct SourceMap {
 
 type Return = Result<TT::Scalar, String>;
 type ReturnUnit = Result<(), String>;
-type RExpr = Rc<Expr>;
+pub type RExpr = Rc<Expr>;
+pub type BExpr = Box<Expr>;
 
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -66,11 +67,11 @@ pub enum BoolExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CmOp {
     pub op:  TT::CompareOp,
-    pub lhs: RExpr,
-    pub rhs: Option<RExpr>
+    pub lhs: TT::Scalar,
+    pub rhs: TT::Scalar
 }
 
-pub type ExprList = Vec<Expr>;
+pub type ExprList = Vec<RExpr>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -79,7 +80,7 @@ pub enum Expr {
     Value(Rc<TT::Scalar>),
     Block(ExprList),
     //Control flow
-    If(BoolExpr, RExpr, Option<RExpr>),
+    If(BoolExpr, BExpr, BExpr),
 //    While(BoolExpr, Expr),
 //    For(Expr, Expr),
 //    Match(Expr, Expr),
@@ -100,29 +101,28 @@ impl <T> From<T> for Expr
     }
 }
 
-
 pub fn pass() -> Expr {
     Expr::Pass
 }
 
-pub fn cmp(op:TT::CompareOp, lhs:RExpr, rhs:Option<RExpr>) -> Expr {
+pub fn cmp(op:TT::CompareOp, lhs:TT::Scalar, rhs:TT::Scalar) -> Expr {
     Expr::CmpOp(CmOp{
         op, lhs, rhs
     })
 }
 
-pub fn eq(lhs:RExpr, rhs:Option<RExpr>) -> Expr {
+pub fn eq(lhs:TT::Scalar, rhs:TT::Scalar) -> Expr {
     cmp(TT::CompareOp::Eq, lhs, rhs)
 }
 
-pub fn not_eq(lhs:RExpr, rhs:Option<RExpr>) -> Expr {
+pub fn not_eq(lhs:TT::Scalar, rhs:TT::Scalar) -> Expr {
     cmp(TT::CompareOp::NotEq, lhs, rhs)
 }
 
-pub fn eif(of:bool, if_true:RExpr, if_false:Option<RExpr>) -> Expr {
+pub fn eif(of:bool, if_true:BExpr, if_false:BExpr) -> Expr {
     Expr::If(BoolExpr::Const(of), if_true, if_false)
 }
 
-pub fn eif_cmp(of:CmOp, if_true:RExpr, if_false:Option<RExpr>) -> Expr {
+pub fn eif_cmp(of:CmOp, if_true:BExpr, if_false:BExpr) -> Expr {
     Expr::If(BoolExpr::Cmp(of), if_true, if_false)
 }
