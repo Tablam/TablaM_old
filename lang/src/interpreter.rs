@@ -4,6 +4,8 @@ use std::rc::Rc;
 use super::ast::*;
 use tablam_core::types as TT;
 use tablam_core::types::CompareOp as CP;
+use tablam_core::types::BinOp as BP;
+use tablam_core::operations::*;
 
 impl Program {
     pub fn new() -> Self {
@@ -64,6 +66,20 @@ impl Program {
             CP::Less        => lhs <  rhs,
             CP::LessEq      => lhs <= rhs,
         }
+    }
+
+    fn eval_bin_op(&self, expr: &BinOp) -> Expr {
+        let lhs = self.decode_value(&expr.lhs);
+        let rhs = self.decode_value(&expr.rhs);
+
+        let result =
+            match expr.op {
+                BP::Add     => math_add(&lhs , &rhs),
+                BP::Minus   => math_minus(&lhs , &rhs),
+                BP::Mul     => math_mul(&lhs , &rhs),
+                BP::Div     => math_div(&lhs , &rhs),
+            };
+        result.into()
     }
 
     fn eval_while(&self, test: &BoolExpr, code:&ExprList) -> Expr {
@@ -132,6 +148,8 @@ impl Program {
                 self.eval_for_range(name, range, code),
             Expr::If(code, if_ok, if_false) =>
                 self.eval_if(code, if_ok, if_false),
+            Expr::BinOp(code) =>
+                self.eval_bin_op(code),
             Expr::CmpOp(code) =>
                 self.eval_cmp(code).into(),
             Expr::Let(kind, name, value)  =>

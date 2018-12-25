@@ -78,6 +78,13 @@ pub struct CmOp {
     pub rhs: Value
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BinOp {
+    pub op:  TT::BinOp,
+    pub lhs: Value,
+    pub rhs: Value
+}
+
 pub type ExprList = Vec<BExpr>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,7 +112,7 @@ pub enum Expr {
     //Operators
 //    RelOp(TT::RelOp, BExpr),
 //    IndexOp(TT::IndexOp, BExpr),
-//    BinOp(TT::BinOp, BExpr, BExpr),
+    BinOp(BinOp),
     CmpOp(CmOp),
     //Vars
     Var(String),
@@ -187,7 +194,6 @@ pub fn evar(name:&str) -> Expr {
     Expr::Var(name.to_string())
 }
 
-
 pub fn set_var_imm(name:&str, of:Value) -> Expr {
     Expr::Let(LetKind::Imm, name.to_string(), of)
 }
@@ -238,4 +244,24 @@ pub fn efor_step(name:&str, start:isize, end:isize, step:usize, body:ExprList) -
 pub fn efor(name:&str, start:isize, end:isize, body:ExprList) -> Expr {
     let range = TT::Range::new(start, end, 1);
     Expr::ForI(name.to_string(), range, body)
+}
+
+pub fn bin_op(op:TT::BinOp, lhs:Value, rhs:Value) -> Expr {
+    Expr::BinOp(BinOp{op, lhs, rhs})
+}
+
+pub fn plus_op(lhs:Value, rhs:Value) -> Expr {
+    bin_op(TT::BinOp::Add, lhs, rhs)
+}
+
+pub fn minus_op(lhs:Value, rhs:Value) -> Expr {
+    bin_op(TT::BinOp::Minus, lhs, rhs)
+}
+
+pub fn div_op(lhs:Value, rhs:Value) -> Expr {
+    bin_op(TT::BinOp::Div, lhs, rhs)
+}
+
+pub fn mul_op(lhs:Value, rhs:Value) -> Expr {
+    bin_op(TT::BinOp::Mul, lhs, rhs)
 }

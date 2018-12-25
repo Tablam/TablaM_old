@@ -7,6 +7,12 @@ fn _eval_expr(input:&Expr, output:&Expr) {
     assert_eq!(result, output);
 }
 
+fn _eval_exprs(of:&[(Expr, Expr)]) {
+    for (input, output) in of {
+        _eval_expr(input, output)
+    }
+}
+
 #[test]
 fn eval_const()
 {
@@ -39,6 +45,20 @@ fn eval_if()
 }
 
 #[test]
+fn eval_bin_op()
+{
+    let one:Value = 1i64.into();
+    let two:Value = 2i64.into();
+
+    _eval_exprs(&[
+        (plus_op(one.clone(), two.clone()), 3i64.into()),
+        (minus_op(one.clone(), two.clone()), (-1i64).into()),
+        (mul_op(one.clone(), two.clone()), 2i64.into()),
+        (div_op(one.clone(), two.clone()), 0i64.into()),
+    ])
+}
+
+#[test]
 fn eval_while()
 {
     let one:Expr = 1.into();
@@ -57,7 +77,6 @@ fn eval_while()
 #[test]
 fn eval_for()
 {
-    let one:Expr = 1.into();
     let ten:Expr = 10isize.into();
     let body = lines(vec![pass()]);
 
