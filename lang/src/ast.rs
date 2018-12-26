@@ -4,6 +4,7 @@ use std::collections::HashMap;
 //use std::fmt;
 
 use tablam_core::types as TT;
+use tablam_core::dsl as DD;
 
 #[derive(Clone)]
 pub struct SourceMap {
@@ -17,6 +18,7 @@ type ReturnUnit = Result<(), String>;
 pub type RExpr = Rc<Expr>;
 pub type BExpr = Box<Expr>;
 pub type RScalar = Rc<TT::Scalar>;
+pub type ParamsCall = HashMap<String, RExpr>;
 
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -25,7 +27,7 @@ pub struct Env {
 }
 
 impl Env {
-    pub fn empty() -> Env {
+    pub fn empty() -> Self {
         Env { vars: HashMap::new(), up: None }
     }
 
@@ -37,19 +39,33 @@ impl Env {
         // TODO: make this use recursive envs
         self.vars.get(k)
     }
+}
 
-    pub fn add_many(&self, k: Vec<String>, v: Vec<(LetKind, Value)>) -> Env {
-        let mut copy = self.clone();
-        for (k, v) in k.into_iter().zip(v.iter()) {
-            copy.vars.insert(k, v.clone());
-        }
-        copy
+#[derive(Debug, Clone)]
+pub struct Functions {
+    pub vars: HashMap<String, FunDef>,
+    pub up: Option<Box<Functions>>,
+}
+
+impl Functions {
+    pub fn empty() -> Self {
+        Functions { vars: HashMap::new(), up: None }
+    }
+
+    pub fn add(&mut self, def: FunDef) {
+        self.vars.insert(def.name.clone(), def);
+    }
+
+    pub fn find(&self, k: &String) -> Option<&FunDef> {
+        // TODO: make this use recursive envs
+        self.vars.get(k)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub env: Rc<RefCell<Env>>
+    pub env: Box<RefCell<Env>>,
+    pub fun: Box<RefCell<Functions>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -57,12 +73,18 @@ pub enum LetKind {
     Imm, Mut,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct FunCall {
+    pub name: String,
+    pub params: ParamsCall,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunDef {
     pub name: String,
-    pub params: Vec<(String, TT::DataType)>,
+    pub params: TT::Schema,
     pub ret_ty: TT::DataType,
-    pub body: Expr,
+    pub body: Option<BExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,6 +139,9 @@ pub enum Expr {
     //Vars
     Var(String),
     Let(LetKind, String, Value),
+    //Functions
+    Fun(FunDef),
+    Call(FunCall),
 }
 
 impl Expr {
@@ -264,4 +289,28 @@ pub fn div_op(lhs:Value, rhs:Value) -> Expr {
 
 pub fn mul_op(lhs:Value, rhs:Value) -> Expr {
     bin_op(TT::BinOp::Mul, lhs, rhs)
+}
+
+pub fn fun_def(name:&str, pars:&[(&str, TT::DataType)], ret_ty:TT::DataType, body: BExpr) -> Expr {
+    let params = DD::schema(pars);
+
+    Expr::Fun(FunDef{
+        name: name.to_string(),
+        params,
+        ret_ty,
+        body: Some(body)
+    })
+}
+
+pub fn fun_call(name:&str, pars:&[(&str, RExpr)]) -> Expr {
+    let mut params = HashMap::with_capacity(pars.len());
+
+    for (name, value) in pars {
+        params.insert(name.to_string(), value.clone());
+    }
+
+    Expr::Call(FunCall{
+        name: name.to_string(),
+        params,
+    })
 }

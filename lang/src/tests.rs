@@ -1,3 +1,4 @@
+use tablam_core::types::DataType as DT;
 use super::ast::*;
 
 fn _eval_expr(input:&Expr, output:&Expr) {
@@ -84,4 +85,20 @@ fn eval_for()
     let full = block_lines(vec![loop1, evar("x")]);
 
     _eval_expr(&full, &ten)
+}
+
+
+#[test]
+fn eval_fun()
+{
+    let one:Expr = 1.into();
+    let two:Expr = 2.into();
+
+    let body = plus_op(var("x"), var("y"));
+    let params = &[("x", DT::I64), ("y", DT::I64)];
+    let fun1 = fun_def("sum", params, DT::I64, body.into());
+    let call1 = fun_call("sum", &[("x", one.into()), ("y", two.into())]);
+    let full = block_lines(vec![fun1, call1]);
+
+    _eval_expr(&full, &3.into())
 }

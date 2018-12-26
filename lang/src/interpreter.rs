@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use super::ast::*;
 use tablam_core::types as TT;
@@ -9,7 +8,18 @@ use tablam_core::operations::*;
 
 impl Program {
     pub fn new() -> Self {
-        Program { env: Rc::new(RefCell::new(Env::empty())) }
+        Program {
+            env: Box::new(RefCell::new(Env::empty())),
+            fun: Box::new(RefCell::new(Functions::empty()))
+        }
+    }
+
+//    fn register_function_native(&self, expr: &FunDef) {
+//
+//    }
+
+    fn register_function(&self, expr: FunDef) {
+        self.fun.borrow_mut().add(expr);
     }
 
     fn eval_block(&self, expr: &ExprList) -> Expr {
@@ -27,7 +37,6 @@ impl Program {
             BoolExpr::Cmp(code) => self.eval_cmp(code).into(),
         }
     }
-
 
     fn decode_value(&self, expr: &Value) -> RScalar {
         match expr {
@@ -51,7 +60,6 @@ impl Program {
         } else {
             self.eval_expr(if_false)
         }
-
     }
 
     fn eval_cmp(&self, expr: &CmOp) -> bool {
@@ -126,8 +134,40 @@ impl Program {
     pub fn get_var(&self, name:&String) -> (LetKind, Value) {
         match self.env.borrow().find(name) {
             Some(x) => x.clone(),
+            None => unimplemented!(),
+        }
+    }
+
+    pub fn eval_call_simple(&self, _fun:&FunDef, params:&FunCall, expr:&Expr) -> Expr {
+        for (name, param) in &params.params {
+            let value = get_value(param).unwrap();
+            self.set_var(&LetKind::Imm, name, value.clone());
+        }
+        self.eval_expr(expr)
+    }
+
+    pub fn eval_call(&self, expr:&FunCall) -> Expr {
+        match self.fun.borrow().find(&expr.name) {
+            Some(f) => {
+                match &f.body {
+                    Some(code) => {
+                        self.eval_call_simple(&f, expr, code)
+                    },
+                    None => unreachable!()
+                }
+            },
+            None => unimplemented!(),
+        }
+    }
+
+    pub fn eval_fun(&self, expr:&FunDef) -> Expr {
+        match &expr.body {
+            Some(_) => {
+                self.register_function(expr.clone());
+            },
             None => unimplemented!()
         }
+        Expr::Pass
     }
 
     pub fn eval_expr(&self, expr: &Expr) -> Expr {
@@ -158,6 +198,10 @@ impl Program {
                 let (_, value) = self.get_var(name);
                 Expr::Value(value)
             },
+            Expr::Fun(code) =>
+                self.eval_fun(code),
+            Expr::Call(code) =>
+                self.eval_call(code),
         }
     }
 
