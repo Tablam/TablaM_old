@@ -72,12 +72,16 @@ fn eval_while()
     let check = less(var("x"), two.clone().into());
 
     let v1 = set_var_mut("x", one.into());
-    let body = lines(vec![set_var_mut("x", two.into())]);
+    let body = lines(vec![set_var_mut("x", two.clone().into())]);
+    let body_break = lines(vec![set_var_imm("x", two.into()), Expr::Break]);
 
-    let loop1= ewhile_cmp(check, body);
+    let loop1= ewhile_cmp(check, body.clone());
+    let loop2= ewhile(true, body_break);
+
     let full = block_lines(vec![v1, loop1]);
 
-    _eval_expr(&full, &Expr::Pass)
+    _eval_expr(&full, &Expr::Pass);
+    _eval_expr(&loop2, &Expr::Pass);
 }
 
 #[test]

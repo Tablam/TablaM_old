@@ -110,6 +110,12 @@ pub struct BinOp {
     pub rhs: Value
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Fail {
+    pub msg: &'static str,
+}
+
+pub type ResultE = Result<Expr, &'static str>;
 pub type ExprList = Vec<BExpr>;
 pub type ExprSlice<'a> = &'a [BExpr];
 

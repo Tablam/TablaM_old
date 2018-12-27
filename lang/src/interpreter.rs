@@ -88,8 +88,8 @@ impl Program {
     }
 
     fn eval_while(&mut self, env:&mut Env, test: &BoolExpr, code:ExprSlice) -> Expr {
-        while self._decode_bool(env,test) {
-            for line in code {
+        for line in code {
+            if self._decode_bool(env,test) {
                 if line.is_loop_control() {
                     if line.is_break() {
                         break
@@ -97,9 +97,8 @@ impl Program {
                         continue
                     }
                 }
-
-                self.eval_expr(env, line);
             }
+            self.eval_expr(env, line);
         }
 
         Expr::Pass

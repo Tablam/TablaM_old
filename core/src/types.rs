@@ -39,7 +39,7 @@ impl Join {
 pub enum DataType {
     None, Bool,
     //Numeric
-    ISIZE, I32, I64, // Planed: F64, Decimal,
+    I32, ISIZE, I64, // Planed: F64, Decimal,
     //Dates
     //Time, Date, DateTime,
     //Text
