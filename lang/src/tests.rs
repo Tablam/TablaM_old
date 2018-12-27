@@ -1,9 +1,12 @@
+use std::rc::Rc;
+
 use tablam_core::types::DataType as DT;
 use super::ast::*;
 
 fn _eval_expr(input:&Expr, output:&Expr) {
-    let program = Program::new();
-    let result = &program.eval_expr(input);
+    let mut program = Program::new();
+    let mut env =Env::empty();
+    let result = &program.eval_expr(&mut env, input);
 
     assert_eq!(result, output);
 }

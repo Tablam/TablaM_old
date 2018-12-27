@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::cell::RefCell;
 use std::collections::HashMap;
 //use std::fmt;
 
@@ -23,49 +22,55 @@ pub type ParamsCall = HashMap<String, RExpr>;
 #[derive(Debug, Clone)]
 pub struct Env {
     pub vars: HashMap<String, (LetKind, Value)>,
-    pub up: Option<Rc<Env>>,
+    pub fun: HashMap<String, FunDef>,
+    pub up: Option<Box<Env>>,
 }
 
 impl Env {
+    fn create(parent:Option<Box<Env>>) -> Self {
+        Env { vars: HashMap::new(), fun: HashMap::new(), up:parent}
+    }
     pub fn empty() -> Self {
-        Env { vars: HashMap::new(), up: None }
+        Self::create(None)
+    }
+    pub fn child(of:Env) -> Self {
+        Self::create(Some(of.into()))
     }
 
-    pub fn add(&mut self, kind:LetKind, k: String, v: Value) {
+    pub fn add_var(&mut self, kind:LetKind, k: String, v: Value) {
         self.vars.insert(k, (kind,v));
     }
-
-    pub fn find(&self, k: &String) -> Option<&(LetKind, Value)> {
-        // TODO: make this use recursive envs
-        self.vars.get(k)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Functions {
-    pub vars: HashMap<String, FunDef>,
-    pub up: Option<Box<Functions>>,
-}
-
-impl Functions {
-    pub fn empty() -> Self {
-        Functions { vars: HashMap::new(), up: None }
+    pub fn add_fun(&mut self, def: FunDef) {
+        self.fun.insert(def.name.clone(), def);
     }
 
-    pub fn add(&mut self, def: FunDef) {
-        self.vars.insert(def.name.clone(), def);
+    pub fn find_var(&self, k: &String) -> Option<&(LetKind, Value)> {
+        match self.vars.get(k) {
+            Some(var) => Some(var),
+            None => {
+                match &self.up {
+                    Some(env) => env.find_var(k),
+                    None => None
+                }
+            }
+        }
     }
 
-    pub fn find(&self, k: &String) -> Option<&FunDef> {
-        // TODO: make this use recursive envs
-        self.vars.get(k)
+    pub fn find_fun(&self, k: &String) -> Option<&FunDef> {
+        match self.fun.get(k) {
+            Some(var) => Some(var),
+            None => {
+                match &self.up {
+                    Some(env) => env.find_fun(k),
+                    None => None
+                }
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub env: Box<RefCell<Env>>,
-    pub fun: Box<RefCell<Functions>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
