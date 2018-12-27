@@ -19,7 +19,7 @@ pub fn field(name:&str, kind:DataType) -> Field {
 pub fn schema(names:&[(&str, DataType)]) -> Schema {
     let fields = names
         .into_iter()
-        .map(|(name, kind)| Field::new(name, kind.clone())).collect();
+        .map(|(name, kind)| Field::new(name, *kind)).collect();
 
     Schema::new(fields)
 }
@@ -34,7 +34,7 @@ pub fn schema_it(kind:DataType) -> Schema {
 pub fn schema_build(names:&[(&str, DataType)]) -> Schema {
     let fields = names
         .into_iter()
-        .map(|(name, kind)| Field::new(name, kind.clone())).collect();
+        .map(|(name, kind)| Field::new(name, *kind)).collect();
 
     Schema::new(fields)
 }
@@ -176,7 +176,7 @@ pub fn value_t<T>(of:T) -> Data
     row_infer(&[of])
 }
 
-pub fn table_cols_infer(of: NDArray) -> Data {
+pub fn table_cols_infer(of: &NDArray) -> Data {
     let mut types = Vec::with_capacity(of.cols());
     for c in of.col_iter() {
         types.push(infer_type(&c.into_array()));
@@ -186,12 +186,12 @@ pub fn table_cols_infer(of: NDArray) -> Data {
     Data::new(names, of.pivot())
 }
 
-pub fn table_cols(schema:Schema, of: NDArray) -> Data {
+pub fn table_cols(schema:Schema, of: &NDArray) -> Data {
     Data::new(schema, of.pivot())
 }
 
-pub fn table_btree(schema:Schema, of: NDArray) -> BTree {
-    BTree::new_from(schema, &table_cols_infer(of))
+pub fn table_btree(schema:Schema, of: &NDArray) -> BTree {
+    BTree::new_from(schema, &table_cols_infer(&of))
 }
 
 pub fn table_rows(schema:Schema, of: NDArray) -> Data {
@@ -244,7 +244,7 @@ pub fn _compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize
         if check(&cmp, h) {
             results.set(next, true);
         } else {
-            not_found = not_found + 1;
+            not_found += 1;
         }
     }
 
@@ -303,7 +303,7 @@ pub fn cross<T:Relation, U:Relation>(from:&T, to:&U) -> T
             pos += 1;
         }
     }
-    let schema = names.extend(to.schema().only(others));
+    let schema = names.extend(&to.schema().only(others));
 
     T::from_vector(schema, rows, cols, data)
 }
@@ -377,7 +377,7 @@ pub fn _join_late<T:Relation, U:Relation>(from:&T, to:&U, cols_from:&[usize], nu
         first = false;
     }
 
-    if null_to && right_not_founds.len() > 0 {
+    if null_to && !right_not_founds.is_empty() {
         cols_left.grow(right_not_founds.len(), false);
         cols_right.grow(right_not_founds.len(), false);
 
@@ -409,7 +409,7 @@ pub fn join<T:Relation, U:Relation>(from:&T, to:&U, join:Join, cols_from:&[usize
     let result = data.hcat(&data2);
 
     println!("RESULT: {:?}", result);
-    let schema = names.extend(to.schema().only(others));
+    let schema = names.extend(&to.schema().only(others));
     T::from_vector(schema, result.rows(), cols, result.into_vec())
 }
 

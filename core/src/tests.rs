@@ -66,26 +66,26 @@ fn schema2() ->  Schema {
 fn table_1() -> Data {
     let schema = schema1();
     let (rows, data) = columns3_1();
-    table_cols(schema, nd_array(&data, rows, 3))
+    table_cols(schema, &nd_array(&data, rows, 3))
 }
 
 fn btree_1() -> BTree {
     let schema = schema1().deselect(&[2]);
     let (rows, data) = columns3_1();
-    table_btree(schema, nd_array(&data, rows, 3))
+    table_btree(schema, &nd_array(&data, rows, 3))
 }
 
 fn btree_2() -> BTree {
     let schema = schema1().deselect(&[2]);
     let (rows, data) = columns3_3();
-    table_btree(schema, nd_array(&data, rows, 3))
+    table_btree(schema, &nd_array(&data, rows, 3))
 }
 
 fn table_2() -> Data {
     let schema = schema2();
     let (rows, data) = columns3_2();
 
-    table_cols(schema, nd_array(&data, rows, 3))
+    table_cols(schema, &nd_array(&data, rows, 3))
 }
 
 fn table_3() -> Data {
@@ -93,7 +93,7 @@ fn table_3() -> Data {
     let data:Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
     let col = nd_array(&data, 3, 1);
 
-    table_cols(schema, col)
+    table_cols(schema, &col)
 }
 
 fn table_4() -> Data {
@@ -101,7 +101,7 @@ fn table_4() -> Data {
     let data:Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
     let col = nd_array(&data, 3, 1);
 
-    table_cols(schema, col)
+    table_cols(schema, &col)
 }
 
 fn open_test_file(path:&str) -> String {

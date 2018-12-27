@@ -24,10 +24,10 @@ impl From<Value> for Scalar {
     }
 }
 
-fn select(of:&SqliteDb, sql:&str, _params:Option<DbRow>) -> RowResult {
+fn select(of:&SqliteDb, sql:&str, _params:&Option<DbRow>) -> RowResult {
     let mut stmt = of.conn.prepare(sql)?;
 
-    let names = stmt.column_names().into_iter().map(|s| String::from(s)).collect::<Vec<_>>();
+    let names = stmt.column_names().into_iter().map(String::from).collect::<Vec<_>>();
     let mut rows = stmt.query(&[]).unwrap();
 
     let mut values = Vec::new();
@@ -47,7 +47,7 @@ fn select(of:&SqliteDb, sql:&str, _params:Option<DbRow>) -> RowResult {
 
 impl Rdbms for SqliteDb {
     fn select(&self, sql:&str, params:Option<DbRow>) -> RowResult {
-        select(&self, sql, params)
+        select(&self, sql, &params)
     }
 }
 

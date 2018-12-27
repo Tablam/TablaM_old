@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use super::ast::*;
 use tablam_core::types as TT;
 use tablam_core::types::CompareOp as CP;
@@ -21,8 +19,8 @@ impl Program {
         env.add_fun(expr);
     }
 
-    fn eval_block(&mut self, env:&mut Env, expr: &ExprList) -> Expr {
-        let mut last = Expr::Pass.into();
+    fn eval_block(&mut self, env:&mut Env, expr: ExprSlice) -> Expr {
+        let mut last = Expr::Pass;
 
         for line in expr {
             last = self.eval_expr(env, line);
@@ -33,7 +31,7 @@ impl Program {
     fn _decode_bool(&mut self, env:&mut Env, expr: &BoolExpr) -> bool {
         match expr {
             BoolExpr::Const(code)=> *code,
-            BoolExpr::Cmp(code) => self.eval_cmp(env, code).into(),
+            BoolExpr::Cmp(code) => self.eval_cmp(env, code),
         }
     }
 
@@ -89,7 +87,7 @@ impl Program {
         result.into()
     }
 
-    fn eval_while(&mut self, env:&mut Env, test: &BoolExpr, code:&ExprList) -> Expr {
+    fn eval_while(&mut self, env:&mut Env, test: &BoolExpr, code:ExprSlice) -> Expr {
         while self._decode_bool(env,test) {
             for line in code {
                 if line.is_loop_control() {
@@ -107,9 +105,9 @@ impl Program {
         Expr::Pass
     }
 
-    fn eval_for_range(&mut self, env:&mut Env, name:&String, range:&TT::Range, code:&ExprList) -> Expr {
+    fn eval_for_range(&mut self, env:&mut Env, name:&str, range:&TT::Range, code:ExprSlice) -> Expr {
         for i in (range.start..range.end).step_by(range.step) {
-            self.set_var(env, LetKind::Imm, &name, i.into());
+            self.set_var(env, LetKind::Imm, name, i.into());
             for line in code {
                 if line.is_loop_control() {
                     if line.is_break() {
@@ -125,11 +123,11 @@ impl Program {
         Expr::Pass
     }
 
-    pub fn set_var(&self, env:&mut Env, kind:LetKind, name:&String, value:Value) {
-        env.add_var(kind, name.clone(), value);
+    pub fn set_var(&self, env:&mut Env, kind:LetKind, name:&str, value:Value) {
+        env.add_var(kind, name, value);
     }
 
-    pub fn get_var(&self, env:&mut Env, name:&String) -> (LetKind, Value) {
+    pub fn get_var(&self, env:&mut Env, name:&str) -> (LetKind, Value) {
         match env.find_var(name) {
             Some(x) => x.clone(),
             None => unimplemented!(),
@@ -209,7 +207,7 @@ impl Program {
         }
     }
 
-    pub fn eval(&mut self, env:&mut Env, expr: ExprList) -> Expr {
-        self.eval_block(env, &expr)
+    pub fn eval(&mut self, env:&mut Env, expr: ExprSlice) -> Expr {
+        self.eval_block(env, expr)
     }
 }

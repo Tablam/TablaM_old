@@ -69,13 +69,13 @@ pub fn math_div(x:&Scalar, y:&Scalar) -> Scalar {
     }
 }
 
-pub fn zip_scalar(x:Data, y:Data, op:&BinExpr) -> Data {
+pub fn zip_scalar(x:&Data, y:&Data, op:&BinExpr) -> Data {
     let a = x.data.col(0);
     let b = y.data.col(0);
 
     let result:Col = a.into_iter().zip(b.into_iter())
         .map(|(lhs, rhs)| op(lhs, rhs)).collect();
 
-    let kind = x.schema.columns[0].kind.clone();
+    let kind = x.schema.columns[0].kind;
     array_t(kind, &result)
 }

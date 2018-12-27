@@ -12,8 +12,6 @@ pub struct SourceMap {
     pub module: u32,
 }
 
-type Return = Result<TT::Scalar, String>;
-type ReturnUnit = Result<(), String>;
 pub type RExpr = Rc<Expr>;
 pub type BExpr = Box<Expr>;
 pub type RScalar = Rc<TT::Scalar>;
@@ -37,14 +35,14 @@ impl Env {
         Self::create(Some(of.into()))
     }
 
-    pub fn add_var(&mut self, kind:LetKind, k: String, v: Value) {
-        self.vars.insert(k, (kind,v));
+    pub fn add_var(&mut self, kind:LetKind, k: &str, v: Value) {
+        self.vars.insert(k.into(), (kind,v));
     }
     pub fn add_fun(&mut self, def: FunDef) {
         self.fun.insert(def.name.clone(), def);
     }
 
-    pub fn find_var(&self, k: &String) -> Option<&(LetKind, Value)> {
+    pub fn find_var(&self, k: &str) -> Option<&(LetKind, Value)> {
         match self.vars.get(k) {
             Some(var) => Some(var),
             None => {
@@ -56,7 +54,7 @@ impl Env {
         }
     }
 
-    pub fn find_fun(&self, k: &String) -> Option<&FunDef> {
+    pub fn find_fun(&self, k: &str) -> Option<&FunDef> {
         match self.fun.get(k) {
             Some(var) => Some(var),
             None => {
@@ -113,6 +111,7 @@ pub struct BinOp {
 }
 
 pub type ExprList = Vec<BExpr>;
+pub type ExprSlice<'a> = &'a [BExpr];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {

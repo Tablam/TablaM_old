@@ -26,7 +26,7 @@ impl Relation for BTree {
     fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self {
         let mut data:Tree =  BTreeMap::new();
 
-        if vector.len() > 0 {
+        if !vector.is_empty() {
             for row in 0..rows {
                 let mut new_row = Vec::with_capacity(rows);
 
@@ -92,7 +92,7 @@ impl Relation for BTree {
     }
 
     fn rows_iter(&self) -> RelIter<'_, Self> {
-        self.into_iter()
+        self.to_iter()
     }
 
     fn col_iter(&self, col: usize) -> ColIter<'_, Self> {
@@ -105,9 +105,9 @@ impl Relation for BTree {
 
     fn col(&self, col: usize) -> Col {
         if col == 0 {
-            self.data.keys().map(|x| x.clone()).collect()
+            self.data.keys().cloned().collect()
         } else {
-            self.data.values().map(|x| x.clone()).collect()
+            self.data.values().cloned().collect()
         }
     }
 
@@ -126,12 +126,10 @@ impl Relation for BTree {
     {
         let mut data =  BTreeMap::new();
         if col == 0 {
-            match self.data.get(value) {
-                Some(v) =>
-                    if apply(value, value) {
-                        data.insert(value.clone(), v.clone());
-                    }
-                None =>()
+            if let Some(v) = self.data.get(value) {
+                if apply(value, value) {
+                    data.insert(value.clone(), v.clone());
+                }
             }
         } else {
             for old in self.data.values() {
@@ -171,7 +169,7 @@ impl BTree {
         }
     }
 
-    pub fn into_iter(&self) -> RelIter<'_, Self> {
+    pub fn to_iter(&self) -> RelIter<'_, Self> {
         RelIter {
             pos: 0,
             rel: self,

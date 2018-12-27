@@ -17,12 +17,12 @@ extern crate bit_vec;
 use self::bit_vec::BitVec;
 
 //use decorum::N64;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Join { Left, Right, Inner, Full //, Natural, Cross
 }
 
 impl Join {
-    pub fn produce_null(&self, is_left:bool) -> bool
+    pub fn produce_null(self, is_left:bool) -> bool
     {
         match self {
             Join::Left  => !is_left,
@@ -136,7 +136,7 @@ pub struct Field {
     pub kind: DataType,
 }
 
-#[derive(Debug, Clone, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialOrd)]
 pub struct Schema {
     pub columns: Vec<Field>,
 }
@@ -366,15 +366,13 @@ pub trait Relation:Sized + fmt::Display {
 
         println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
 
-        let mut new_row = 0;
-        for (row, found) in positions {
+        for (new_row, (row, found)) in positions.into_iter().enumerate() {
             for col in 0..cols {
                 let _pos = index( cols, total_rows, new_row, col);
                 if found {
                     data[_pos] = self.value(row, col).clone();
                 }
             }
-            new_row += 1;
         }
 
         data
@@ -395,15 +393,13 @@ pub trait Relation:Sized + fmt::Display {
 
         println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
 
-        let mut new_row = 0;
-        for (row, found) in positions {
+        for (new_row, (row, found)) in positions.into_iter().enumerate() {
             for col in 0..cols {
                 if found {
                     let _pos = index(cols, total_rows, new_row, col);
                     data[_pos] = self.value(row, col).clone();
                 }
             }
-            new_row += 1;
         }
 
         NDArray::new(total_rows, cols, data)
@@ -439,7 +435,7 @@ impl<'a, T:Relation> Iterator for RelIter<'a, T>
         let next = self.rel.get_row(self.pos);
 
         if next.is_some() {
-            self.pos = self.pos + 1;
+            self.pos += 1;
             next
         } else {
             None

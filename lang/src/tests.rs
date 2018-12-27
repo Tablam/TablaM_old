@@ -1,6 +1,5 @@
-use std::rc::Rc;
-
 use tablam_core::types::DataType as DT;
+use tablam_core::types::CompareOp as CP;
 use super::ast::*;
 
 fn _eval_expr(input:&Expr, output:&Expr) {
@@ -44,8 +43,11 @@ fn eval_if()
     let two:Expr = 2.into();
 
     let if1 = eif(false, one.clone().into(), two.clone().into());
+    _eval_expr(&if1, &two.clone());
 
-    _eval_expr(&if1, &two.clone())
+    let if2 = eif_cmp(cmp(CP::Less, 1.into(), 2.into()), two.clone().into(), one.clone().into());
+    _eval_expr(&if2, &two.clone());
+
 }
 
 #[test]
@@ -84,10 +86,14 @@ fn eval_for()
     let ten:Expr = 10isize.into();
     let body = lines(vec![pass()]);
 
-    let loop1= efor("x", 0, 11, body);
-    let full = block_lines(vec![loop1, evar("x")]);
+    let loop1= efor("x", 0, 11, body.clone());
+    let loop2= efor_step("x", 0, 11, 2, body);
 
-    _eval_expr(&full, &ten)
+    let full = block_lines(vec![loop1, evar("x")]);
+    _eval_expr(&full, &ten);
+
+    let full = block_lines(vec![loop2, evar("x")]);
+    _eval_expr(&full, &ten);
 }
 
 

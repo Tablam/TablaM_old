@@ -239,7 +239,7 @@ impl<T: fmt::Debug> Runnable<T> for Exp<T> {
                 let v1 = e1.run(vec!(), &env)?;
                 let v2 = e2.run(vec!(), &env)?;
                 match op {
-                    BinOp::Plus => Ok(zip_scalar(v1, v2, &math_add)),
+                    BinOp::Plus => Ok(zip_scalar(&v1, &v2, &math_add)),
                     // BinOp::Minus => v1 - v2,
                     // BinOp::Times => v1 * v2,
                     // BinOp::Divide => v1 / v2,

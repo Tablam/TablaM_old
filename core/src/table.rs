@@ -90,7 +90,7 @@ impl Relation for Data {
                 if apply(old, value) {
                     let mut new_row = row.to_vec();
                     data.append(&mut new_row);
-                    rows = rows + 1;
+                    rows += 1;
                 }
             }
         }

@@ -2,6 +2,7 @@ use bit_vec;
 use self::bit_vec::BitVec;
 
 use std::ops::Index;
+use std::hash::{Hash, Hasher};
 
 use super::types::*;
 
@@ -48,7 +49,7 @@ impl Schema {
         let mut names = Vec::with_capacity(types.len());
 
         for (pos, kind) in types.iter().enumerate() {
-            names.push(Field::new_owned(pos.to_string(), kind.clone()));
+            names.push(Field::new_owned(pos.to_string(), *kind));
         }
 
         Self::new(names)
@@ -64,6 +65,7 @@ impl Schema {
     pub fn len(&self) -> usize {
         self.columns.len()
     }
+    pub fn is_empty(&self) -> bool {self.len() == 0}
 
     pub fn as_slice(&self) -> Vec<&str> {
         self.columns.iter().map(|x| x.name.as_ref()).collect()
@@ -156,7 +158,7 @@ impl Schema {
         find.next().is_some()
     }
 
-    pub fn extend(&self, right:Schema) -> Self {
+    pub fn extend(&self, right:&Schema) -> Self {
         let count = self.len() + right.len();
         let mut fields = Vec::with_capacity(count);
         let mut left = self.columns.clone();
@@ -169,7 +171,7 @@ impl Schema {
             if self.exist(&f.name) {
                 let name = format!("{}_{}", f.name, cont);
                 fields.push(Field::new(&name, f.kind));
-                cont = cont + 1;
+                cont += 1;
             } else {
                 fields.push(f);
             }
@@ -183,7 +185,7 @@ impl Schema {
 
         for (col, name) in change {
             let pos = self.resolve_pos(&col);
-            let old = names[pos].kind.clone();
+            let old = names[pos].kind;
             names[pos] = Field::new(name, old);
         }
 
@@ -211,5 +213,13 @@ impl PartialEq for Schema {
         } else {
             false
         }
+    }
+}
+
+impl Hash for Schema {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut a = self.columns.clone();
+        a.sort();
+        a.hash(state);
     }
 }
