@@ -130,7 +130,7 @@ fn compare_lines(a:String, b:String) {
 
 #[test]
 fn test_mem_size() {
-    println!("Max MemSize {}", std::mem::size_of::<Scalar>());
+    assert_eq!(std::mem::size_of::<Scalar>(), 32);
 }
 
 #[test]
