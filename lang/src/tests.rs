@@ -5,9 +5,11 @@ use super::ast::*;
 fn _eval_expr(input:&Expr, output:&Expr) {
     let mut program = Program::new();
     let mut env =Env::empty();
-    let result = &program.eval_expr(&mut env, input);
 
-    assert_eq!(result, output);
+    match &program.eval_expr(&mut env, input) {
+        Ok(result) => assert_eq!(result, output),
+        Err(msg) => panic!("{:?}", msg),
+    }
 }
 
 fn _eval_exprs(of:&[(Expr, Expr)]) {

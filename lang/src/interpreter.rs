@@ -19,63 +19,65 @@ impl Program {
         env.add_fun(expr);
     }
 
-    fn eval_block(&mut self, env:&mut Env, expr: ExprSlice) -> Expr {
+    fn eval_block(&mut self, env:&mut Env, expr: ExprSlice) -> Return {
         let mut last = Expr::Pass;
 
         for line in expr {
-            last = self.eval_expr(env, line);
+            last = self.eval_expr(env, line)?;
         }
-        last
+        Ok(last)
     }
 
-    fn _decode_bool(&mut self, env:&mut Env, expr: &BoolExpr) -> bool {
+    fn _decode_bool(&mut self, env:&mut Env, expr: &BoolExpr) -> ReturnBool {
         match expr {
-            BoolExpr::Const(code)=> *code,
+            BoolExpr::Const(code)=> Ok(*code),
             BoolExpr::Cmp(code) => self.eval_cmp(env, code),
         }
     }
 
-    fn decode_value(&mut self, env:&mut Env, expr: &Value) -> RScalar {
+    fn decode_value(&mut self, env:&mut Env, expr: &Value) -> ReturnScalar {
         match expr {
-            Value::Value(x)=> x.clone(),
+            Value::Value(x)=> Ok(x.clone()),
             Value::Var(x) => {
                 let (_, value) = self.get_var(env,x);
                 self.decode_value(env,&value)
             },
             Value::SideEffect(x) =>{
                 let code = x;
-                let x = &self.eval_expr(env,code);
+                let x = &self.eval_expr(env,code)?;
                 let value = get_value(x).unwrap();
                 self.decode_value( env,value)
             }
         }
     }
 
-    fn eval_if(&mut self, env:&mut Env, expr: &BoolExpr, if_ok:&Expr, if_false:&Expr) -> Expr {
-        if self._decode_bool(env, expr) {
+    fn eval_if(&mut self, env:&mut Env, expr: &BoolExpr, if_ok:&Expr, if_false:&Expr) -> Return {
+        if self._decode_bool(env, expr)? {
             self.eval_expr(env,if_ok)
         } else {
             self.eval_expr(env,if_false)
         }
     }
 
-    fn eval_cmp(&mut self, env:&mut Env, expr: &CmOp) -> bool {
-        let lhs = self.decode_value(env, &expr.lhs);
-        let rhs = self.decode_value(env, &expr.rhs);
+    fn eval_cmp(&mut self, env:&mut Env, expr: &CmOp) -> ReturnBool {
+        let lhs = self.decode_value(env, &expr.lhs)?;
+        let rhs = self.decode_value(env, &expr.rhs)?;
 
-        match expr.op {
-            CP::Eq          => lhs == rhs,
-            CP::NotEq       => lhs != rhs,
-            CP::Greater     => lhs >  rhs,
-            CP::GreaterEq   => lhs >= rhs,
-            CP::Less        => lhs <  rhs,
-            CP::LessEq      => lhs <= rhs,
-        }
+        let result =
+            match expr.op {
+                CP::Eq          => lhs == rhs,
+                CP::NotEq       => lhs != rhs,
+                CP::Greater     => lhs >  rhs,
+                CP::GreaterEq   => lhs >= rhs,
+                CP::Less        => lhs <  rhs,
+                CP::LessEq      => lhs <= rhs,
+            };
+        Ok(result)
     }
 
-    fn eval_bin_op(&mut self, env:&mut Env, expr: &BinOp) -> Expr {
-        let lhs = self.decode_value(env, &expr.lhs);
-        let rhs = self.decode_value(env, &expr.rhs);
+    fn eval_bin_op(&mut self, env:&mut Env, expr: &BinOp) -> Return {
+        let lhs = self.decode_value(env, &expr.lhs)?;
+        let rhs = self.decode_value(env, &expr.rhs)?;
 
         let result =
             match expr.op {
@@ -84,12 +86,12 @@ impl Program {
                 BP::Mul     => math_mul(&lhs , &rhs),
                 BP::Div     => math_div(&lhs , &rhs),
             };
-        result.into()
+        Ok(result.into())
     }
 
-    fn eval_while(&mut self, env:&mut Env, test: &BoolExpr, code:ExprSlice) -> Expr {
+    fn eval_while(&mut self, env:&mut Env, test: &BoolExpr, code:ExprSlice) -> Return {
         for line in code {
-            if self._decode_bool(env,test) {
+            if self._decode_bool(env,test)? {
                 if line.is_loop_control() {
                     if line.is_break() {
                         break
@@ -101,10 +103,10 @@ impl Program {
             self.eval_expr(env, line);
         }
 
-        Expr::Pass
+        Ok(Expr::Pass)
     }
 
-    fn eval_for_range(&mut self, env:&mut Env, name:&str, range:&TT::Range, code:ExprSlice) -> Expr {
+    fn eval_for_range(&mut self, env:&mut Env, name:&str, range:&TT::Range, code:ExprSlice) -> Return {
         for i in (range.start..range.end).step_by(range.step) {
             self.set_var(env, LetKind::Imm, name, i.into());
             for line in code {
@@ -119,7 +121,7 @@ impl Program {
                 self.eval_expr(env,line);
             }
         }
-        Expr::Pass
+        Ok(Expr::Pass)
     }
 
     pub fn set_var(&self, env:&mut Env, kind:LetKind, name:&str, value:Value) {
@@ -133,7 +135,7 @@ impl Program {
         }
     }
 
-    pub fn eval_call_simple(&mut self, env:&mut Env, _fun:&FunDef, params:&FunCall, expr:&Expr) -> Expr {
+    pub fn eval_call_simple(&mut self, env:&mut Env, _fun:&FunDef, params:&FunCall, expr:&Expr) -> Return {
         for (name, param) in &params.params {
             let value = get_value(param).unwrap();
             self.set_var(env, LetKind::Imm, name, value.clone());
@@ -141,7 +143,7 @@ impl Program {
         self.eval_expr(env, expr)
     }
 
-    pub fn eval_call(&mut self, parent:&mut Env, expr:&FunCall) -> Expr {
+    pub fn eval_call(&mut self, parent:&mut Env, expr:&FunCall) -> Return {
         let mut env = Env::child(parent.clone());
 
         let result =
@@ -159,26 +161,30 @@ impl Program {
         result
     }
 
-    pub fn eval_fun(&self, env:&mut Env, expr:&FunDef) -> Expr {
+    pub fn eval_fun(&self, env:&mut Env, expr:&FunDef) -> Return {
         match &expr.body {
             Some(_) => {
                 self.register_function(env, expr.clone());
             },
             None => unimplemented!()
         }
-        Expr::Pass
+        Ok(Expr::Pass)
     }
 
-    pub fn eval_expr(&mut self, env:&mut Env, expr: &Expr) -> Expr {
+    pub fn eval_fail(&mut self, expr:&Failed) -> Return {
+        Err(expr.clone())
+    }
+
+    pub fn eval_expr(&mut self, env:&mut Env, expr: &Expr) -> Return {
         match expr {
             Expr::Break =>
                 unreachable!(),
             Expr::Continue =>
                 unreachable!(),
             Expr::Pass =>
-                Expr::Pass,
+                Ok(Expr::Pass),
             Expr::Value(_) =>
-                expr.clone(),
+                Ok(expr.clone()),
             Expr::Block(code) =>
                 self.eval_block(env,code),
             Expr::While(test, code) =>
@@ -189,24 +195,28 @@ impl Program {
                 self.eval_if(env,code, if_ok, if_false),
             Expr::BinOp(code) =>
                 self.eval_bin_op(env,code),
-            Expr::CmpOp(code) =>
-                self.eval_cmp(env,code).into(),
+            Expr::CmpOp(code) => {
+                let result = self.eval_cmp(env,code)?;
+                Ok(result.into())
+            }
             Expr::Let(kind, name, value)  => {
                 self.set_var(env, kind.clone(), name, value.clone());
-                Expr::Pass
+                Ok(Expr::Pass)
             }
             Expr::Var(name) => {
                 let (_, value) = self.get_var(env, name);
-                Expr::Value(value)
+                Ok(Expr::Value(value))
             },
             Expr::Fun(code) =>
                 self.eval_fun(env, code),
             Expr::Call(code) =>
                 self.eval_call(env, code),
+            Expr::Fail(code) =>
+                self.eval_fail(code),
         }
     }
 
-    pub fn eval(&mut self, env:&mut Env, expr: ExprSlice) -> Expr {
+    pub fn eval(&mut self, env:&mut Env, expr: ExprSlice) -> Return {
         self.eval_block(env, expr)
     }
 }

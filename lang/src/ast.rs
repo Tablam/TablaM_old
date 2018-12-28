@@ -16,6 +16,12 @@ pub type RExpr = Rc<Expr>;
 pub type BExpr = Box<Expr>;
 pub type RScalar = Rc<TT::Scalar>;
 pub type ParamsCall = HashMap<String, RExpr>;
+pub type Return = Result<Expr, Failed>;
+pub type ReturnScalar = Result<RScalar, Failed>;
+pub type ReturnBool = Result<bool, Failed>;
+
+pub type ExprList = Vec<BExpr>;
+pub type ExprSlice<'a> = &'a [BExpr];
 
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -110,14 +116,15 @@ pub struct BinOp {
     pub rhs: Value
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Fail {
-    pub msg: &'static str,
+    pub msg: String,
 }
 
-pub type ResultE = Result<Expr, &'static str>;
-pub type ExprList = Vec<BExpr>;
-pub type ExprSlice<'a> = &'a [BExpr];
+#[derive(Debug, PartialEq, Clone)]
+pub enum Failed {
+    Runtime(Fail),
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -152,6 +159,8 @@ pub enum Expr {
     //Functions
     Fun(FunDef),
     Call(FunCall),
+    //Exceptions,
+    Fail(Failed),
 }
 
 impl Expr {
