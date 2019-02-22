@@ -1,7 +1,11 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use std::fmt;
 
 use super::ndarray::*;
 use super::types::*;
+use super::relational::*;
 
 impl Relation for Data {
     fn type_name<'a>() -> &'a str { "Rel" }

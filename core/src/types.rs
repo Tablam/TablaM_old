@@ -5,6 +5,8 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -45,7 +47,7 @@ pub enum DataType {
     //Text
     UTF8,
     //Complex
-    Tuple, // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
+    Rows  // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
 }
 
 //Type Alias...
@@ -65,13 +67,13 @@ pub enum BinOp {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum CompareOp {
-    Eq, NotEq, Less, LessEq, Greater, GreaterEq
+pub enum LogicOp {
+    And, Or, Not
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum RelOp {
-    Union, Diff
+pub enum CompareOp {
+    Eq, NotEq, Less, LessEq, Greater, GreaterEq
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -94,7 +96,7 @@ pub enum Scalar {
     UTF8(String),
     //F64(N64),
     //Dec(Decimal),
-    //Rows(Box<Data>),
+    Rows(Box<Data>),
 }
 
 impl Default for Scalar {
@@ -114,8 +116,87 @@ impl Scalar {
             Scalar::I32(_)  => DataType::I32,
             Scalar::I64(_)  => DataType::I64,
             Scalar::UTF8(_) => DataType::UTF8,
+            Scalar::Rows(_) => DataType::Rows,
         }
     }
+}
+
+pub trait Buffered {
+    fn buffer(&mut self) -> &mut [Scalar];
+
+    fn fill(&mut self, data:&[&Scalar]) {
+        let buffer = self.buffer();
+        for i in 0..data.len() {
+            buffer[i] = data[i].clone();
+        }
+    }
+
+    fn read_from_buffer(&mut self, pos:usize) -> Option<&Scalar>;
+}
+
+pub trait RelOp {
+    fn exec(&mut self) -> Option<Col>;
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CmOp {
+    pub op:  CompareOp,
+    pub lhs: usize,
+    pub rhs: Rc<Scalar>
+}
+
+impl CmOp  {
+    fn new(op:CompareOp, lhs: usize, rhs: Rc<Scalar>) -> Self {
+        CmOp {op, lhs, rhs}
+    }
+
+    pub fn eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Eq, lhs, rhs)
+    }
+
+    pub fn not(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::NotEq, lhs, rhs)
+    }
+
+    pub fn get_fn(&self) -> &BoolExpr {
+        match self.op {
+            CompareOp::Eq => &PartialEq::eq,
+            _ => unimplemented!()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Query {
+    All,
+//    Distinct,
+    Where(CmOp),
+//    Limit(usize),
+    Sort(bool, Pos),
+    Select(Pos),
+//    Group(Pos),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Generator<'a> {
+    pub name: &'a str,
+    pub cursor: Cursor,
+    pub cache: NDArray,
+    pub data:Box<&'a RelOp>
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RScalar<'a> {
+    Rows(NDArray),
+    BTree(BTree),
+    Range(Range),
+    Iter(Generator<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Rel<'a> {
+    pub schema:Schema,
+    pub data:RScalar<'a>
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -136,13 +217,13 @@ pub struct Field {
     pub kind: DataType,
 }
 
-#[derive(Debug, Clone, PartialOrd)]
+#[derive(Debug, Clone, PartialOrd, Ord)]
 pub struct Schema {
     pub columns: Vec<Field>,
 }
 
 /// The `NDArray` struct, for storing relational/table data (2d)
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct NDArray {
     pub rows: usize,
     pub cols: usize,
@@ -154,16 +235,12 @@ pub struct Index {
     data: BTreeMap<Scalar, usize>
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Range {
-    pub start:isize,
-    pub end:  isize,
+    pub start:usize,
+    pub end:  usize,
     pub step: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Row<T:Relation>  {
-    pub source: T,
+    pub buffer: Col,
 }
 
 //#[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -171,24 +248,16 @@ pub struct Row<T:Relation>  {
 //    index: HashMap<Scalar, Col>,
 //}
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct BTree {
     pub schema: Schema,
     pub data:  BTreeMap<Scalar, Scalar>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Data {
     pub schema: Schema,
     pub data: NDArray,
-}
-
-#[derive(Debug, Clone)]
-pub struct DataSource<T> {
-    pub schema: Schema,
-    pos  :usize,
-    batch:usize,
-    pub source: T,
 }
 
 #[derive(Debug)]
@@ -198,17 +267,17 @@ pub struct ColIter<'a, R> {
     pub rel: &'a R
 }
 
-/// Scalar iterator.
 #[derive(Debug)]
 pub struct RelIter<'a, R> {
     pub pos: usize,
     pub rel: &'a R
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cursor
 {
-    start: usize,
-    last: usize,
+    pub start: usize,
+    pub last: usize,
 }
 
 impl Cursor
@@ -236,7 +305,7 @@ impl Cursor
 
 
 #[inline]
-fn size_rel(of:&[Col]) -> (usize, usize) {
+pub fn size_rel(of:&[Col]) -> (usize, usize) {
     let rows = of.len();
     if rows > 0 {
         (of[0].len(), rows)
@@ -291,7 +360,6 @@ pub trait Relation:Sized + fmt::Display {
     fn value(&self, row:usize, col:usize) -> &Scalar;
     fn get_value(&self, row:usize, col:usize) -> Option<&Scalar>;
 
-    //fn pk(&self) -> Option<usize>;
     fn get_row(&self, pos:usize) -> Option<Col>;
     fn rows_iter(&self) -> RelIter<'_, Self>;
     fn col_iter(&self, col: usize) -> ColIter<'_, Self>;
@@ -511,7 +579,7 @@ impl fmt::Display for Scalar {
             Scalar::I32(x) => write!(f, "{}", x),
             Scalar::I64(x) => write!(f, "{}", x),
             Scalar::UTF8(x) => write!(f, "{}", x),
-//            Scalar::Tuple(x) => write!(f, "{:?}", x),
+            Scalar::Rows(x) => write!(f, "{:?}", x),
         }
     }
 }

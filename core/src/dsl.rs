@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 use super::ndarray::*;
 use super::types::*;
+//use super::relational::*;
 
 pub fn decode<T:From<Scalar>>(values:&[Scalar]) -> Vec<T> {
     values.iter().map(move |x| From::from(x.clone())).collect()
@@ -426,3 +427,12 @@ pub fn append<T:Relation, U:Relation>(to:&T, from:&U) -> T {
 
     T::from_vector(to.schema().clone(),  total_rows, to.col_count(), left)
 }
+
+//
+//pub fn scan_op<T:Relation>(op:T) -> Scan<T> {
+//    Scan::new(op)
+//}
+//
+//pub fn where_op<T:RelOp>(op:T, cmp:CmOp) -> Where<T> {
+//    Where::new(op,  cmp)
+//}

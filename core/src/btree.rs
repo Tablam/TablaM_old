@@ -1,7 +1,12 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use std::fmt;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Range as BRange;
 
 use super::types::*;
+use super::relational::*;
 
 impl Relation for BTree {
     fn type_name<'a>() -> &'a str { "Btree" }
@@ -154,6 +159,7 @@ impl Relation for BTree {
     }
 }
 
+//TODO: https://newspaint.wordpress.com/2016/07/05/implementing-custom-sort-for-btree-in-rust/
 impl BTree {
     pub fn empty(schema:Schema) -> Self {
         let data = BTreeMap::new();
@@ -173,6 +179,25 @@ impl BTree {
         RelIter {
             pos: 0,
             rel: self,
+        }
+    }
+
+    pub fn query_range<'a>(op:&'a BTree, query:Option<CmOp>) -> BRange<'a, Scalar, Scalar> {
+        match query {
+            None => op.data.range(..),
+            Some(cmp) => {
+                let value = cmp.rhs.as_ref();
+
+                match cmp.op {
+                    CompareOp::Eq => {
+                        op.data.range(value..value)
+                    },
+                    CompareOp::Greater => {
+                        op.data.range(value..)
+                    }
+                    _ => unimplemented!()
+                }
+            }
         }
     }
 }

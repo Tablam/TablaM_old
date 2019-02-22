@@ -20,6 +20,7 @@ impl Field {
             kind,
         }
     }
+
     pub fn name(&self) -> &String {
         &self.name
     }
@@ -215,6 +216,8 @@ impl PartialEq for Schema {
         }
     }
 }
+
+impl Eq for Schema {}
 
 impl Hash for Schema {
     fn hash<H: Hasher>(&self, state: &mut H) {
