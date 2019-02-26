@@ -12,6 +12,3 @@ pub mod operations;
 //pub mod stdlib;
 pub mod dsl;
 pub mod ast;
-
-#[cfg(test)]
-mod tests;
