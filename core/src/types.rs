@@ -86,6 +86,8 @@ pub enum IndexOp {
     Pos, Name,
 }
 
+pub enum KeyValue { Key, Value }
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scalar {
     None, //null
@@ -166,15 +168,26 @@ impl CmOp  {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
+pub enum SetQuery
+{
+    Union,
+    Diff,
+    Intersection,
+    Join(Join, Pos)
+}
+
+#[derive(Debug, Clone)]
 pub enum Query {
-    All,
-//    Distinct,
+//  To ask for all the rows, send a empty query
+    Distinct,
     Where(CmOp),
-//    Limit(usize),
-    Sort(bool, Pos),
+    Limit(usize, usize),// skip * limit
+    Sort(bool, usize),  // true=ascending * col pos
     Select(Pos),
-//    Group(Pos),
+    Project(Col, String),
+//    Project(Box<UnaryExpr>),
+    Group(Pos),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -228,11 +241,6 @@ pub struct NDArray {
     pub rows: usize,
     pub cols: usize,
     pub data: Col,
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Index {
-    data: BTreeMap<Scalar, usize>
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -329,6 +337,108 @@ pub fn write_row(to:&mut Col, col_count:usize, row_count:usize, row:usize, data:
     }
 }
 
+#[inline]
+pub fn cmp(of:&CompareOp, lhs:&Scalar, rhs:&Scalar) -> bool {
+    match of {
+        CompareOp::Eq       => lhs == rhs,
+        CompareOp::NotEq    => lhs != rhs,
+        CompareOp::Less     => lhs < rhs,
+        CompareOp::LessEq   => lhs <= rhs,
+        CompareOp::Greater  => lhs > rhs,
+        CompareOp::GreaterEq=> lhs >= rhs,
+    }
+}
+
+#[inline]
+pub fn assert_schema(from:&Schema, to:&Schema) {
+    assert_eq!(from, to, "The schemas must be equal");
+}
+
+fn _bitvector_count(of:&BitVec) -> (usize, usize) {
+    let trues = of.iter().filter(|x| *x).count();
+
+    (trues, of.len() - trues)
+}
+
+pub fn _bitvector_to_pos(of:&BitVec) -> Vec<isize> {
+    let mut pos =  vec![-1isize; of.len()];
+
+    for (i, found) in of.iter().enumerate() {
+        if found {
+            pos[i] = i as isize;
+        }
+    }
+    pos
+}
+
+fn hash_rows<T:Relation>(of:&T) -> HashMap<u64, usize> {
+    let mut rows = HashMap::with_capacity(of.row_count());
+
+    for (i, row) in of.rows_iter().enumerate() {
+        rows.insert(hash_column(&row), i);
+    }
+
+    rows
+}
+
+pub fn compare_hash<T, U>(left:&T, right:&U, mark_found:bool) -> (BitVec, usize)
+    where
+        T: Relation,
+        U: Relation
+{
+    fn _check_not_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
+        !cmp.contains_key(&row)
+    }
+
+    fn _check_found(cmp:&HashMap<u64, usize>, row:u64) -> bool {
+        cmp.contains_key(&row)
+    }
+
+    let cmp = hash_rows(left);
+    let mut results = BitVec::from_elem(right.row_count(), false);
+    let mut not_found = 0;
+    let check =
+        if mark_found {
+            _check_found
+        }  else {
+            _check_not_found
+        };
+
+    for (next, row) in right.rows_iter().enumerate() {
+        let h = hash_column(&row);
+
+        if check(&cmp, h) {
+            results.set(next, true);
+        } else {
+            not_found += 1;
+        }
+    }
+
+    (results, not_found)
+}
+
+fn query_iter(input: Box<dyn Iterator<Item=Col>>, query:&'static [Query]) -> Box<dyn Iterator<Item=Col>> {
+    let mut result = input;
+    for q in query {
+        result =
+            match q {
+                Query::Where(value) => {
+                    let lhs = value.rhs.as_ref();
+                    let f =result.filter(move |x| cmp(&value.op, lhs, &x[value.lhs] ));
+                    Box::new(f)
+                },
+                Query::Sort(asc, pos) => {
+                    let mut r: Vec<_> = result.collect();
+                    r.sort();
+                    Box::new(r.into_iter())
+                },
+                _ => unimplemented!()
+            };
+    }
+
+    result
+}
+
 pub trait Relation:Sized + fmt::Display {
     fn type_name<'a>() -> &'a str;
     fn new_from<R: Relation>(names: Schema, of: &R) -> Self;
@@ -365,130 +475,120 @@ pub trait Relation:Sized + fmt::Display {
     fn col_iter(&self, col: usize) -> ColIter<'_, Self>;
     fn col(&self, col: usize) -> Col;
     fn rows_pos(&self, pick: Pos) -> Self;
-
-    fn hash_rows(&self) -> HashMap<u64, usize> {
-        let mut rows = HashMap::with_capacity(self.row_count());
-
-        for (i, row) in self.rows_iter().enumerate() {
-            rows.insert(hash_column(&row), i);
-        }
-
-        rows
-    }
-
-    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
-    {
-        let old = self.value(row, col);
-        //println!("CMP {:?}, {:?}", value, old);
-        apply(old, value)
-    }
-
-    fn cmp_cols(&self, row: usize, cols: &[usize], tuple: &[Scalar], apply: &BoolExpr) -> bool
-    {
-        let values = cols.iter().zip(tuple.iter());
-
-        for (col, value) in values {
-            let old = self.value(row, *col);
-            if !apply(old, value) {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
-    {
-        //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
-        while !cursor.eof() {
-            let row = cursor.start;
-            cursor.next();
-            if self.cmp(row, col, value, apply) {
-                return Some(row)
-            }
-        }
-
-        Option::None
-    }
-
-    fn row_only(&self, row: usize, cols: &[usize]) -> Col {
-        let mut data = Vec::with_capacity(cols.len());
-
-        for i in cols {
-            data.push(self.value(row, *i).clone())
-        }
-        data
-    }
-
-    fn materialize_raw(&self, pos:&BitVec, null_count:usize, keep_null:bool) -> Col {
-        let rows = pos.len();
-        let cols = self.col_count();
-        let total_rows = if keep_null {rows} else {rows - null_count};
-
-        let mut data = vec![Scalar::None; cols * total_rows];
-        println!("Raw r:{:?}", pos);
-
-        let positions:Vec<(usize, bool)> =  pos.iter()
-            .enumerate()
-            .filter(|(_, x)| *x || keep_null).collect();
-        println!("Raw r:{:?}", positions);
-
-        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
-
-        for (new_row, (row, found)) in positions.into_iter().enumerate() {
-            for col in 0..cols {
-                let _pos = index( cols, total_rows, new_row, col);
-                if found {
-                    data[_pos] = self.value(row, col).clone();
-                }
-            }
-        }
-
-        data
-    }
-
-    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> NDArray {
-        let rows = pos.len();
-        let cols = self.col_count();
-        let positions:Vec<(usize, bool)> =  pos.iter()
-            .enumerate()
-            .filter(|(_, x)| *x || keep_null).collect();
-        println!("Raw rpos:{:?}", positions);
-
-        let total_rows = if keep_null {rows} else { positions.len()};
-
-        let mut data = vec![Scalar::None; cols * total_rows];
-        println!("Raw r:{:?}", pos);
-
-        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
-
-        for (new_row, (row, found)) in positions.into_iter().enumerate() {
-            for col in 0..cols {
-                if found {
-                    let _pos = index(cols, total_rows, new_row, col);
-                    data[_pos] = self.value(row, col).clone();
-                }
-            }
-        }
-
-        NDArray::new(total_rows, cols, data)
-    }
-
-    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>
-    {
-        let mut pos = Vec::new();
-
-        let mut cursor = Cursor::new(start, self.row_count());
-
-        while let Some(next) = self.find(&mut cursor, col, value, apply) {
-            pos.push(next);
-        }
-
-        pos
-    }
-    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self;
-
-
-    fn union<T:Relation>(&self, to:&T) -> Self;
+    fn query(self, query:&[Query]) -> Self;
+//    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
+//    {
+//        let old = self.value(row, col);
+//        //println!("CMP {:?}, {:?}", value, old);
+//        apply(old, value)
+//    }
+//
+//    fn cmp_cols(&self, row: usize, cols: &[usize], tuple: &[Scalar], apply: &BoolExpr) -> bool
+//    {
+//        let values = cols.iter().zip(tuple.iter());
+//
+//        for (col, value) in values {
+//            let old = self.value(row, *col);
+//            if !apply(old, value) {
+//                return false;
+//            }
+//        }
+//        true
+//    }
+//
+//    fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
+//    {
+//        //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
+//        while !cursor.eof() {
+//            let row = cursor.start;
+//            cursor.next();
+//            if self.cmp(row, col, value, apply) {
+//                return Some(row)
+//            }
+//        }
+//
+//        Option::None
+//    }
+//
+//    fn row_only(&self, row: usize, cols: &[usize]) -> Col {
+//        let mut data = Vec::with_capacity(cols.len());
+//
+//        for i in cols {
+//            data.push(self.value(row, *i).clone())
+//        }
+//        data
+//    }
+//
+//    fn materialize_raw(&self, pos:&BitVec, null_count:usize, keep_null:bool) -> Col {
+//        let rows = pos.len();
+//        let cols = self.col_count();
+//        let total_rows = if keep_null {rows} else {rows - null_count};
+//
+//        let mut data = vec![Scalar::None; cols * total_rows];
+//        println!("Raw r:{:?}", pos);
+//
+//        let positions:Vec<(usize, bool)> =  pos.iter()
+//            .enumerate()
+//            .filter(|(_, x)| *x || keep_null).collect();
+//        println!("Raw r:{:?}", positions);
+//
+//        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
+//
+//        for (new_row, (row, found)) in positions.into_iter().enumerate() {
+//            for col in 0..cols {
+//                let _pos = index( cols, total_rows, new_row, col);
+//                if found {
+//                    data[_pos] = self.value(row, col).clone();
+//                }
+//            }
+//        }
+//
+//        data
+//    }
+//
+//    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> NDArray {
+//        let rows = pos.len();
+//        let cols = self.col_count();
+//        let positions:Vec<(usize, bool)> =  pos.iter()
+//            .enumerate()
+//            .filter(|(_, x)| *x || keep_null).collect();
+//        println!("Raw rpos:{:?}", positions);
+//
+//        let total_rows = if keep_null {rows} else { positions.len()};
+//
+//        let mut data = vec![Scalar::None; cols * total_rows];
+//        println!("Raw r:{:?}", pos);
+//
+//        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
+//
+//        for (new_row, (row, found)) in positions.into_iter().enumerate() {
+//            for col in 0..cols {
+//                if found {
+//                    let _pos = index(cols, total_rows, new_row, col);
+//                    data[_pos] = self.value(row, col).clone();
+//                }
+//            }
+//        }
+//
+//        NDArray::new(total_rows, cols, data)
+//    }
+//
+//    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>
+//    {
+//        let mut pos = Vec::new();
+//
+//        let mut cursor = Cursor::new(start, self.row_count());
+//
+//        while let Some(next) = self.find(&mut cursor, col, value, apply) {
+//            pos.push(next);
+//        }
+//
+//        pos
+//    }
+//    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self;
+//
+//
+//    fn union<T:Relation>(&self, to:&T) -> Self;
 }
 
 pub trait RelationMut:Sized {

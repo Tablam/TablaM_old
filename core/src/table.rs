@@ -6,6 +6,8 @@ use std::fmt;
 use super::ndarray::*;
 use super::types::*;
 use super::relational::*;
+use bit_vec::BitVec;
+use std::ptr::null;
 
 impl Relation for Data {
     fn type_name<'a>() -> &'a str { "Rel" }
@@ -51,7 +53,7 @@ impl Relation for Data {
     }
     fn get_row(&self, pos:usize) -> Option<Col> {
         if pos < self.row_count() {
-            let value = unsafe {self.data.row_unchecked(pos).raw_slice().to_vec()};
+            let value = self.row(pos);
 
             Some(value)
         } else {
@@ -83,12 +85,117 @@ impl Relation for Data {
         Self::new(self.schema.only(&pick), data)
     }
 
-    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self
-    {
+    fn query(self, query:&[Query]) -> Self {
+        if query.len() > 0 {
+            let mut next= self;
+            for q in query {
+                next =
+                    match q {
+                        Query::Where(filter) => {
+                            next.find_all(filter)
+                        },
+                        Query::Sort(asc, pos) => {
+                            next.sorted(*asc, *pos)
+                        },
+                        _ => unimplemented!()
+                    };
+            };
+            next
+        } else {
+            self.clone()
+        }
+    }
+}
+
+impl Data {
+    pub fn empty(schema:Schema) -> Self {
+        let cols = schema.len();
+        Data {
+            schema,
+            data: NDArray::new(0, cols, vec![]),
+        }
+    }
+
+    fn row(&self, pos:usize) -> Col {
+        unsafe {self.data.row_unchecked(pos).raw_slice().to_vec()}
+    }
+
+    fn materialize(&self, pos:&BitVec, null_count:usize) -> (Col, usize) {
+        let mut data = Vec::with_capacity(self.col_count() * pos.len() - null_count);
+
+        let positions:Vec<_> =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x).collect();
+
+        for (found, _) in &positions {
+            let mut row = self.row(*found);
+            data.append(&mut row);
+
+        }
+        (data, positions.len())
+    }
+
+    pub fn inter(&self, with:&Self) -> Self {
+        let names = self.schema();
+        assert_schema(names, with.schema());
+
+        let (pos, null_count) = compare_hash(self, with, true);
+
+        let (mut data, rows) = self.materialize(&pos, null_count);
+
+        let positions:Vec<_> =  pos.iter()
+            .enumerate()
+            .filter(|(_, x)| *x).collect();
+
+        for (found, _) in positions {
+            let mut row = self.row(found);
+            data.append(&mut row);
+
+        }
+
+        Self::from_vector(names.clone(), rows, names.len(), data)
+    }
+
+    pub fn diff(&self, with:&Self) -> Self {
+        let names = self.schema();
+        assert_schema(names, with.schema());
+
+        let (pos1, null_count1) = compare_hash(self, with, false);
+        let (pos2, null_count2) = compare_hash(with, self, false);
+
+        let (mut data, rows1) = self.materialize(&pos1, null_count1);
+        let (mut data2, rows2) = self.materialize(&pos2, null_count2);
+        data.append(&mut data2);
+
+        Self::from_vector(names.clone(), rows1 + rows2, names.len(), data)
+    }
+
+    pub fn union(&self, with:&Self) -> Self {
+        let names = self.schema();
+        assert_schema(names, with.schema());
+
+        let data = self.data.vcat(&with.data);
+        Self::new(self.schema.clone(), data)
+    }
+
+    pub fn join(&self, query:SetQuery, with:&Self) -> Self {
+        match query {
+            SetQuery::Union         => self.union(with),
+            SetQuery::Diff          => self.diff(with),
+            SetQuery::Intersection  => self.inter(with),
+            _ => unimplemented!()
+        }
+    }
+
+    pub fn find_all(&self, filter:&CmOp) -> Self {
         let mut data =  Vec::new();
         let mut rows = 0;
 
         if self.col_count() >0 {
+            let value = filter.rhs.as_ref();
+            let col = filter.lhs;
+            let apply = filter.get_fn();
+
             for row in self.rows_iter() {
                 let old = &row[col];
                 if apply(old, value) {
@@ -102,20 +209,8 @@ impl Relation for Data {
         Self::from_vector(self.schema.clone(), rows, self.col_count(), data)
     }
 
-    fn union<T:Relation>(&self, to:&T) -> Self {
-        let data = self.data.vcat(&to.to_ndarray());
-
-        Self::new(self.schema.clone(), data)
-    }
-}
-
-impl Data {
-    pub fn empty(schema:Schema) -> Self {
-        let cols = schema.len();
-        Data {
-            schema,
-            data: NDArray::new(0, cols, vec![]),
-        }
+    pub fn sorted(&mut self, asc:bool, pos:usize) -> Self {
+        self.clone()
     }
 
     pub fn new(schema:Schema, data:NDArray) -> Self {

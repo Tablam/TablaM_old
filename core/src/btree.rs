@@ -97,7 +97,10 @@ impl Relation for BTree {
     }
 
     fn rows_iter(&self) -> RelIter<'_, Self> {
-        self.to_iter()
+        RelIter {
+            pos: 0,
+            rel: self,
+        }
     }
 
     fn col_iter(&self, col: usize) -> ColIter<'_, Self> {
@@ -127,36 +130,62 @@ impl Relation for BTree {
         Self::new(self.schema.only(&pick), data)
     }
 
-    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self
-    {
-        let mut data =  BTreeMap::new();
-        if col == 0 {
-            if let Some(v) = self.data.get(value) {
-                if apply(value, value) {
-                    data.insert(value.clone(), v.clone());
-                }
-            }
+    fn query(self, query:&[Query]) -> Self {
+        if query.len() > 0 {
+            let mut next= self;
+            for q in query {
+                next =
+                match q {
+                    Query::Where(value) => {
+                        let lhs = value.rhs.as_ref();
+                        next.clone()
+                    },
+                    Query::Sort(asc, pos) => {
+                        //BTree are already sorted by key
+                        match (asc, next.pick_col(pos)) {
+                            (true, KeyValue::Key) => next,
+                            _ => unimplemented!(),
+                        }
+                    },
+                    _ => unimplemented!()
+                };
+            };
+            next
         } else {
-            for old in self.data.values() {
-                if apply(old, value) {
-                    data.insert(old.clone(), value.clone());
-                    break;
-                }
-            }
+            self.clone()
         }
-
-        Self::new(self.schema.clone(), data)
     }
-
-    fn union<T:Relation>(&self, to:&T) -> Self {
-        let mut data = self.data.clone();
-
-        for row in to.rows_iter() {
-            data.insert(row[0].clone(), row[1].clone());
-        }
-
-        Self::new(self.schema.clone(), data)
-    }
+//
+//    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self
+//    {
+//        let mut data =  BTreeMap::new();
+//        if col == 0 {
+//            if let Some(v) = self.data.get(value) {
+//                if apply(value, value) {
+//                    data.insert(value.clone(), v.clone());
+//                }
+//            }
+//        } else {
+//            for old in self.data.values() {
+//                if apply(old, value) {
+//                    data.insert(old.clone(), value.clone());
+//                    break;
+//                }
+//            }
+//        }
+//
+//        Self::new(self.schema.clone(), data)
+//    }
+//
+//    fn union<T:Relation>(&self, to:&T) -> Self {
+//        let mut data = self.data.clone();
+//
+//        for row in to.rows_iter() {
+//            data.insert(row[0].clone(), row[1].clone());
+//        }
+//
+//        Self::new(self.schema.clone(), data)
+//    }
 }
 
 //TODO: https://newspaint.wordpress.com/2016/07/05/implementing-custom-sort-for-btree-in-rust/
@@ -175,10 +204,13 @@ impl BTree {
         }
     }
 
-    pub fn to_iter(&self) -> RelIter<'_, Self> {
-        RelIter {
-            pos: 0,
-            rel: self,
+    pub fn pick_col(&self, pos:&usize) -> KeyValue {
+        assert!(pos > &0 || pos < &2, "BTree must have a schema of 0 to 2 fields");
+
+        if pos == &1 {
+            KeyValue::Key
+        } else {
+            KeyValue::Value
         }
     }
 
