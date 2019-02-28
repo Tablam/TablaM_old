@@ -9,7 +9,7 @@ use super::relational::*;
 use bit_vec::BitVec;
 use std::ptr::null;
 
-impl Relation for Data {
+impl Relation for Table {
     fn type_name<'a>() -> &'a str { "Rel" }
     fn new_from<R: Relation>(names: Schema, of: &R) -> Self {
         let mut data = Vec::with_capacity(of.len());
@@ -107,16 +107,16 @@ impl Relation for Data {
     }
 }
 
-impl Data {
+impl Table {
     pub fn empty(schema:Schema) -> Self {
         let cols = schema.len();
-        Data {
+        Table {
             schema,
             data: NDArray::new(0, cols, vec![]),
         }
     }
 
-    fn row(&self, pos:usize) -> Col {
+    pub fn row(&self, pos:usize) -> Col {
         unsafe {self.data.row_unchecked(pos).raw_slice().to_vec()}
     }
 
@@ -191,13 +191,14 @@ impl Data {
         let mut data =  Vec::new();
         let mut rows = 0;
 
-        if self.col_count() >0 {
+        if self.col_count() > 0 {
             let value = filter.rhs.as_ref();
             let col = filter.lhs;
             let apply = filter.get_fn();
 
             for row in self.rows_iter() {
                 let old = &row[col];
+
                 if apply(old, value) {
                     let mut new_row = row.to_vec();
                     data.append(&mut new_row);
@@ -216,14 +217,14 @@ impl Data {
     pub fn new(schema:Schema, data:NDArray) -> Self {
         assert_eq!(schema.len(), data.cols);
 
-        Data {
+        Table {
             schema,
             data,
         }
     }
 }
 
-impl fmt::Display for Data {
+impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         print_rows(Self::type_name(),self, f)
     }

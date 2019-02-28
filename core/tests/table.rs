@@ -1,34 +1,10 @@
+use tablam_core::types::*;
+use tablam_core::types::DataType::*;
+use tablam_core::dsl::*;
 
-//#[test]
-//fn test_create() {
-//    let num1 = nums_1();
-//    let empty_schema = &Schema::scalar_field(I32);
-//
-//    let fnull = rel_empty();
-//    assert_eq!(fnull.schema(), empty_schema);
-//    println!("Empty {:?}", fnull);
-//
-//    assert_eq!(fnull.col_count(), 1);
-//    assert_eq!(fnull.row_count(), 0);
-//
-//    let fcol1 = rel_nums1();
-//    println!("NDArray {}", fcol1);
-//    assert_eq!(fnull.schema(), empty_schema);
-//
-//    assert_eq!(fcol1.col_count(), 1);
-//    assert_eq!(fcol1.row_count(), 3);
-//
-//    let frow1 = row_infer(num1.as_slice());
-//    println!("Rows {}", frow1);
-//    assert_eq!(frow1.col_count(), 3);
-//    assert_eq!(frow1.row_count(), 1);
-//
-//    let table1 = table_1();
-//    println!("Table Cols {}", table1);
-//    assert_eq!(table1.col_count(), 3);
-//    assert_eq!(table1.row_count(), 3);
-//}
-//
+mod common;
+use crate::common::*;
+
 //fn _test_select<T:Relation>(table:&T, total_deselect:usize)
 //{
 //    let (pick1, pick2) = (colp(0),  coln("two"));
@@ -92,15 +68,18 @@
 //    assert_eq!(query2.row_count(), 1);
 //}
 //
-//#[test]
-//fn test_where() {
-//    let table2= btree_1();
-//    let s1 = scan_op(table2);
-//    let cmp = CmOp::eq(0, value(1i64).into());
-//    let w1 = where_op(s1, cmp);
-//    println!("Where2 = 1 {:?}", 1);
-//}
-//
+#[test]
+fn test_where() {
+    let table1= table_1();
+
+    let empty = Table::empty(table1.schema.clone());
+
+    let r1 = table_rows(table1.schema.clone(), nd_array(&table1.row(0), 1, 3));
+
+    check_compare(table1.clone(),  Query::eq(0, 1i64.into()), r1);
+    check_compare(table1,  Query::eq(0, 101i64.into()), empty);
+}
+
 //#[test]
 //fn test_compare() {
 //    let table1 = table_1();

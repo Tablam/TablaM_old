@@ -8,6 +8,7 @@ use std::collections::HashSet;
 
 use super::ndarray::*;
 use super::types::*;
+use crate::types::Query::Where;
 //use super::relational::*;
 
 pub fn decode<T:From<Scalar>>(values:&[Scalar]) -> Vec<T> {
@@ -98,6 +99,11 @@ pub fn concat(values:Vec<Col>) -> (usize, Col)
     (rows, data)
 }
 
+pub fn nd_array_empty(rows:usize, cols:usize) -> NDArray
+{
+    NDArray::new(0, 0, [].to_vec())
+}
+
 pub fn nd_array<T>(of:&[T], rows:usize, cols:usize) -> NDArray
     where
         T:From<Scalar>, Scalar: From<T>,
@@ -107,17 +113,17 @@ pub fn nd_array<T>(of:&[T], rows:usize, cols:usize) -> NDArray
     NDArray::new(rows, cols, col)
 }
 
-pub fn rcol_t<T>(name:&str, kind:DataType, of:&[T]) -> Data
+pub fn rcol_t<T>(name:&str, kind:DataType, of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
 {
     let data = nd_array(of, of.len(), 1);
 
-    Data::new(schema_single(name, kind), data)
+    Table::new(schema_single(name, kind), data)
 }
 
-pub fn rcol<T>(name:&str, of:&[T]) -> Data
+pub fn rcol<T>(name:&str, of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
@@ -125,10 +131,10 @@ pub fn rcol<T>(name:&str, of:&[T]) -> Data
     let data = nd_array(of, of.len(), 1);
     let kind = infer_type(&data);
 
-    Data::new(schema_single(name, kind), data)
+    Table::new(schema_single(name, kind), data)
 }
 
-pub fn array<T>(of:&[T]) -> Data
+pub fn array<T>(of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
@@ -136,7 +142,7 @@ pub fn array<T>(of:&[T]) -> Data
     rcol("it", of)
 }
 
-pub fn array_t<T>(kind:DataType, of:&[T]) -> Data
+pub fn array_t<T>(kind:DataType, of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
@@ -144,21 +150,21 @@ pub fn array_t<T>(kind:DataType, of:&[T]) -> Data
     rcol_t("it", kind, of)
 }
 
-pub fn array_empty(kind:DataType) -> Data
+pub fn array_empty(kind:DataType) -> Table
 {
-    Data::empty(Schema::scalar_field(kind))
+    Table::empty(Schema::scalar_field(kind))
 }
 
-pub fn row<T>(names:Schema, of:&[T]) -> Data
+pub fn row<T>(names:Schema, of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
 {
     let data = nd_array(of, 1, of.len());
-    Data::new(names, data)
+    Table::new(names, data)
 }
 
-pub fn row_infer<T>(of:&[T]) -> Data
+pub fn row_infer<T>(of:&[T]) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
@@ -167,10 +173,10 @@ pub fn row_infer<T>(of:&[T]) -> Data
 
     let types = infer_types(&data);
     let names = Schema::generate(&types);
-    Data::new(names, data)
+    Table::new(names, data)
 }
 
-pub fn value_t<T>(of:T) -> Data
+pub fn value_t<T>(of:T) -> Table
     where
         T:From<Scalar>, Scalar: From<T>,
         T: Clone
@@ -178,26 +184,26 @@ pub fn value_t<T>(of:T) -> Data
     row_infer(&[of])
 }
 
-pub fn table_cols_infer(of: &NDArray) -> Data {
+pub fn table_cols_infer(of: &NDArray) -> Table {
     let mut types = Vec::with_capacity(of.cols());
     for c in of.col_iter() {
         types.push(infer_type(&c.into_array()));
     }
     let names = Schema::generate(&types);
 
-    Data::new(names, of.pivot())
+    Table::new(names, of.pivot())
 }
 
-pub fn table_cols(schema:Schema, of: &NDArray) -> Data {
-    Data::new(schema, of.pivot())
+pub fn table_cols(schema:Schema, of: &NDArray) -> Table {
+    Table::new(schema, of.pivot())
 }
 
 pub fn table_btree(schema:Schema, of: &NDArray) -> BTree {
     BTree::new_from(schema, &table_cols_infer(&of))
 }
 
-pub fn table_rows(schema:Schema, of: NDArray) -> Data {
-    Data::new(schema, of)
+pub fn table_rows(schema:Schema, of: NDArray) -> Table {
+    Table::new(schema, of)
 }
 
 //Fundamental relational operators.

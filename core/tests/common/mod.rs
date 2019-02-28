@@ -3,13 +3,13 @@ use tablam_core::types::DataType::*;
 use tablam_core::utils::*;
 use tablam_core::dsl::*;
 
-fn nums_1() -> Vec<i64> {vec![1, 2, 3]}
-fn nums_2() -> Vec<i64> {vec![4, 5, 6]}
-fn nums_3() -> Vec<i64> {vec![2, 3, 4]}
-fn bools_1() -> Vec<bool> {vec![true, false, true]}
-fn bools_2() -> Vec<bool> {vec![false, true, false]}
+pub fn nums_1() -> Vec<i64> {vec![1, 2, 3]}
+pub fn nums_2() -> Vec<i64> {vec![4, 5, 6]}
+pub fn nums_3() -> Vec<i64> {vec![2, 3, 4]}
+pub fn bools_1() -> Vec<bool> {vec![true, false, true]}
+pub fn bools_2() -> Vec<bool> {vec![false, true, false]}
 
-fn columns3_1() -> (usize, Vec<Scalar>) {
+pub fn columns3_1() -> (usize, Vec<Scalar>) {
     let c1 = col(&nums_1());
     let c2 = col(&nums_2());
     let c3 =col(&bools_1());
@@ -17,7 +17,7 @@ fn columns3_1() -> (usize, Vec<Scalar>) {
     concat([c1, c2, c3].to_vec())
 }
 
-fn columns3_2() -> (usize, Vec<Scalar>) {
+pub fn columns3_2() -> (usize, Vec<Scalar>) {
     let c1 = col(&nums_1());
     let c2 = col(&nums_3());
     let c3 =col(&bools_1());
@@ -25,13 +25,13 @@ fn columns3_2() -> (usize, Vec<Scalar>) {
     concat([c1, c2, c3].to_vec())
 }
 
-fn reverse(of:Col) -> Col {
+pub fn reverse(of:Col) -> Col {
     let mut col = of.clone();
     col.reverse();
     col
 }
 
-fn columns3_3() -> (usize, Vec<Scalar>) {
+pub fn columns3_3() -> (usize, Vec<Scalar>) {
     let c1 = reverse(col(&nums_1()));
     let c2 = reverse(col(&nums_2()));
     let c3 = col(&bools_2());
@@ -39,15 +39,15 @@ fn columns3_3() -> (usize, Vec<Scalar>) {
     concat([c1, c2, c3].to_vec())
 }
 
-fn rel_empty() -> Data { array_empty(DataType::I32) }
-fn rel_nums1() -> Data {
+pub fn rel_empty() -> Table { array_empty(DataType::I32) }
+pub fn rel_nums1() -> Table {
     array(nums_1().as_slice())
 }
-fn rel_nums3() -> Data {
+pub fn rel_nums3() -> Table {
     array(nums_3().as_slice())
 }
 
-fn make_both(left:Vec<i64>, right:Vec<i64>) -> (Data, Data, usize, usize) {
+pub fn make_both(left:Vec<i64>, right:Vec<i64>) -> (Table, Table, usize, usize) {
     let f1 = array(left.as_slice());
     let f2 = array(right.as_slice());
     let (pick1, pick2) = (0,  0);
@@ -55,40 +55,40 @@ fn make_both(left:Vec<i64>, right:Vec<i64>) -> (Data, Data, usize, usize) {
     (f1, f2, pick1, pick2)
 }
 
-fn schema1() ->  Schema {
+pub fn schema1() ->  Schema {
     Schema::new([field("one", I64), field("two", I64), field("three", Bool)].to_vec())
 }
 
-fn schema2() ->  Schema {
+pub fn schema2() ->  Schema {
     Schema::new([field("four", I64), field("five", I64), field("six", Bool)].to_vec())
 }
 
-fn table_1() -> Data {
+pub fn table_1() -> Table {
     let schema = schema1();
     let (rows, data) = columns3_1();
     table_cols(schema, &nd_array(&data, rows, 3))
 }
 
-fn btree_1() -> BTree {
+pub fn btree_1() -> BTree {
     let schema = schema1().deselect(&[2]);
     let (rows, data) = columns3_1();
     table_btree(schema, &nd_array(&data, rows, 3))
 }
 
-fn btree_2() -> BTree {
+pub fn btree_2() -> BTree {
     let schema = schema1().deselect(&[2]);
     let (rows, data) = columns3_3();
     table_btree(schema, &nd_array(&data, rows, 3))
 }
 
-fn table_2() -> Data {
+pub fn table_2() -> Table {
     let schema = schema2();
     let (rows, data) = columns3_2();
 
     table_cols(schema, &nd_array(&data, rows, 3))
 }
 
-fn table_3() -> Data {
+pub fn table_3() -> Table {
     let schema = schema1();
     let data:Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
     let col = nd_array(&data, 3, 1);
@@ -96,7 +96,7 @@ fn table_3() -> Data {
     table_cols(schema, &col)
 }
 
-fn table_4() -> Data {
+pub fn table_4() -> Table {
     let schema = schema2();
     let data:Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
     let col = nd_array(&data, 3, 1);
@@ -104,7 +104,7 @@ fn table_4() -> Data {
     table_cols(schema, &col)
 }
 
-fn open_test_file(path:&str) -> String {
+pub fn open_test_file(path:&str) -> String {
     let root = env!("CARGO_MANIFEST_DIR");
     let paths = [root,  "test_data", path].to_vec();
 
@@ -115,7 +115,7 @@ fn open_test_file(path:&str) -> String {
     read_all(name).expect("File not exist")
 }
 
-fn compare_lines(a:String, b:String) {
+pub fn compare_lines(a:String, b:String) {
     let x:Vec<&str> = a.lines().collect();
     let y:Vec<&str> = b.lines().collect();
     let total_x = x.len();
@@ -126,4 +126,20 @@ fn compare_lines(a:String, b:String) {
     }
 
     assert_eq!(total_x, total_y, "Lines not equal");
+}
+
+pub fn check_schema<T:Relation>(of:&T, cols:usize, rows:usize) {
+    assert_eq!(of.col_count(), cols);
+    assert_eq!(of.row_count(), rows);
+}
+
+pub fn check_filter<T:Relation>(of:&T, cols:usize, rows:usize) {
+    assert_eq!(of.col_count(), cols);
+    assert_eq!(of.row_count(), rows);
+}
+
+pub fn check_compare<T:Relation>(table:T, query:Query, result:T) {
+    let rel = table.query(&[query]);
+
+    assert_eq!(rel, result);
 }

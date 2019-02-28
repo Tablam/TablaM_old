@@ -6,12 +6,12 @@ use super::types::*;
 use super::operations::*;
 use super::dsl::*;
 
-type Return = Result<Data, String>;
+type Return = Result<Table, String>;
 type ReturnUnit = Result<(), String>;
 
 #[derive(Clone)]
 pub struct Env {
-    pub vars: HashMap<String, Data>,
+    pub vars: HashMap<String, Table>,
     pub up: Option<Rc<Env>>,
 }
 
@@ -20,16 +20,16 @@ impl Env {
         Env { vars: HashMap::new(), up: None }
     }
 
-    pub fn add(&mut self, k: String, v: Data) {
+    pub fn add(&mut self, k: String, v: Table) {
         self.vars.insert(k, v);
     }
 
-    pub fn find(&self, k: String) -> Option<&Data> {
+    pub fn find(&self, k: String) -> Option<&Table> {
         // TODO: make this use recursive envs
         self.vars.get(&k)
     }
 
-    pub fn add_many(&self, k: Vec<String>, v: Vec<Data>) -> Env {
+    pub fn add_many(&self, k: Vec<String>, v: Vec<Table>) -> Env {
         let mut copy = self.clone();
         for (k, v) in k.into_iter().zip(v.iter()) {
             copy.vars.insert(k, v.clone());

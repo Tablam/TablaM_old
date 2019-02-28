@@ -43,5 +43,5 @@ macro_rules! convert_rel {
     )
 }
 
-convert_rel!(Data, BTree);
-convert_rel!(BTree, Data);
+convert_rel!(Table, BTree);
+convert_rel!(BTree, Table);

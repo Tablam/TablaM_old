@@ -57,6 +57,7 @@ pub type UnaryExpr = dyn Fn(&Scalar) -> Scalar;
 pub type Col = Vec<Scalar>;
 pub type Pos = Vec<usize>;
 pub type Tree = BTreeMap<Scalar, Scalar>;
+pub type RScalar = Rc<Scalar>;
 
 pub type Phantom<'a> = PhantomData<&'a Scalar>;
 pub type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
@@ -98,7 +99,7 @@ pub enum Scalar {
     UTF8(String),
     //F64(N64),
     //Dec(Decimal),
-    Rows(Box<Data>),
+    Rows(Box<Table>),
 }
 
 impl Default for Scalar {
@@ -163,6 +164,7 @@ impl CmOp  {
     pub fn get_fn(&self) -> &BoolExpr {
         match self.op {
             CompareOp::Eq => &PartialEq::eq,
+            CompareOp::NotEq => &PartialEq::ne,
             _ => unimplemented!()
         }
     }
@@ -190,6 +192,16 @@ pub enum Query {
     Group(Pos),
 }
 
+impl Query  {
+    pub fn eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::eq(lhs,rhs.into()))
+    }
+
+    pub fn not(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::not(lhs,rhs.into()))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Generator<'a> {
     pub name: &'a str,
@@ -198,19 +210,19 @@ pub struct Generator<'a> {
     pub data:Box<&'a RelOp>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RScalar<'a> {
-    Rows(NDArray),
-    BTree(BTree),
-    Range(Range),
-    Iter(Generator<'a>),
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Rel<'a> {
-    pub schema:Schema,
-    pub data:RScalar<'a>
-}
+//#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//pub enum RScalar<'a> {
+//    Rows(NDArray),
+//    BTree(BTree),
+//    Range(Range),
+//    Iter(Generator<'a>),
+//}
+//
+//#[derive(Debug, Clone, PartialEq, PartialOrd)]
+//pub struct Rel<'a> {
+//    pub schema:Schema,
+//    pub data:RScalar<'a>
+//}
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Union {
@@ -263,7 +275,7 @@ pub struct BTree {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct Data {
+pub struct Table {
     pub schema: Schema,
     pub data: NDArray,
 }
@@ -439,7 +451,7 @@ fn query_iter(input: Box<dyn Iterator<Item=Col>>, query:&'static [Query]) -> Box
     result
 }
 
-pub trait Relation:Sized + fmt::Display {
+pub trait Relation:Sized + fmt::Display + fmt::Debug + std::cmp::PartialEq {
     fn type_name<'a>() -> &'a str;
     fn new_from<R: Relation>(names: Schema, of: &R) -> Self;
     fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self;

@@ -57,7 +57,7 @@ pub fn math_div(x:&Scalar, y:&Scalar) -> Scalar {
     }
 }
 
-pub fn zip_scalar(x:&Data, y:&Data, op:&BinExpr) -> Data {
+pub fn zip_scalar(x:&Table, y:&Table, op:&BinExpr) -> Table {
     let a = x.data.col(0);
     let b = y.data.col(0);
 
