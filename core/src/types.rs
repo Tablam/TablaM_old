@@ -153,19 +153,29 @@ impl CmOp  {
         CmOp {op, lhs, rhs}
     }
 
-    pub fn eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
-        Self::new(CompareOp::Eq, lhs, rhs)
-    }
-
+    pub fn eq(lhs: usize, rhs: Rc<Scalar>) -> Self { Self::new(CompareOp::Eq, lhs, rhs) }
     pub fn not(lhs: usize, rhs: Rc<Scalar>) -> Self {
         Self::new(CompareOp::NotEq, lhs, rhs)
     }
+    pub fn less(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Less, lhs, rhs)
+    }
+    pub fn less_eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::LessEq, lhs, rhs)
+    }
+    pub fn greater(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Greater, lhs, rhs)
+    }
+    pub fn greater_eq(lhs: usize, rhs: Rc<Scalar>) -> Self { Self::new(CompareOp::GreaterEq, lhs, rhs) }
 
     pub fn get_fn(&self) -> &BoolExpr {
         match self.op {
-            CompareOp::Eq => &PartialEq::eq,
-            CompareOp::NotEq => &PartialEq::ne,
-            _ => unimplemented!()
+            CompareOp::Eq       => &PartialEq::eq,
+            CompareOp::NotEq    => &PartialEq::ne,
+            CompareOp::Less     => &PartialOrd::lt,
+            CompareOp::LessEq   => &PartialOrd::le,
+            CompareOp::Greater  => &PartialOrd::gt,
+            CompareOp::GreaterEq=> &PartialOrd::ge,
         }
     }
 }
@@ -199,6 +209,22 @@ impl Query  {
 
     pub fn not(lhs: usize, rhs: Scalar) -> Self {
         Query::Where(CmOp::not(lhs,rhs.into()))
+    }
+
+    pub fn less(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::less(lhs,rhs.into()))
+    }
+
+    pub fn less_eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::less_eq(lhs,rhs.into()))
+    }
+
+    pub fn greater(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::greater(lhs,rhs.into()))
+    }
+
+    pub fn greater_eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::greater_eq(lhs,rhs.into()))
     }
 }
 
@@ -271,7 +297,7 @@ pub struct Range {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct BTree {
     pub schema: Schema,
-    pub data:  BTreeMap<Scalar, Scalar>,
+    pub data:   BTreeMap<Scalar, Scalar>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]

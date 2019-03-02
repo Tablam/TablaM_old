@@ -50,24 +50,7 @@ use crate::common::*;
 //    _test_rename( &table1);
 //    _test_rename( &table2);
 //}
-//
-//fn _test_compare<T:Relation>(table:&T, pos:usize) {
-//    println!("Table CMP {}", table);
-//    let none = &none();
-//    let one = &value(1i64);
-//
-//    let pos1 = table.find_all(0, 0, one, &PartialEq::eq);
-//    assert_eq!(pos1, [pos].to_vec());
-//
-//    let query1 = where_value_late(table, 0, none, &PartialEq::eq);
-//    println!("Where1 = None {}", query1);
-//    assert_eq!(query1.row_count(), 0);
-//
-//    let query2 = where_value_late(table,0, one, &PartialEq::eq);
-//    println!("Where2 = 1 {}", query2);
-//    assert_eq!(query2.row_count(), 1);
-//}
-//
+
 #[test]
 fn test_where() {
     let table1= table_1();
@@ -76,18 +59,20 @@ fn test_where() {
 
     let r1 = table_rows(table1.schema.clone(), nd_array(&table1.row(0), 1, 3));
 
-    check_compare(table1.clone(),  Query::eq(0, 1i64.into()), r1);
+    check_compare(table1.clone(),Query::eq(0, 1i64.into()), r1);
     check_compare(table1,  Query::eq(0, 101i64.into()), empty);
+
+    let col = array(&vec![1, 2, 3]);
+    let empty = array_empty(DataType::I32);
+
+    check_compare(col.clone(),Query::eq(0, 101.into()), empty.clone());
+    check_compare(col.clone(),Query::not(0, 1.into()), array(&vec![2, 3]));
+    check_compare(col.clone(),Query::less(0, 3.into()), array(&vec![1, 2]));
+    check_compare(col.clone(),Query::less_eq(0, 3.into()), array(&vec![1, 2, 3]));
+    check_compare(col.clone(),Query::greater(0, 1.into()), array(&vec![2, 3]));
+    check_compare(col.clone(),Query::greater_eq(0, 1.into()), array(&vec![1, 2, 3]));
 }
 
-//#[test]
-//fn test_compare() {
-//    let table1 = table_1();
-//    let table2= btree_1();
-//    _test_compare(&table1, 0);
-//    _test_compare(&table2, 0); //Btree order by key
-//}
-//
 //#[test]
 //fn test_hash() {
 //    let table1 =  &table_1();

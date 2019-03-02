@@ -63,6 +63,12 @@ pub fn schema2() ->  Schema {
     Schema::new([field("four", I64), field("five", I64), field("six", Bool)].to_vec())
 }
 
+pub fn vector_1() -> Table {
+    let schema = schema1();
+    let data = col(&nums_1());
+    table_rows(schema, nd_array(&data, 3, 1))
+}
+
 pub fn table_1() -> Table {
     let schema = schema1();
     let (rows, data) = columns3_1();
@@ -139,6 +145,7 @@ pub fn check_filter<T:Relation>(of:&T, cols:usize, rows:usize) {
 }
 
 pub fn check_compare<T:Relation>(table:T, query:Query, result:T) {
+    dbg!(&query);
     let rel = table.query(&[query]);
 
     assert_eq!(rel, result);
