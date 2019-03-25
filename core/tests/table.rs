@@ -52,6 +52,13 @@ use crate::common::*;
 //}
 
 #[test]
+fn test_project() {
+    let table1= table_1();
+
+    table1;
+}
+
+#[test]
 fn test_where() {
     let table1= table_1();
 

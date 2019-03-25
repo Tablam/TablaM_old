@@ -130,30 +130,35 @@ impl Relation for BTree {
         Self::new(self.schema.only(&pick), data)
     }
 
-    fn query(self, query:&[Query]) -> Self {
-        if query.len() > 0 {
-            let mut next= self;
-            for q in query {
-                next =
-                match q {
-                    Query::Where(value) => {
-                        let lhs = value.rhs.as_ref();
-                        next.clone()
-                    },
-                    Query::Sort(asc, pos) => {
-                        //BTree are already sorted by key
-                        match (asc, next.pick_col(pos)) {
-                            (true, KeyValue::Key) => next,
-                            _ => unimplemented!(),
-                        }
-                    },
-                    _ => unimplemented!()
-                };
-            };
-            next
-        } else {
-            self.clone()
+    fn filter(self, query:&CmOp) -> Self {
+        let range = self.query_range(query);
+        let mut tree = BTreeMap::new();
+
+        for (key, value) in range {
+            tree.insert(key.clone(), value.clone());
         }
+        Self::new(self.schema.clone(), tree)
+    }
+
+    fn sorted(self, asc:bool, pos:usize) -> Self {
+        if pos == 0 {
+            if asc {
+                self
+            } else {
+                self
+            }
+        } else {
+            self
+        }
+    }
+
+    fn union(self, other:Self) -> Self {
+        let names = self.schema();
+        assert_schema(names, other.schema());
+        let mut data =self.data.clone();
+        let mut x = other.data;
+        data.append(&mut x);
+        Self::new(self.schema.clone(), data)
     }
 //
 //    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self
@@ -214,22 +219,17 @@ impl BTree {
         }
     }
 
-    pub fn query_range<'a>(op:&'a BTree, query:Option<CmOp>) -> BRange<'a, Scalar, Scalar> {
-        match query {
-            None => op.data.range(..),
-            Some(cmp) => {
-                let value = cmp.rhs.as_ref();
+    pub fn query_range(&self, query:&CmOp) -> BRange<Scalar, Scalar> {
+        let value = query.rhs.as_ref();
 
-                match cmp.op {
-                    CompareOp::Eq => {
-                        op.data.range(value..value)
-                    },
-                    CompareOp::Greater => {
-                        op.data.range(value..)
-                    }
-                    _ => unimplemented!()
-                }
+        match query.op {
+            CompareOp::Eq => {
+                self.data.range(value..value)
+            },
+            CompareOp::Greater => {
+                self.data.range(value..)
             }
+            _ => unimplemented!()
         }
     }
 }

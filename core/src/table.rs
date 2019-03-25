@@ -85,25 +85,20 @@ impl Relation for Table {
         Self::new(self.schema.only(&pick), data)
     }
 
-    fn query(self, query:&[Query]) -> Self {
-        if query.len() > 0 {
-            let mut next= self;
-            for q in query {
-                next =
-                    match q {
-                        Query::Where(filter) => {
-                            next.find_all(filter)
-                        },
-                        Query::Sort(asc, pos) => {
-                            next.sorted(*asc, *pos)
-                        },
-                        _ => unimplemented!()
-                    };
-            };
-            next
-        } else {
-            self.clone()
-        }
+    fn filter(self, query:&CmOp) -> Self {
+        self.find_all(query)
+    }
+
+    fn sorted(self, asc:bool, pos:usize) -> Self {
+        self.clone()
+    }
+
+    fn union(self, other:Self) -> Self {
+        let names = self.schema();
+        assert_schema(names, other.schema());
+
+        let data = self.data.vcat(&other.data);
+        Self::new(self.schema.clone(), data)
     }
 }
 
@@ -170,23 +165,6 @@ impl Table {
         Self::from_vector(names.clone(), rows1 + rows2, names.len(), data)
     }
 
-    pub fn union(&self, with:&Self) -> Self {
-        let names = self.schema();
-        assert_schema(names, with.schema());
-
-        let data = self.data.vcat(&with.data);
-        Self::new(self.schema.clone(), data)
-    }
-
-    pub fn join(&self, query:SetQuery, with:&Self) -> Self {
-        match query {
-            SetQuery::Union         => self.union(with),
-            SetQuery::Diff          => self.diff(with),
-            SetQuery::Intersection  => self.inter(with),
-            _ => unimplemented!()
-        }
-    }
-
     pub fn find_all(&self, filter:&CmOp) -> Self {
         let mut data =  Vec::new();
         let mut rows = 0;
@@ -208,10 +186,6 @@ impl Table {
         }
 
         Self::from_vector(self.schema.clone(), rows, self.col_count(), data)
-    }
-
-    pub fn sorted(&mut self, asc:bool, pos:usize) -> Self {
-        self.clone()
     }
 
     pub fn new(schema:Schema, data:NDArray) -> Self {

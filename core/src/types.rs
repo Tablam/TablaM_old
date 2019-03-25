@@ -18,6 +18,7 @@ use std::fmt::Debug;
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
+//TODO: https://deterministic.space/elegant-apis-in-rust.html
 //use decorum::N64;
 #[derive(Debug, Clone, Copy)]
 pub enum Join { Left, Right, Inner, Full //, Natural, Cross
@@ -513,7 +514,34 @@ pub trait Relation:Sized + fmt::Display + fmt::Debug + std::cmp::PartialEq {
     fn col_iter(&self, col: usize) -> ColIter<'_, Self>;
     fn col(&self, col: usize) -> Col;
     fn rows_pos(&self, pick: Pos) -> Self;
-    fn query(self, query:&[Query]) -> Self;
+
+    /// Relational operators
+    fn query(self, query:&[Query]) -> Self {
+        if query.len() > 0 {
+            let mut next= self;
+            for q in query {
+                next =
+                    match q {
+                        Query::Where(filter) => {
+                            next.filter(filter)
+                        },
+                        Query::Sort(asc, pos) => {
+                            next.sorted(*asc, *pos)
+                        },
+                        _ => unimplemented!()
+                    };
+            };
+            next
+        } else {
+            self
+        }
+    }
+
+    fn filter(self, query:&CmOp) -> Self;
+    fn sorted(self, asc:bool, pos:usize) -> Self;
+
+    fn union(self, other:Self) -> Self;
+
 //    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
 //    {
 //        let old = self.value(row, col);
