@@ -280,7 +280,7 @@ pub fn ewhile_cmp(of:CmOp, body:ExprList) -> Expr {
     Expr::While(BoolExpr::Cmp(of), body)
 }
 
-pub fn efor_step(name:&str, start:isize, end:isize, step:usize, body:ExprList) -> Expr {
+pub fn efor_step(name:&str, start:isize, end:isize, step:isize, body:ExprList) -> Expr {
     let range = TT::Range::new(start, end, step);
     Expr::ForI(name.to_string(), range, body)
 }

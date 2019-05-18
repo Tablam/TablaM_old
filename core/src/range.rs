@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use super::types::*;
 
 impl Range {
-    pub fn new(start:usize, end:usize, step:usize) -> Self {
+    pub fn new(start:isize, end:isize, step:isize) -> Self {
         Range {
             start,
             end,
@@ -12,7 +12,7 @@ impl Range {
         }
     }
 
-    fn get(&mut self, pos:usize) -> Option<usize> {
+    fn get(&mut self, pos:isize) -> Option<isize> {
         if pos >= self.start && pos <= self.end {
             Some(pos)
         } else {
@@ -27,7 +27,7 @@ impl Buffered for Range {
     }
 
     fn read_from_buffer(&mut self, pos:usize) -> Option<&Scalar> {
-        if let Some(x) = self.get(pos) {
+        if let Some(x) = self.get(pos as isize) {
             let value = &Scalar::ISize(x as isize);
             let data = vec![value];
             self.fill(&data);

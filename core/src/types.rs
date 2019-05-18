@@ -36,33 +36,6 @@ impl Join {
     }
 }
 
-//NOTE: This define a total order, so it matter what is the order
-//of the enum! The overall sorting order is defined as:
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DataType {
-    None, Bool,
-    //Numeric
-    I32, ISIZE, I64, // Planed: F64, Decimal,
-    //Dates
-    //Time, Date, DateTime,
-    //Text
-    UTF8,
-    //Complex
-    Rows  // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
-}
-
-//Type Alias...
-pub type BoolExpr = dyn Fn(&Scalar, &Scalar) -> bool;
-pub type BinExpr = dyn Fn(&Scalar, &Scalar) -> Scalar;
-pub type UnaryExpr = dyn Fn(&Scalar) -> Scalar;
-pub type Col = Vec<Scalar>;
-pub type Pos = Vec<usize>;
-pub type Tree = BTreeMap<Scalar, Scalar>;
-pub type RScalar = Rc<Scalar>;
-
-pub type Phantom<'a> = PhantomData<&'a Scalar>;
-pub type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
     Add, Minus, Mul, Div
@@ -90,16 +63,34 @@ pub enum IndexOp {
 
 pub enum KeyValue { Key, Value }
 
+//NOTE: This define a total order, so it matter what is the order
+//of the enum! The overall sorting order is defined as:
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DataType {
+    None, Bool,
+    //Numeric
+    I32, ISIZE, I64, // Planed: F64, Decimal,
+    //Dates
+    //Time, Date, DateTime,
+    //Text
+    UTF8,
+    //Complex
+    Rows  // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
+}
+
+//NOTE: The order of this enum must match DataType
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scalar {
     None, //null
     Bool(bool),
-    ISize(isize),
+    //Numeric
     I32(i32),
+    ISize(isize),
     I64(i64),
     UTF8(String),
     //F64(N64),
     //Dec(Decimal),
+    //Complex
     Rows(Box<Table>),
 }
 
@@ -124,6 +115,18 @@ impl Scalar {
         }
     }
 }
+
+//Type Alias...
+pub type BoolExpr = dyn Fn(&Scalar, &Scalar) -> bool;
+pub type BinExpr = dyn Fn(&Scalar, &Scalar) -> Scalar;
+pub type UnaryExpr = dyn Fn(&Scalar) -> Scalar;
+pub type Col = Vec<Scalar>;
+pub type Pos = Vec<usize>;
+pub type Tree = BTreeMap<Scalar, Scalar>;
+pub type RScalar = Rc<Scalar>;
+
+pub type Phantom<'a> = PhantomData<&'a Scalar>;
+pub type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
 
 pub trait Buffered {
     fn buffer(&mut self) -> &mut [Scalar];
@@ -284,9 +287,9 @@ pub struct NDArray {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Range {
-    pub start:usize,
-    pub end:  usize,
-    pub step: usize,
+    pub start:isize,
+    pub end:  isize,
+    pub step: isize,
     pub buffer: Col,
 }
 
@@ -302,7 +305,7 @@ pub struct BTree {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct Table {
+pub struct  Table {
     pub schema: Schema,
     pub data: NDArray,
 }
@@ -349,7 +352,6 @@ impl Cursor
         self.start >= self.last
     }
 }
-
 
 #[inline]
 pub fn size_rel(of:&[Col]) -> (usize, usize) {

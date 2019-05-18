@@ -107,7 +107,7 @@ impl Program {
     }
 
     fn eval_for_range(&mut self, env:&mut Env, name:&str, range:&TT::Range, code:ExprSlice) -> Return {
-        for i in (range.start..range.end).step_by(range.step) {
+        for i in (range.start..range.end).step_by(range.step as usize) {
             self.set_var(env, LetKind::Imm, name, i.into());
             for line in code {
                 if line.is_loop_control() {
