@@ -28,32 +28,14 @@ impl Relation for BTree {
         Self::new(names, data)
     }
 
-    fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self {
+    fn from_vector(schema:Schema, vector:Vec<Col>) -> Self {
         let mut data:Tree =  BTreeMap::new();
 
-        if !vector.is_empty() {
-            for row in 0..rows {
-                let mut new_row = Vec::with_capacity(rows);
-
-                for col in 0..cols {
-                    new_row.push(vector[index(cols, rows, row, col)].clone())
-                }
-
-                data.insert(new_row[0].clone(), new_row[1].clone());
-            }
+        for row in vector {
+            data.insert(row[0].clone(), row[1].clone());
         }
 
         Self::new(schema, data)
-    }
-
-    fn to_ndarray(&self) -> NDArray {
-        let mut data = Vec::with_capacity(self.len());
-
-        for (key, row) in &self.data {
-            data.push(key.clone());
-            data.push(row.clone());
-        }
-        NDArray::new(self.row_count(), self.col_count(), data)
     }
 
     fn clone_schema(&self, schema:&Schema) -> Self {

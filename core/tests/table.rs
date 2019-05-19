@@ -64,7 +64,7 @@ fn test_where() {
 
     let empty = Table::empty(table1.schema.clone());
 
-    let r1 = table_rows(table1.schema.clone(), nd_array(&table1.row(0), 1, 3));
+    let r1 = table_rows(table1.schema.clone(), vec![table1.row(0)]);
 
     check_compare(table1.clone(),Query::eq(0, 1i64.into()), r1);
     check_compare(table1,  Query::eq(0, 101i64.into()), empty);

@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use std::ops::*;
 
-use super::ndarray::*;
 use super::types::*;
 use super::dsl::*;
 
@@ -58,11 +57,11 @@ pub fn math_div(x:&Scalar, y:&Scalar) -> Scalar {
 }
 
 pub fn zip_scalar(x:&Table, y:&Table, op:&BinExpr) -> Table {
-    let a = x.data.col(0);
-    let b = y.data.col(0);
+    let a = x.col(0);
+    let b = y.col(0);
 
     let result:Col = a.into_iter().zip(b.into_iter())
-        .map(|(lhs, rhs)| op(lhs, rhs)).collect();
+        .map(|(lhs, rhs)| op(&lhs, &rhs)).collect();
 
     let kind = x.schema.columns[0].kind;
     array_t(kind, &result)

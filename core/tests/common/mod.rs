@@ -9,20 +9,20 @@ pub fn nums_3() -> Vec<i64> {vec![2, 3, 4]}
 pub fn bools_1() -> Vec<bool> {vec![true, false, true]}
 pub fn bools_2() -> Vec<bool> {vec![false, true, false]}
 
-pub fn columns3_1() -> (usize, Vec<Scalar>) {
+pub fn columns3_1() -> Vec<Col> {
     let c1 = col(&nums_1());
     let c2 = col(&nums_2());
     let c3 =col(&bools_1());
 
-    concat([c1, c2, c3].to_vec())
+    [c1, c2, c3].to_vec()
 }
 
-pub fn columns3_2() -> (usize, Vec<Scalar>) {
+pub fn columns3_2() -> Vec<Col> {
     let c1 = col(&nums_1());
     let c2 = col(&nums_3());
     let c3 =col(&bools_1());
 
-    concat([c1, c2, c3].to_vec())
+    [c1, c2, c3].to_vec()
 }
 
 pub fn reverse(of:Col) -> Col {
@@ -31,12 +31,12 @@ pub fn reverse(of:Col) -> Col {
     col
 }
 
-pub fn columns3_3() -> (usize, Vec<Scalar>) {
+pub fn columns3_3() -> Vec<Col> {
     let c1 = reverse(col(&nums_1()));
     let c2 = reverse(col(&nums_2()));
     let c3 = col(&bools_2());
 
-    concat([c1, c2, c3].to_vec())
+    [c1, c2, c3].to_vec()
 }
 
 pub fn rel_empty() -> Table { array_empty(DataType::I32) }
@@ -66,38 +66,38 @@ pub fn schema2() ->  Schema {
 pub fn vector_1() -> Table {
     let schema = schema1();
     let data = col(&nums_1());
-    table_rows(schema, nd_array(&data, 3, 1))
+    table_rows(schema, vec![data])
 }
 
 pub fn table_1() -> Table {
     let schema = schema1();
-    let (rows, data) = columns3_1();
-    table_cols(schema, &nd_array(&data, rows, 3))
+    let data= columns3_1();
+    table_cols(schema, &data)
 }
 
 pub fn btree_1() -> BTree {
     let schema = schema1().deselect(&[2]);
-    let (rows, data) = columns3_1();
-    table_btree(schema, &nd_array(&data, rows, 3))
+    let data= columns3_1();
+    table_btree(schema.clone(), &table_rows(schema, data))
 }
 
 pub fn btree_2() -> BTree {
     let schema = schema1().deselect(&[2]);
-    let (rows, data) = columns3_3();
-    table_btree(schema, &nd_array(&data, rows, 3))
+    let data= columns3_3();
+    table_btree(schema.clone(),&table_rows(schema, data))
 }
 
 pub fn table_2() -> Table {
     let schema = schema2();
-    let (rows, data) = columns3_2();
+    let data= columns3_2();
 
-    table_cols(schema, &nd_array(&data, rows, 3))
+    table_cols(schema, &data)
 }
 
 pub fn table_3() -> Table {
     let schema = schema1();
     let data:Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
-    let col = nd_array(&data, 3, 1);
+    let col = &vec![data];
 
     table_cols(schema, &col)
 }
@@ -105,7 +105,7 @@ pub fn table_3() -> Table {
 pub fn table_4() -> Table {
     let schema = schema2();
     let data:Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
-    let col = nd_array(&data, 3, 1);
+    let col = &vec![data];
 
     table_cols(schema, &col)
 }

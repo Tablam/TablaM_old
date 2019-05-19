@@ -236,13 +236,12 @@ impl Query  {
 pub struct Generator<'a> {
     pub name: &'a str,
     pub cursor: Cursor,
-    pub cache: NDArray,
     pub data:Box<&'a RelOp>
 }
 
 //#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 //pub enum RScalar<'a> {
-//    Rows(NDArray),
+//    Rows(Table),
 //    BTree(BTree),
 //    Range(Range),
 //    Iter(Generator<'a>),
@@ -277,11 +276,8 @@ pub struct Schema {
     pub columns: Vec<Field>,
 }
 
-/// The `NDArray` struct, for storing relational/table data (2d)
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct NDArray {
-    pub rows: usize,
-    pub cols: usize,
+pub struct Vector {
     pub data: Col,
 }
 
@@ -307,7 +303,8 @@ pub struct BTree {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct  Table {
     pub schema: Schema,
-    pub data: NDArray,
+    pub count:usize,
+    pub data: Vec<Col>,
 }
 
 #[derive(Debug)]
@@ -357,24 +354,9 @@ impl Cursor
 pub fn size_rel(of:&[Col]) -> (usize, usize) {
     let rows = of.len();
     if rows > 0 {
-        (of[0].len(), rows)
+        (rows, of[0].len())
     } else {
         (0, 0)
-    }
-}
-
-/// Calculate the appropriated index in the flat array
-#[inline]
-pub fn index(col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
-    //println!("pos {:?} Row:{}, Col:{}, R:{}, C:{}", layout, row, col, row_count , col_count);
-    row * col_count + col
-}
-
-#[inline]
-pub fn write_row(to:&mut Col, col_count:usize, row_count:usize, row:usize, data:Col) {
-    for (col, value) in data.into_iter().enumerate() {
-        let index = index(col_count, row_count, row, col);
-        to[index] = value;
     }
 }
 
@@ -483,8 +465,7 @@ fn query_iter(input: Box<dyn Iterator<Item=Col>>, query:&'static [Query]) -> Box
 pub trait Relation:Sized + fmt::Display + fmt::Debug + std::cmp::PartialEq {
     fn type_name<'a>() -> &'a str;
     fn new_from<R: Relation>(names: Schema, of: &R) -> Self;
-    fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self;
-    fn to_ndarray(&self) -> NDArray;
+    fn from_vector(schema:Schema, vector:Vec<Col>) -> Self;
     fn flat_raw(&self) -> Col {
         let rows = self.row_count();
         let cols = self.col_count();
@@ -614,7 +595,7 @@ pub trait Relation:Sized + fmt::Display + fmt::Debug + std::cmp::PartialEq {
 //        data
 //    }
 //
-//    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> NDArray {
+//    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> Table {
 //        let rows = pos.len();
 //        let cols = self.col_count();
 //        let positions:Vec<(usize, bool)> =  pos.iter()
@@ -638,7 +619,7 @@ pub trait Relation:Sized + fmt::Display + fmt::Debug + std::cmp::PartialEq {
 //            }
 //        }
 //
-//        NDArray::new(total_rows, cols, data)
+//        Table::new(total_rows, cols, data)
 //    }
 //
 //    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>

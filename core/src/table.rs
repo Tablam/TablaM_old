@@ -3,11 +3,11 @@
 
 use std::fmt;
 
-use super::ndarray::*;
 use super::types::*;
 use super::relational::*;
 use bit_vec::BitVec;
 use std::ptr::null;
+use crate::dsl::row;
 
 impl Relation for Table {
     fn type_name<'a>() -> &'a str { "Rel" }
@@ -15,19 +15,15 @@ impl Relation for Table {
         let mut data = Vec::with_capacity(of.len());
 
         for row in of.rows_iter() {
-            let mut new_row = row.to_vec();
-            data.append(&mut new_row);
+            let new_row = row.to_vec();
+            data.push(new_row);
         }
 
-        Self::from_vector(names, of.row_count(), of.col_count(), data)
+        Self::from_vector(names,data)
     }
 
-    fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self {
-        Self::new(schema, NDArray::new(rows, cols, vector))
-    }
-
-    fn to_ndarray(&self) -> NDArray {
-        self.data.clone()
+    fn from_vector(schema:Schema, vector:Vec<Col>) -> Self {
+        Self::new(schema, vector)
     }
 
     fn clone_schema(&self, schema:&Schema) -> Self {
@@ -39,18 +35,26 @@ impl Relation for Table {
         &self.schema
     }
 
-    fn row_count(&self) -> usize { self.data.rows }
+    fn row_count(&self) -> usize {
+        self.data.len()
+    }
 
     fn col_count(&self) -> usize {
-        self.data.cols
+       self.count
     }
 
     fn value(&self, row:usize, col:usize) -> &Scalar {
-        self.data.get([row, col]).unwrap()
+        &self.data[row][col]
     }
+
     fn get_value(&self, row:usize, col:usize) -> Option<&Scalar> {
-        self.data.get([row, col])
+        if let Some(row) = self.data.get(row) {
+            row.get(col)
+        } else {
+            None
+        }
     }
+
     fn get_row(&self, pos:usize) -> Option<Col> {
         if pos < self.row_count() {
             let value = self.row(pos);
@@ -77,12 +81,13 @@ impl Relation for Table {
     }
 
     fn col(&self, col: usize) -> Col {
-        self.data.col(col).into_array().into_vec()
+        self.data[col].to_vec()
     }
 
     fn rows_pos(&self, pick: Pos) -> Self {
-        let data = self.data.select_cols(&pick);
-        Self::new(self.schema.only(&pick), data)
+        let schema = self.schema.only(&pick);
+        let data = pick.into_iter().map(|x| self.row(x)).collect();
+        Self::new(schema, data)
     }
 
     fn filter(self, query:&CmOp) -> Self {
@@ -97,25 +102,26 @@ impl Relation for Table {
         let names = self.schema();
         assert_schema(names, other.schema());
 
-        let data = self.data.vcat(&other.data);
+        let data = self.data.into_iter().chain(other.data.into_iter()).collect();
         Self::new(self.schema.clone(), data)
     }
 }
 
 impl Table {
     pub fn empty(schema:Schema) -> Self {
-        let cols = schema.len();
+        let count = schema.len();
         Table {
             schema,
-            data: NDArray::new(0, cols, vec![]),
+            count,
+            data: vec![],
         }
     }
 
     pub fn row(&self, pos:usize) -> Col {
-        unsafe {self.data.row_unchecked(pos).raw_slice().to_vec()}
+       self.data[pos].to_vec()
     }
 
-    fn materialize(&self, pos:&BitVec, null_count:usize) -> (Col, usize) {
+    fn materialize(&self, pos:&BitVec, null_count:usize) -> (Vec<Col>, usize) {
         let mut data = Vec::with_capacity(self.col_count() * pos.len() - null_count);
 
         let positions:Vec<_> =  pos.iter()
@@ -123,8 +129,8 @@ impl Table {
             .filter(|(_, x)| *x).collect();
 
         for (found, _) in &positions {
-            let mut row = self.row(*found);
-            data.append(&mut row);
+            let row = self.row(*found);
+            data.push(row);
 
         }
         (data, positions.len())
@@ -143,12 +149,12 @@ impl Table {
             .filter(|(_, x)| *x).collect();
 
         for (found, _) in positions {
-            let mut row = self.row(found);
-            data.append(&mut row);
+            let row = self.row(found);
+            data.push(row);
 
         }
 
-        Self::from_vector(names.clone(), rows, names.len(), data)
+        Self::from_vector(names.clone(),data)
     }
 
     pub fn diff(&self, with:&Self) -> Self {
@@ -162,7 +168,7 @@ impl Table {
         let (mut data2, rows2) = self.materialize(&pos2, null_count2);
         data.append(&mut data2);
 
-        Self::from_vector(names.clone(), rows1 + rows2, names.len(), data)
+        Self::from_vector(names.clone(), data)
     }
 
     pub fn find_all(&self, filter:&CmOp) -> Self {
@@ -178,21 +184,26 @@ impl Table {
                 let old = &row[col];
 
                 if apply(old, value) {
-                    let mut new_row = row.to_vec();
-                    data.append(&mut new_row);
+                    let new_row = row.to_vec();
+                    data.push(new_row);
                     rows += 1;
                 }
             }
         }
 
-        Self::from_vector(self.schema.clone(), rows, self.col_count(), data)
+        Self::from_vector(self.schema.clone(), data)
     }
 
-    pub fn new(schema:Schema, data:NDArray) -> Self {
-        assert_eq!(schema.len(), data.cols);
+    pub fn new(schema:Schema, data:Vec<Col>) -> Self {
+        let (rows, count) = size_rel(&data);
+        let columns = schema.len();
+        if rows > 0 {
+            assert_eq!(columns, count, "Table data must be of equal columns to schema");
+        }
 
         Table {
             schema,
+            count: columns,
             data,
         }
     }
