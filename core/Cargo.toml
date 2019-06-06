@@ -10,9 +10,11 @@ categories = ["database", "language", "relational"]
 edition = "2018"
 
 [dependencies]
-time = "0.1.0"
-rand = "0.5"
+time = "*"
+rand = "*"
 num = "*"
-bytes = "0.4"
+bytes = "*"
 bit-vec = "*"
 decorum = "*"
+chrono = "*"
+rust_decimal = "*"

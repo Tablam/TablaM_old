@@ -1,4 +1,5 @@
 use super::types::*;
+use rust_decimal::Decimal;
 
 macro_rules! convert {
     ($kind:ident, $bound:path) => (
@@ -14,11 +15,38 @@ macro_rules! convert {
             }
         }
 
+        impl From<Option<$kind>> for Scalar {
+            fn from(i: Option<$kind>) -> Self {
+                match i {
+                    Some(x) => $bound(x),
+                    _ => Scalar::None,
+                }                
+            }
+        }
+
         impl From<Scalar> for $kind {
             fn from(i: Scalar) -> Self {
                 match i {
                     $bound(x) => x,
-                    _ =>  unreachable!()
+                    _ => unreachable!("{:?}", i)
+                }
+            }
+        }
+
+        impl <'a> From<&'a Scalar> for $kind {
+            fn from(i: &'a Scalar) -> Self {
+                match i {
+                    $bound(x) => x.clone(),
+                    _ => unreachable!("{:?}", i)
+                }
+            }
+        }
+
+        impl <'a> From<&'a Scalar> for Option<$kind> {
+            fn from(i: &'a Scalar) -> Self {
+                match i {
+                    $bound(x) => Some(x.clone()),
+                    _ => None
                 }
             }
         }
@@ -29,6 +57,8 @@ convert!(bool, Scalar::Bool);
 convert!(isize, Scalar::ISize);
 convert!(i32, Scalar::I32);
 convert!(i64, Scalar::I64);
+convert!(TimeStamp, Scalar::DateTime);
+convert!(Decimal, Scalar::Decimal);
 convert!(String, Scalar::UTF8);
 
 macro_rules! convert_rel {

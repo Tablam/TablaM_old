@@ -18,6 +18,12 @@ use std::fmt::Debug;
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
+extern crate chrono;
+use chrono::prelude::*;
+
+extern crate rust_decimal;
+use rust_decimal::Decimal;
+
 //TODO: https://deterministic.space/elegant-apis-in-rust.html
 //use decorum::N64;
 #[derive(Debug, Clone, Copy)]
@@ -69,14 +75,16 @@ pub enum KeyValue { Key, Value }
 pub enum DataType {
     None, Bool,
     //Numeric
-    I32, ISIZE, I64, // Planed: F64, Decimal,
+    I32, ISIZE, I64, Decimal, // Planed: F64,
     //Dates
-    //Time, Date, DateTime,
+    DateTime,
     //Text
     UTF8,
     //Complex
     Rows  // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
 }
+
+pub type TimeStamp = DateTime<Local>;
 
 //NOTE: The order of this enum must match DataType
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -87,6 +95,8 @@ pub enum Scalar {
     I32(i32),
     ISize(isize),
     I64(i64),
+    Decimal(Decimal),
+    DateTime(TimeStamp),
     UTF8(String),
     //F64(N64),
     //Dec(Decimal),
@@ -110,6 +120,8 @@ impl Scalar {
             Scalar::ISize(_)=> DataType::ISIZE,
             Scalar::I32(_)  => DataType::I32,
             Scalar::I64(_)  => DataType::I64,
+            Scalar::Decimal(_)  => DataType::Decimal,
+            Scalar::DateTime(_)  => DataType::DateTime,
             Scalar::UTF8(_) => DataType::UTF8,
             Scalar::Rows(_) => DataType::Rows,
         }
@@ -727,6 +739,8 @@ impl fmt::Display for Scalar {
             Scalar::ISize(x) => write!(f, "{}", x),
             Scalar::I32(x) => write!(f, "{}", x),
             Scalar::I64(x) => write!(f, "{}", x),
+            Scalar::Decimal(x) => write!(f, "{}", x),
+            Scalar::DateTime(x) => write!(f, "{}", x),
             Scalar::UTF8(x) => write!(f, "{}", x),
             Scalar::Rows(x) => write!(f, "{:?}", x),
         }
