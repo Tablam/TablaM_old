@@ -1,51 +1,167 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-//#![allow(unused_imports)]
-#![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
-use std::marker::PhantomData;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::fmt::Debug;
+use std::rc::Rc;
+
+extern crate decorum;
+use decorum::R64;
 
 extern crate bit_vec;
 use self::bit_vec::BitVec;
 
-//use decorum::N64;
-#[derive(Debug, Clone)]
-pub enum Join { Left, Right, Inner, Full //, Natural, Cross
+extern crate chrono;
+use chrono::prelude::*;
+
+extern crate rust_decimal;
+use rust_decimal::Decimal;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Join {
+    Left,
+    Right,
+    Inner,
+    Full, //, Natural, Cross
 }
 
 impl Join {
-    pub fn produce_null(&self, is_left:bool) -> bool
-    {
+    pub fn produce_null(self, is_left: bool) -> bool {
         match self {
-            Join::Left  => !is_left,
+            Join::Left => !is_left,
             Join::Right => is_left,
             Join::Inner => false,
-            Join::Full  => true,
+            Join::Full => true,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Shape {
+    Scalar,
+    KV(usize),
+    Row(usize),
+    Vector(usize),
+    Table(usize, usize),
+}
+
+impl Shape {
+    pub fn size(&self) -> (usize, usize) {
+        match self {
+            Shape::Scalar => (1, 1),
+            Shape::KV(rows) => (1, *rows),
+            Shape::Row(cols) => (*cols, 1),
+            Shape::Vector(rows) => (1, *rows),
+            Shape::Table(cols, rows) => (*cols, *rows),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BinOp {
+    Add,
+    Minus,
+    Mul,
+    Div,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum LogicOp {
+    And,
+    Or,
+    Not,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum CompareOp {
+    Eq,
+    NotEq,
+    Less,
+    LessEq,
+    Greater,
+    GreaterEq,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum CrudOp {
+    Create,
+    Update,
+    Delete,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum IndexOp {
+    Pos,
+    Name,
+}
+
+pub enum KeyValue {
+    Key,
+    Value,
+}
+
+#[derive(Debug, Clone)]
+pub enum SetQuery {
+    Union,
+    Diff,
+    Intersection,
 }
 
 //NOTE: This define a total order, so it matter what is the order
 //of the enum! The overall sorting order is defined as:
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DataType {
-    None, Bool,
+    None,
+    Any,
+    Bool,
     //Numeric
-    I32, I64, // Planed: F64, Decimal,
+    I32,
+    ISize,
+    I64,
+    F64,
+    Decimal,
     //Dates
-    //Time, Date, DateTime,
+    DateTime,
     //Text
     UTF8,
     //Complex
-    Tuple, // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
+    Rel, // Planed: BitVec, Blob, Sum(DataType), Product(DataType), Rel(Vec<Field>)
+}
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+pub type TimeStamp = DateTime<Local>;
+
+//NOTE: The order of this enum must match DataType
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Scalar {
+    None, //null
+    Bool(bool),
+    //Numeric
+    I32(i32),
+    ISize(isize),
+    I64(i64),
+    F64(R64),
+    Decimal(Decimal),
+    DateTime(TimeStamp),
+    UTF8(String),
+    //Complex
+    Rel(Rc<Rel>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Rel {
+    One(Scalar),
+    Vector(Vector),
+    Range(Range),
+    Table(Table),
+    Seq(Seq),
 }
 
 //Type Alias...
@@ -53,74 +169,11 @@ pub type BoolExpr = dyn Fn(&Scalar, &Scalar) -> bool;
 pub type BinExpr = dyn Fn(&Scalar, &Scalar) -> Scalar;
 pub type UnaryExpr = dyn Fn(&Scalar) -> Scalar;
 pub type Col = Vec<Scalar>;
+pub type BCol = Vec<Box<Scalar>>;
 pub type Pos = Vec<usize>;
 pub type Tree = BTreeMap<Scalar, Scalar>;
-
-pub type Phantom<'a> = PhantomData<&'a Scalar>;
-pub type PhantomMut<'a> = PhantomData<&'a mut Scalar>;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum BinOp {
-    Add, Minus, Mul, Div
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum CompareOp {
-    Eq, NotEq, Less, LessEq, Greater, GreaterEq, Not
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum RelOp {
-    Union, Diff
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum CrudOp {
-    Create, Update, Delete
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum IndexOp {
-    Pos, Name,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Scalar {
-    None, //null
-    Bool(bool),
-    I32(i32),
-    I64(i64),
-    UTF8(String),
-    //F64(N64),
-    //Dec(Decimal),
-    //Rows(Box<Data>),
-}
-
-impl Default for Scalar {
-    fn default() -> Scalar { Scalar::None }
-}
-
-impl Scalar {
-    pub fn repeat(of:&Scalar, times:usize) -> Vec<Scalar> {
-        vec![of.clone(); times]
-    }
-
-    pub fn kind(self:&Scalar) -> DataType {
-        match self {
-            Scalar::None    => DataType::None,
-            Scalar::Bool(_) => DataType::Bool,
-            Scalar::I32(_)  => DataType::I32,
-            Scalar::I64(_)  => DataType::I64,
-            Scalar::UTF8(_) => DataType::UTF8,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Union {
-    tag:i16,
-    data:Col
-}
+pub type RScalar = Rc<Scalar>;
+pub type RSchema = Rc<Schema>;
 
 #[derive(Debug, Clone)]
 pub enum ColumnName {
@@ -134,399 +187,206 @@ pub struct Field {
     pub kind: DataType,
 }
 
-#[derive(Debug, Clone, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialOrd, Ord)]
 pub struct Schema {
     pub columns: Vec<Field>,
 }
 
-/// The `NDArray` struct, for storing relational/table data (2d)
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct NDArray {
-    pub rows: usize,
-    pub cols: usize,
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct Vector {
+    pub schema: Schema,
     pub data: Col,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Index {
-    data: BTreeMap<Scalar, usize>
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct Range {
+    pub schema: Schema,
+    pub start: usize,
+    pub end: usize,
+    pub step: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Row<T:Relation>  {
-    pub source: T,
-}
-
-//#[derive(Debug, Clone, PartialEq, PartialOrd)]
-//pub struct Dict {
-//    index: HashMap<Scalar, Col>,
-//}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct BTree {
     pub schema: Schema,
-    pub data:  BTreeMap<Scalar, Scalar>,
+    pub data: BTreeMap<Scalar, Scalar>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Data {
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct Table {
     pub schema: Schema,
-    pub data: NDArray,
+    pub data: Vec<Col>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CmOp {
+    pub op: CompareOp,
+    pub lhs: usize,
+    pub rhs: Rc<Scalar>,
+}
+
+impl CmOp {
+    fn new(op: CompareOp, lhs: usize, rhs: Rc<Scalar>) -> Self {
+        CmOp { op, lhs, rhs }
+    }
+
+    pub fn eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Eq, lhs, rhs)
+    }
+    pub fn not(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::NotEq, lhs, rhs)
+    }
+    pub fn less(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Less, lhs, rhs)
+    }
+    pub fn less_eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::LessEq, lhs, rhs)
+    }
+    pub fn greater(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::Greater, lhs, rhs)
+    }
+    pub fn greater_eq(lhs: usize, rhs: Rc<Scalar>) -> Self {
+        Self::new(CompareOp::GreaterEq, lhs, rhs)
+    }
+
+    pub fn get_fn(&self) -> &BoolExpr {
+        match self.op {
+            CompareOp::Eq => &PartialEq::eq,
+            CompareOp::NotEq => &PartialEq::ne,
+            CompareOp::Less => &PartialOrd::lt,
+            CompareOp::LessEq => &PartialOrd::le,
+            CompareOp::Greater => &PartialOrd::gt,
+            CompareOp::GreaterEq => &PartialOrd::ge,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct DataSource<T> {
-    pub schema: Schema,
-    pos  :usize,
-    batch:usize,
-    pub source: T,
+pub enum Query {
+    //  To ask for all the rows, send a empty query
+    //    Distinct,
+    Where(CmOp),
+    Limit(usize, usize), // skip * limit
+    //Sort(bool, usize),   // true=ascending * col pos
+    //Select(Pos),
+    //Project(Col, String),
+    //    Project(Box<UnaryExpr>),
+    //Group(Pos),
+    //Join(Join),
+    Set(SetQuery, Rc<Rel>),
+}
+
+impl Query {
+    pub fn eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::eq(lhs, rhs.into()))
+    }
+
+    pub fn not(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::not(lhs, rhs.into()))
+    }
+
+    pub fn less(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::less(lhs, rhs.into()))
+    }
+
+    pub fn less_eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::less_eq(lhs, rhs.into()))
+    }
+
+    pub fn greater(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::greater(lhs, rhs.into()))
+    }
+
+    pub fn greater_eq(lhs: usize, rhs: Scalar) -> Self {
+        Query::Where(CmOp::greater_eq(lhs, rhs.into()))
+    }
+
+    pub fn union(rhs: Rel) -> Self {
+        Query::Set(SetQuery::Union, Rc::new(rhs))
+    }
+
+    pub fn diff(rhs: Rel) -> Self {
+        Query::Set(SetQuery::Diff, Rc::new(rhs))
+    }
+
+    pub fn intersection(rhs: Rel) -> Self {
+        Query::Set(SetQuery::Intersection, Rc::new(rhs))
+    }
 }
 
 #[derive(Debug)]
 pub struct ColIter<'a, R> {
     pub pos: usize,
     pub col: usize,
-    pub rel: &'a R
+    pub rel: &'a R,
 }
 
-/// Scalar iterator.
 #[derive(Debug)]
-pub struct RelIter<'a, R> {
+pub struct RowsIter<R> {
     pub pos: usize,
-    pub rel: &'a R
+    pub rel: R,
 }
 
-pub struct Cursor
-{
-    start: usize,
-    last: usize,
-}
-
-impl Cursor
-{
-    pub fn new(start:usize, last:usize) -> Self {
-        Cursor {
-            last,
-            start
-        }
-    }
-
-    pub fn set(&mut self, pos:usize) {
-        self.start = pos;
-    }
-
-    pub fn next(&mut self) {
-        let pos = self.start;
-        self.set(pos + 1)
-    }
-
-    pub fn eof(&self) -> bool {
-        self.start >= self.last
+impl<R> RowsIter<R> {
+    pub fn new(rel: R) -> Self {
+        RowsIter { pos: 0, rel }
     }
 }
 
-
-#[inline]
-fn size_rel(of:&[Col]) -> (usize, usize) {
-    let rows = of.len();
-    if rows > 0 {
-        (of[0].len(), rows)
-    } else {
-        (0, 0)
-    }
-}
-
-/// Calculate the appropriated index in the flat array
-#[inline]
-pub fn index(col_count:usize, row_count:usize, row:usize, col:usize) -> usize {
-    //println!("pos {:?} Row:{}, Col:{}, R:{}, C:{}", layout, row, col, row_count , col_count);
-    row * col_count + col
-}
-
-#[inline]
-pub fn write_row(to:&mut Col, col_count:usize, row_count:usize, row:usize, data:Col) {
-    for (col, value) in data.into_iter().enumerate() {
-        let index = index(col_count, row_count, row, col);
-        to[index] = value;
-    }
-}
-
-pub trait Relation:Sized + fmt::Display {
-    fn type_name<'a>() -> &'a str;
-    fn new_from<R: Relation>(names: Schema, of: &R) -> Self;
-    fn from_vector(schema:Schema, rows:usize, cols:usize, vector:Col) -> Self;
-    fn to_ndarray(&self) -> NDArray;
-    fn flat_raw(&self) -> Col {
-        let rows = self.row_count();
-        let cols = self.col_count();
-
-        let mut data = Vec::with_capacity(cols * rows);
-
-        for row in 0..rows {
-            for col in 0..cols {
-                data.push(self.value(row, col).clone())
-            }
-        }
-
-        data
-    }
-
-    fn clone_schema(&self, schema:&Schema) -> Self;
-    fn schema(&self) -> &Schema;
-
-    fn len(&self) -> usize {self.row_count() * self.col_count()}
-    fn row_count(&self) -> usize;
-    fn col_count(&self) -> usize;
-    fn is_empty(&self) -> bool { self.len() == 0}
-
-    fn value(&self, row:usize, col:usize) -> &Scalar;
-    fn get_value(&self, row:usize, col:usize) -> Option<&Scalar>;
-
-    //fn pk(&self) -> Option<usize>;
-    fn get_row(&self, pos:usize) -> Option<Col>;
-    fn rows_iter(&self) -> RelIter<'_, Self>;
-    fn col_iter(&self, col: usize) -> ColIter<'_, Self>;
-    fn col(&self, col: usize) -> Col;
-    fn rows_pos(&self, pick: Pos) -> Self;
-
-    fn hash_rows(&self) -> HashMap<u64, usize> {
-        let mut rows = HashMap::with_capacity(self.row_count());
-
-        for (i, row) in self.rows_iter().enumerate() {
-            rows.insert(hash_column(&row), i);
-        }
-
-        rows
-    }
-
-    fn cmp(&self, row: usize, col: usize, value: &Scalar, apply: &BoolExpr) -> bool
-    {
-        let old = self.value(row, col);
-        //println!("CMP {:?}, {:?}", value, old);
-        apply(old, value)
-    }
-
-    fn cmp_cols(&self, row: usize, cols: &[usize], tuple: &[Scalar], apply: &BoolExpr) -> bool
-    {
-        let values = cols.iter().zip(tuple.iter());
-
-        for (col, value) in values {
-            let old = self.value(row, *col);
-            if !apply(old, value) {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn find(&self, cursor:&mut Cursor, col:usize, value:&Scalar, apply: &BoolExpr ) -> Option<usize>
-    {
-        //println!("FIND {:?}, {:?}", cursor.start, cursor.last);
-        while !cursor.eof() {
-            let row = cursor.start;
-            cursor.next();
-            if self.cmp(row, col, value, apply) {
-                return Some(row)
-            }
-        }
-
-        Option::None
-    }
-
-    fn row_only(&self, row: usize, cols: &[usize]) -> Col {
-        let mut data = Vec::with_capacity(cols.len());
-
-        for i in cols {
-            data.push(self.value(row, *i).clone())
-        }
-        data
-    }
-
-    fn materialize_raw(&self, pos:&BitVec, null_count:usize, keep_null:bool) -> Col {
-        let rows = pos.len();
-        let cols = self.col_count();
-        let total_rows = if keep_null {rows} else {rows - null_count};
-
-        let mut data = vec![Scalar::None; cols * total_rows];
-        println!("Raw r:{:?}", pos);
-
-        let positions:Vec<(usize, bool)> =  pos.iter()
-            .enumerate()
-            .filter(|(_, x)| *x || keep_null).collect();
-        println!("Raw r:{:?}", positions);
-
-        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
-
-        let mut new_row = 0;
-        for (row, found) in positions {
-            for col in 0..cols {
-                let _pos = index( cols, total_rows, new_row, col);
-                if found {
-                    data[_pos] = self.value(row, col).clone();
-                }
-            }
-            new_row += 1;
-        }
-
-        data
-    }
-
-    fn materialize_data(&self, pos:&BitVec, keep_null:bool) -> NDArray {
-        let rows = pos.len();
-        let cols = self.col_count();
-        let positions:Vec<(usize, bool)> =  pos.iter()
-            .enumerate()
-            .filter(|(_, x)| *x || keep_null).collect();
-        println!("Raw rpos:{:?}", positions);
-
-        let total_rows = if keep_null {rows} else { positions.len()};
-
-        let mut data = vec![Scalar::None; cols * total_rows];
-        println!("Raw r:{:?}", pos);
-
-        println!("Raw r:{} c:{} n:{} total: {} {}", rows, cols, keep_null, total_rows, positions.len());
-
-        let mut new_row = 0;
-        for (row, found) in positions {
-            for col in 0..cols {
-                if found {
-                    let _pos = index(cols, total_rows, new_row, col);
-                    data[_pos] = self.value(row, col).clone();
-                }
-            }
-            new_row += 1;
-        }
-
-        NDArray::new(total_rows, cols, data)
-    }
-
-    fn find_all(&self, start:usize, col:usize, value:&Scalar, apply: &BoolExpr ) -> Vec<usize>
-    {
-        let mut pos = Vec::new();
-
-        let mut cursor = Cursor::new(start, self.row_count());
-
-        while let Some(next) = self.find(&mut cursor, col, value, apply) {
-            pos.push(next);
-        }
-
-        pos
-    }
-    fn find_all_rows(&self, col:usize, value:&Scalar, apply: &BoolExpr ) -> Self;
-
-
-    fn union<T:Relation>(&self, to:&T) -> Self;
-}
-
-pub trait RelationMut:Sized {
-
-}
-
-impl<'a, T:Relation> Iterator for RelIter<'a, T>
-{
-    type Item = Col;
-
-    fn next (&mut self) -> Option<Self::Item> {
-        let next = self.rel.get_row(self.pos);
-
-        if next.is_some() {
-            self.pos = self.pos + 1;
-            next
+pub trait RelIter {
+    fn pos(&self) -> usize;
+    fn advance(&mut self) -> bool;
+    fn row(&mut self) -> Col;
+    fn next(&mut self) -> Option<Col> {
+        if self.advance() {
+            Some(self.row())
         } else {
             None
         }
     }
 }
 
-impl<'a, T:Relation> Iterator for ColIter<'a, T>
+pub fn ref_cell<T>(of: T) -> Rc<RefCell<dyn RelIter>>
+where
+    T: RelIter + 'static,
 {
-    type Item = &'a Scalar;
-
-    fn next (&mut self) -> Option<Self::Item> {
-        self.rel.get_value(self.pos, self.col)
-    }
+    Rc::new(RefCell::new(of))
 }
 
-/// Auxiliary functions and shortcuts
-pub fn hash_column(vec: &[Scalar]) -> u64 {
-    //println!("HASH {:?}", vec);
-    let mut hasher = DefaultHasher::new();
-
-    vec.into_iter().for_each(| x | x.hash(&mut hasher));
-
-    hasher.finish()
-    //println!("HASH {:?}",x);    
+pub struct Seq {
+    pub schema: Schema,
+    pub shape: Shape,
+    pub iter: Rc<RefCell<dyn RelIter>>,
 }
 
-/// Pretty printers..
-fn _print_rows(of: &[Scalar], f: &mut fmt::Formatter) -> fmt::Result {
-    for (i, value) in of.iter().enumerate() {
-        if i == of.len() - 1{
-            write!(f, "{}", value)?;
-        } else {
-            write!(f, "{}, ", value)?;
-        }
+pub trait Relation: Debug {
+    //fn schema(&self) -> Rc<Schema>;
+
+    fn shape(&self) -> Shape;
+
+    fn len(&self) -> usize {
+        let (col_count, row_count) = self.shape().size();
+        row_count * col_count
     }
-    Ok(())
-}
-
-pub fn print_rows<T:Relation>(kind:&str, of: &T, f: &mut fmt::Formatter) -> fmt::Result {
-    let (sep1, sep2) =  ("[<", ">]");
-
-    write!(f, "{}{}", kind, sep1)?;
-    if of.col_count() > 0 {
-        write!(f, "{}", of.schema())?;
-        writeln!(f, ";")?;
-        let rows = of.rows_iter();
-
-        for (pos, row) in rows.enumerate() {
-            _print_rows(&row, f)?;
-            if pos < of.row_count() - 1 {
-                writeln!(f, ";")?;
-            }
-        }
-
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
-    writeln!(f, " {}", sep2)?;
-    Ok(())
-}
 
-impl fmt::Display for DataType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
+    fn rows(&self) -> RowsIter<Self>
+    where
+        Self: Sized;
 
-impl fmt::Display for Scalar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Scalar::None =>  write!(f, "None"),
-            Scalar::Bool(x) => write!(f, "{}", x),
-            Scalar::I32(x) => write!(f, "{}", x),
-            Scalar::I64(x) => write!(f, "{}", x),
-            Scalar::UTF8(x) => write!(f, "{}", x),
-//            Scalar::Tuple(x) => write!(f, "{:?}", x),
-        }
-    }
-}
+    fn as_seq(&self) -> Seq;
 
-impl fmt::Display for Field {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.name, self.kind)
-    }
-}
+    fn filter(&self, cmp: CmOp) -> Rel;
 
-impl fmt::Display for Schema {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in 0..self.len() {
-            let item =  &self.columns[i];
-            if i > 0 {
-                write!(f, ", {}",item)?;
-            } else {
-                write!(f, "{}", item)?;
-            }
-        }
+    fn union(&self, other: &Rel) -> Rel;
+    fn diff(&self, other: &Rel) -> Rel;
+    fn intersect(&self, other: &Rel) -> Rel;
 
-        Ok(())
-    }
+    //fn join(&self, cmp: CmOp) -> Self;
+
+    //fn project(&self, cmp: CmOp) -> Self;
+    //fn extend(&self, cmp: CmOp) -> Self;
+    //fn rename(&self, cmp: CmOp) -> Self;
 }

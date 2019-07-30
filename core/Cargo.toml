@@ -1,18 +1,17 @@
 [package]
 name = "tablam-core"
 version = "0.1.0"
-authors = ["Mario Montoya <mamcx@elmalabarista.com>", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+authors = ["Mario Montoya <mamcx@elmalabarista.com>"]
 repository = "https://bitbucket.org/tablam/tablam/"
 homepage = "https://bitbucket.org/tablam/tablam/"
 license = "MPL-2.0"
-keywords = ["database", "interpreter", "language", "relational", "columnar"]
-categories = ["database", "language", "relational"]
+keywords = ["database", "interpreter", "language", "relational"]
+categories = ["interpreter", "language", "relational", "tablam"]
 edition = "2018"
 
 [dependencies]
-time = "0.1.0"
-rand = "0.5"
-num = "*"
-bytes = "0.4"
-bit-vec = "*"
-decorum = "*"
+bytes = "0.4.12"
+bit-vec = "0.6.1"
+decorum = "0.1.3"
+chrono = "0.4.7"
+rust_decimal = "1.0.1"

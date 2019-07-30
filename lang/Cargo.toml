@@ -1,27 +1,16 @@
 [package]
 name = "tablam-lang"
 version = "0.1.0"
-authors = ["Mario Montoya <mamcx@elmalabarista.com>", "Maxwell Bernstein <tekknolagi@gmail.com>"]
+authors = ["Mario Montoya <mamcx@elmalabarista.com>"]
 repository = "https://bitbucket.org/tablam/tablam/"
 homepage = "https://bitbucket.org/tablam/tablam/"
 license = "MPL-2.0"
-build = "build.rs"
-keywords = ["database", "interpreter", "language", "relational", "columnar"]
-categories = ["database", "language", "relational"]
-
+keywords = ["database", "interpreter", "language", "relational"]
+categories = ["interpreter", "language", "relational", "tablam"]
+edition = "2018"
 
 [dependencies]
 tablam-core = { path = "../core" }
-# For parsing -- use master until 0.16 is released
-# This is due to some bullshit with the lalrpop_mod macro
-lalrpop-util = { git = "https://github.com/lalrpop/lalrpop.git" }
-regex = "0.2"
-radix_trie = "0.1"
-lazy_static = "1"
-
-[build-dependencies]
-# For parsing
-lalrpop = "0.15"
 
 [[bin]]
 name = "tablam"
