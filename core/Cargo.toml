@@ -10,11 +10,8 @@ categories = ["interpreter", "language", "relational"]
 edition = "2018"
 
 [dependencies]
-time = "*"
-rand = "*"
-num = "*"
-bytes = "*"
-bit-vec = "*"
-decorum = "*"
-chrono = "*"
-rust_decimal = "*"
+bytes = "0.4.12"
+bit-vec = "0.6.1"
+decorum = "0.1.3"
+chrono = "0.4.7"
+rust_decimal = "1.0.1"
