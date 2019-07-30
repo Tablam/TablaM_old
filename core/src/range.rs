@@ -1,5 +1,6 @@
 use std::cmp;
 use std::fmt;
+use std::ops::Range as SRange;
 
 use crate::dsl::*;
 use crate::types::*;
@@ -21,7 +22,23 @@ impl Relation for Range {
     }
 
     fn filter(&self, cmp: CmOp) -> Rel {
-        self.clone().into()
+        let apply = cmp.get_fn();
+        let mut data = Vec::new();
+
+        let range = SRange {
+            start: self.start,
+            end: self.end,
+        };
+
+        for x in range.step_by(self.step) {
+            let value = Scalar::ISize(x as isize);
+
+            if apply(&value, &cmp.rhs) {
+                data.push(value);
+            }
+        }
+
+        Vector::new(self.schema.clone(), data).into()
     }
 
     fn union(&self, other: &Rel) -> Rel {
@@ -46,11 +63,7 @@ impl Relation for Range {
 
 impl Range {
     pub fn new(start: usize, end: usize, step: usize) -> Self {
-        let schema = schema(&[
-            ("start", DataType::ISize),
-            ("end", DataType::ISize),
-            ("step", DataType::ISize),
-        ]);
+        let schema = schema_it(DataType::ISize);
         Range {
             schema,
             start,

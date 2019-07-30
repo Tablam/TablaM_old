@@ -23,7 +23,12 @@ impl Relation for Seq {
     }
 
     fn filter(&self, cmp: CmOp) -> Rel {
-        unimplemented!()
+        let iter = FilterIter {
+            cmp,
+            iter: Rc::new(self.rows()),
+        };
+
+        Seq::new(self.schema.clone(), &self.shape, ref_cell(iter)).into()
     }
 
     fn union(&self, other: &Rel) -> Rel {
@@ -80,6 +85,23 @@ impl Seq {
             }
             _ => unimplemented!(),
         }
+    }
+}
+
+impl RelIter for RowsIter<Seq> {
+    fn pos(&self) -> usize {
+        let iter = self.rel.iter.borrow();
+        iter.pos()
+    }
+
+    fn advance(&mut self) -> bool {
+        let mut iter = self.rel.iter.borrow_mut();
+        iter.advance()
+    }
+
+    fn row(&mut self) -> Col {
+        let mut iter = self.rel.iter.borrow_mut();
+        iter.row()
     }
 }
 

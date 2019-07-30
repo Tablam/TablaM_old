@@ -3,7 +3,7 @@ pub mod dsl;
 pub mod macros;
 pub mod range;
 pub mod relational;
-pub mod scalars;
+pub mod scalar;
 pub mod schema;
 pub mod sequence;
 pub mod stdlib;

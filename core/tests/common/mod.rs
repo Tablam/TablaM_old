@@ -29,8 +29,95 @@ pub fn rel_empty() -> Vector {
     array_empty(DataType::I32)
 }
 
+pub fn columns3_1() -> Vec<Col> {
+    let c1 = col(&nums_1());
+    let c2 = col(&nums_2());
+    let c3 = col(&bools_1());
+
+    [c1, c2, c3].to_vec()
+}
+
+pub fn columns3_2() -> Vec<Col> {
+    let c1 = col(&nums_1());
+    let c2 = col(&nums_3());
+    let c3 = col(&bools_1());
+
+    [c1, c2, c3].to_vec()
+}
+
+pub fn columns3_3() -> Vec<Col> {
+    let c1 = reverse(col(&nums_1()));
+    let c2 = reverse(col(&nums_2()));
+    let c3 = col(&bools_2());
+
+    [c1, c2, c3].to_vec()
+}
+
+pub fn schema1() -> Schema {
+    Schema::new(
+        [
+            field("one", DataType::I64),
+            field("two", DataType::I64),
+            field("three", DataType::Bool),
+        ]
+        .to_vec(),
+    )
+}
+
+pub fn schema2() -> Schema {
+    Schema::new(
+        [
+            field("four", DataType::I64),
+            field("five", DataType::I64),
+            field("six", DataType::Bool),
+        ]
+        .to_vec(),
+    )
+}
+
+pub fn table_1() -> Table {
+    let schema = schema1();
+    let data = columns3_1();
+    table_cols(schema, &data)
+}
+
+pub fn table_2() -> Table {
+    let schema = schema2();
+    let data = columns3_2();
+
+    table_cols(schema, &data)
+}
+
+pub fn table_3() -> Table {
+    let schema = schema1();
+    let data: Col = [4i64.into(), 6i64.into(), true.into()].to_vec();
+    let col = &vec![data];
+
+    table_cols(schema, &col)
+}
+
+pub fn table_4() -> Table {
+    let schema = schema2();
+    let data: Col = [5i64.into(), 1i64.into(), false.into()].to_vec();
+    let col = &vec![data];
+
+    table_cols(schema, &col)
+}
+
 pub fn check_schema<T: Relation>(of: &T, cols: usize, rows: usize) {
     assert_eq!(of.shape().size(), (cols, rows));
+}
+
+pub fn find_1() -> Query {
+    Query::eq(0, int64(1))
+}
+
+pub fn find_1000() -> Query {
+    Query::eq(0, int64(1000))
+}
+
+pub fn empty_I64() -> Vector {
+    array_empty(DataType::I64)
 }
 
 pub fn check_compare<T, R>(table: T, result: R)

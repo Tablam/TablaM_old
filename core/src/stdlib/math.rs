@@ -3,7 +3,7 @@ use std::ops::*;
 extern crate rust_decimal;
 use rust_decimal::Decimal;
 
-use crate::scalars::bin_op;
+use crate::scalar::bin_op;
 use crate::types::*;
 
 pub fn math_add(x: &Scalar, y: &Scalar) -> Scalar {

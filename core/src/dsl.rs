@@ -100,6 +100,10 @@ pub fn int64(x: i64) -> Scalar {
     value::<i64>(x)
 }
 
+pub fn pint(x: isize) -> Scalar {
+    value::<isize>(x)
+}
+
 pub fn bool(x: bool) -> Scalar {
     value::<bool>(x)
 }
@@ -165,4 +169,20 @@ pub fn none() -> Scalar {
 
 pub fn vector(of: &[Scalar]) -> Vector {
     Vector::new_scalars(of)
+}
+
+pub fn range(start: usize, end: usize, step: usize) -> Range {
+    Range::new(start, end, step)
+}
+
+pub fn range_to(end: usize) -> Range {
+    Range::new(0, end, 1)
+}
+
+pub fn table_rows(schema: Schema, of: Vec<Col>) -> Table {
+    Table::new(schema, of)
+}
+
+pub fn table_cols(schema: Schema, of: &Vec<Col>) -> Table {
+    Table::new_cols(schema, of.clone())
 }

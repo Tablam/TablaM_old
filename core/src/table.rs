@@ -74,6 +74,24 @@ impl Table {
         Table { schema, data }
     }
 
+    pub fn new_cols(schema: Schema, columns: Vec<Col>) -> Self {
+        let cols = columns.len();
+        let rows = if cols > 0 { columns[0].len() } else { 0 };
+
+        let mut data = Vec::with_capacity(rows);
+
+        for i in 0..rows {
+            let mut row = Vec::with_capacity(cols);
+
+            for c in 0..cols {
+                row.push(columns[c][i].clone());
+            }
+            data.push(row);
+        }
+
+        Table { schema, data }
+    }
+
     pub fn empty(kind: DataType) -> Self {
         let schema = schema_it(kind);
         let data = vec![];
