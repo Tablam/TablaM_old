@@ -2,7 +2,7 @@ use super::ast::*;
 use tablam_core::types as TT;
 use tablam_core::types::CompareOp as CP;
 use tablam_core::types::BinOp as BP;
-use tablam_core::operations::*;
+use tablam_core::stdlib::math::*;
 
 impl Program {
     pub fn new() -> Self {
@@ -107,8 +107,8 @@ impl Program {
     }
 
     fn eval_for_range(&mut self, env:&mut Env, name:&str, range:&TT::Range, code:ExprSlice) -> Return {
-        for i in (range.start..range.end).step_by(range.step as usize) {
-            self.set_var(env, LetKind::Imm, name, i.into());
+        for i in (range.start..range.end).step_by(range.step) {
+            self.set_var(env, LetKind::Imm, name, (i as isize).into());
             for line in code {
                 if line.is_loop_control() {
                     if line.is_break() {
