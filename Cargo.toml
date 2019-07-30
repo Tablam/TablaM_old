@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "lang", "drivers"]
+members = ["core", "lang"]

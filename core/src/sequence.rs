@@ -48,7 +48,7 @@ impl Seq {
         Seq {
             iter,
             schema,
-            shape: shape.clone(),
+            shape: *shape,
         }
     }
 
@@ -102,7 +102,7 @@ impl RelIter for UnionIter {
         let mut a = self.lhs.borrow_mut();
         let mut b = self.rhs.borrow_mut();
 
-        let ok = if self.first {
+        if self.first {
             if a.advance() {
                 true
             } else {
@@ -111,9 +111,7 @@ impl RelIter for UnionIter {
             }
         } else {
             b.advance()
-        };
-
-        ok
+        }
     }
 
     fn row(&mut self) -> Col {

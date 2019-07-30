@@ -21,9 +21,9 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.as_seq(),
             Rel::Vector(x) => x.as_seq(),
+            Rel::Range(x) => x.as_seq(),
             Rel::Seq(x) => x.as_seq(),
-            //Rel::Table(x) => x.size(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.as_seq(),
         }
     }
 
@@ -31,9 +31,9 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.filter(cmp),
             Rel::Vector(x) => x.filter(cmp),
+            Rel::Range(x) => x.filter(cmp),
             Rel::Seq(x) => x.filter(cmp),
-            //Rel::Table(x) => x.size(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.filter(cmp),
         }
     }
 
@@ -41,9 +41,9 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.union(other),
             Rel::Vector(x) => x.union(other),
+            Rel::Range(x) => x.union(other),
             Rel::Seq(x) => x.union(other),
-            //Rel::Table(x) => x.size(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.union(other),
         }
     }
 
@@ -51,9 +51,9 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.diff(other),
             Rel::Vector(x) => x.diff(other),
+            Rel::Range(x) => x.diff(other),
             Rel::Seq(x) => x.diff(other),
-            //Rel::Table(x) => x.size(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.diff(other),
         }
     }
 
@@ -61,9 +61,9 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.intersect(other),
             Rel::Vector(x) => x.intersect(other),
+            Rel::Range(x) => x.intersect(other),
             Rel::Seq(x) => x.intersect(other),
-            //Rel::Table(x) => x.size(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.intersect(other),
         }
     }
 }
