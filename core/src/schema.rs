@@ -82,14 +82,14 @@ impl Schema {
     }
 
     pub fn resolve_pos_many(&self, of: &[ColumnName]) -> Pos {
-        of.into_iter().map(|x| self.resolve_pos(x)).collect()
+        of.iter().map(|x| self.resolve_pos(x)).collect()
     }
 
     ///Recover the column names from a list of relative ColumnName
     pub fn resolve_names(&self, of: &[ColumnName]) -> Schema {
         let mut names = Vec::with_capacity(of.len());
 
-        for name in of.into_iter() {
+        for name in of.iter() {
             let pick = match name {
                 ColumnName::Pos(x) => self.columns[*x].clone(),
                 ColumnName::Name(x) => {

@@ -1,7 +1,5 @@
 use std::cmp;
 use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 
 use crate::dsl::*;
 use crate::types::*;
@@ -98,13 +96,5 @@ impl fmt::Display for Range {
             write!(f, "Range({}..{}", self.start, self.end)?;
         }
         Ok(())
-    }
-}
-
-impl Hash for Range {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.start.hash(state);
-        self.end.hash(state);
-        self.step.hash(state);
     }
 }

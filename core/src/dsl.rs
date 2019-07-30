@@ -27,7 +27,7 @@ pub fn field(name: &str, kind: DataType) -> Field {
 
 pub fn schema(names: &[(&str, DataType)]) -> Schema {
     let fields = names
-        .into_iter()
+        .iter()
         .map(|(name, kind)| Field::new(name, *kind))
         .collect();
 
@@ -43,7 +43,7 @@ pub fn schema_it(kind: DataType) -> Schema {
 
 pub fn schema_build(names: &[(&str, DataType)]) -> Schema {
     let fields = names
-        .into_iter()
+        .iter()
         .map(|(name, kind)| Field::new(name, *kind))
         .collect();
 
@@ -64,7 +64,7 @@ pub fn coln(name: &str) -> ColumnName {
     ColumnName::Name(name.to_string())
 }
 
-pub fn infer_type(of: &Col) -> DataType {
+pub fn infer_type(of: &[Scalar]) -> DataType {
     if of.is_empty() {
         DataType::None
     } else {
@@ -72,7 +72,7 @@ pub fn infer_type(of: &Col) -> DataType {
     }
 }
 
-pub fn infer_types(of: &Col) -> Vec<DataType> {
+pub fn infer_types(of: &[Scalar]) -> Vec<DataType> {
     of.iter().map(|x| x.kind()).collect()
 }
 

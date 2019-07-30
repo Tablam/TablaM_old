@@ -198,7 +198,7 @@ pub struct Vector {
     pub data: Col,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Range {
     pub schema: Schema,
     pub start: usize,

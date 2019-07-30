@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use crate::dsl::*;
 use crate::types::*;
@@ -96,7 +95,7 @@ impl Vector {
     }
 
     fn as_set(&self) -> HashSet<Scalar> {
-        self.data.iter().map(|x| x.clone()).collect()
+        self.data.iter().cloned().collect()
     }
 }
 

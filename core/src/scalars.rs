@@ -1,5 +1,4 @@
 use std::fmt;
-use std::rc::Rc;
 
 use crate::dsl::schema_it;
 use crate::types::*;
@@ -31,7 +30,7 @@ impl Relation for Scalar {
         if apply(self, &cmp.rhs) {
             self.clone().into()
         } else {
-            self.into_empty_vector().into()
+            self.to_empty_vector().into()
         }
     }
 
@@ -51,11 +50,11 @@ impl Relation for Scalar {
 }
 
 impl Scalar {
-    pub fn into_empty_vector(&self) -> Vector {
-        Vector::new_kind(vec![], self.kind().clone()).into()
+    pub fn to_empty_vector(&self) -> Vector {
+        Vector::new_kind(vec![], self.kind())
     }
 
-    pub fn into_vector(&self) -> Vector {
+    pub fn to_vector(&self) -> Vector {
         Vector::new_scalars(&[self.clone()])
     }
 

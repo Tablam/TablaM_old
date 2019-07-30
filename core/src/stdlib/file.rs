@@ -41,9 +41,9 @@ impl RelIter for IoFile {
                 false
             }
             Ok(_n) => {
-                if buf.ends_with("\n") {
+                if buf.ends_with('\n') {
                     buf.pop();
-                    if buf.ends_with("\r") {
+                    if buf.ends_with('\r') {
                         buf.pop();
                     }
                 }
