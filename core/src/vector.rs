@@ -4,11 +4,9 @@ use std::rc::Rc;
 use crate::dsl::*;
 use crate::types::*;
 
-impl Relation for Table {
+impl Relation for Vector {
     fn shape(&self) -> Shape {
-        let (cols, rows) = self.size();
-
-        Shape::Table(cols, rows)
+        Shape::Vector(self.data.len())
     }
 
     fn rows(&self) -> RowsIter<Self>
@@ -24,18 +22,20 @@ impl Relation for Table {
 
     fn filter(&self, cmp: CmOp) -> Rel {
         let apply = cmp.get_fn();
-        let data = self
-            .data
-            .iter()
-            .filter(|x| apply(&x[cmp.lhs], &cmp.rhs))
-            .cloned();
+        let data = self.data.iter().filter(|x| apply(x, &cmp.rhs)).cloned();
         let rel = Self::new(self.schema.clone(), data.collect());
         rel.into()
     }
 
     fn union(&self, other: &Rel) -> Rel {
         match other {
-            Rel::Table(b) => {
+            Rel::One(b) => {
+                let mut data = self.data.clone();
+                data.push(b.clone());
+
+                Self::new(self.schema.clone(), data).into()
+            }
+            Rel::Vector(b) => {
                 let data = self.data.iter().chain(b.data.iter()).cloned();
                 Self::new(self.schema.clone(), data.collect()).into()
             }
@@ -45,7 +45,7 @@ impl Relation for Table {
 
     fn diff(&self, other: &Rel) -> Rel {
         match other {
-            Rel::Table(b) => {
+            Rel::Vector(b) => {
                 let a = self.as_set();
                 let b = b.as_set();
 
@@ -58,7 +58,7 @@ impl Relation for Table {
 
     fn intersect(&self, other: &Rel) -> Rel {
         match other {
-            Rel::Table(b) => {
+            Rel::Vector(b) => {
                 let a = self.as_set();
                 let b = b.as_set();
 
@@ -70,31 +70,37 @@ impl Relation for Table {
     }
 }
 
-impl Table {
-    pub fn new(schema: Schema, data: Vec<Col>) -> Self {
-        Table { schema, data }
+impl Vector {
+    pub fn new(schema: Schema, data: Vec<Scalar>) -> Self {
+        Vector { schema, data }
     }
 
     pub fn empty(kind: DataType) -> Self {
         let schema = schema_it(kind);
         let data = vec![];
-        Table { schema, data }
+        Vector { schema, data }
     }
 
-    fn size(&self) -> (usize, usize) {
-        let rows = self.data.len();
-
-        let cols = if rows > 0 { self.data[0].len() } else { 0 };
-
-        (cols, rows)
+    pub fn new_kind(data: Vec<Scalar>, kind: DataType) -> Self {
+        let schema = schema_it(kind);
+        Vector { schema, data }
     }
 
-    fn as_set(&self) -> HashSet<Col> {
+    pub fn new_scalars(data: &[Scalar]) -> Self {
+        let kind = data[0].kind();
+        let schema = schema_it(kind);
+        Vector {
+            schema,
+            data: data.to_vec(),
+        }
+    }
+
+    fn as_set(&self) -> HashSet<Scalar> {
         self.data.iter().map(|x| x.clone()).collect()
     }
 }
 
-impl RelIter for RowsIter<Table> {
+impl RelIter for RowsIter<Vector> {
     fn pos(&self) -> usize {
         self.pos
     }
@@ -107,6 +113,6 @@ impl RelIter for RowsIter<Table> {
 
     fn row(&mut self) -> Col {
         let pos = self.pos - 1;
-        self.rel.data[pos].clone()
+        vec![self.rel.data[pos].clone()]
     }
 }

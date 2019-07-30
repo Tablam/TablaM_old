@@ -1,10 +1,11 @@
-use bit_vec;
-use self::bit_vec::BitVec;
-
-use std::ops::Index;
+use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::ops::Index;
 
-use super::types::*;
+use self::bit_vec::BitVec;
+use bit_vec;
+
+use crate::types::*;
 
 impl Field {
     pub fn new(name: &str, kind: DataType) -> Self {
@@ -15,10 +16,7 @@ impl Field {
     }
 
     pub fn new_owned(name: String, kind: DataType) -> Self {
-        Field {
-            name,
-            kind,
-        }
+        Field { name, kind }
     }
 
     pub fn name(&self) -> &String {
@@ -31,22 +29,20 @@ impl Field {
 }
 
 impl Schema {
-    pub fn new(fields:Vec<Field>) -> Self {
-        Schema {
-            columns: fields
-        }
+    pub fn new(fields: Vec<Field>) -> Self {
+        Schema { columns: fields }
     }
 
-    pub fn new_single(name:&str, kind:DataType) -> Self {
+    pub fn new_single(name: &str, kind: DataType) -> Self {
         let field = Field::new(name, kind);
         Self::new(vec![field])
     }
 
-    pub fn scalar_field(kind:DataType) -> Self {
+    pub fn scalar_field(kind: DataType) -> Self {
         Self::new_single("it", kind)
     }
 
-    pub fn generate(types:&[DataType]) -> Self {
+    pub fn generate(types: &[DataType]) -> Self {
         let mut names = Vec::with_capacity(types.len());
 
         for (pos, kind) in types.iter().enumerate() {
@@ -56,7 +52,7 @@ impl Schema {
         Self::new(names)
     }
 
-    pub fn named(&self, name:&str) -> Option<(usize, &Field)> {
+    pub fn named(&self, name: &str) -> Option<(usize, &Field)> {
         self.columns
             .iter()
             .enumerate()
@@ -66,7 +62,9 @@ impl Schema {
     pub fn len(&self) -> usize {
         self.columns.len()
     }
-    pub fn is_empty(&self) -> bool {self.len() == 0}
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     pub fn as_slice(&self) -> Vec<&str> {
         self.columns.iter().map(|x| x.name.as_ref()).collect()
@@ -75,9 +73,7 @@ impl Schema {
     ///Recover the column position from the relative ColumnName
     pub fn resolve_pos(&self, of: &ColumnName) -> usize {
         match of {
-            ColumnName::Pos(x) => {
-                *x
-            },
+            ColumnName::Pos(x) => *x,
             ColumnName::Name(x) => {
                 let (pos, _f) = self.named(x).unwrap();
                 pos
@@ -85,8 +81,7 @@ impl Schema {
         }
     }
 
-    pub fn resolve_pos_many(&self, of: &[ColumnName]) -> Pos
-    {
+    pub fn resolve_pos_many(&self, of: &[ColumnName]) -> Pos {
         of.into_iter().map(|x| self.resolve_pos(x)).collect()
     }
 
@@ -95,22 +90,19 @@ impl Schema {
         let mut names = Vec::with_capacity(of.len());
 
         for name in of.into_iter() {
-            let pick =
-                match name {
-                    ColumnName::Pos(x) => {
-                        self.columns[*x].clone()
-                    },
-                    ColumnName::Name(x) => {
-                        let (_pos, f) = self.named(x).unwrap();
-                        f.clone()
-                    }
-                };
+            let pick = match name {
+                ColumnName::Pos(x) => self.columns[*x].clone(),
+                ColumnName::Name(x) => {
+                    let (_pos, f) = self.named(x).unwrap();
+                    f.clone()
+                }
+            };
             names.push(pick);
         }
         Self::new(names)
     }
 
-    pub fn join(&self, other:&Self) -> Vec<usize> {
+    pub fn join(&self, other: &Self) -> Vec<usize> {
         let mut fields = Vec::new();
         for (i, col) in other.columns.iter().enumerate() {
             if self.exist(&col.name) {
@@ -124,7 +116,7 @@ impl Schema {
     }
 
     /// Helper for select/projection
-    pub fn only(&self, position:&[usize]) -> Self {
+    pub fn only(&self, position: &[usize]) -> Self {
         let mut fields = Vec::with_capacity(position.len());
         for pos in position {
             fields.push(self.columns[*pos].clone());
@@ -132,7 +124,7 @@ impl Schema {
         Self::new(fields)
     }
 
-    pub fn except(&self, remove:&[usize]) -> Pos {
+    pub fn except(&self, remove: &[usize]) -> Pos {
         let mut all = BitVec::from_elem(self.len(), true);
         let mut pos = Vec::with_capacity(self.len());
 
@@ -148,18 +140,18 @@ impl Schema {
         pos
     }
 
-    pub fn deselect(&self, remove:&[usize]) -> Self {
+    pub fn deselect(&self, remove: &[usize]) -> Self {
         let deselect = self.except(remove);
         self.only(deselect.as_slice())
     }
 
-    pub fn exist(&self, field:&str) -> bool {
+    pub fn exist(&self, field: &str) -> bool {
         let mut find = self.columns.iter().filter(|x| x.name == field);
 
         find.next().is_some()
     }
 
-    pub fn extend(&self, right:&Schema) -> Self {
+    pub fn extend(&self, right: &Schema) -> Self {
         let count = self.len() + right.len();
         let mut fields = Vec::with_capacity(count);
         let mut left = self.columns.clone();
@@ -181,7 +173,7 @@ impl Schema {
         Self::new(fields)
     }
 
-    pub fn rename(&self, change:&[(ColumnName, &str)]) -> Self {
+    pub fn rename(&self, change: &[(ColumnName, &str)]) -> Self {
         let mut names = self.columns.clone();
 
         for (col, name) in change {
@@ -203,8 +195,7 @@ impl Index<usize> for Schema {
 }
 
 impl PartialEq for Schema {
-    fn eq(&self, other: &Schema) -> bool
-    {
+    fn eq(&self, other: &Schema) -> bool {
         if self.columns.len() == other.columns.len() {
             let mut a = self.columns.clone();
             let mut b = other.columns.clone();
@@ -224,5 +215,26 @@ impl Hash for Schema {
         let mut a = self.columns.clone();
         a.sort();
         a.hash(state);
+    }
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.name, self.kind)
+    }
+}
+
+impl fmt::Display for Schema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in 0..self.len() {
+            let item = &self.columns[i];
+            if i > 0 {
+                write!(f, ", {}", item)?;
+            } else {
+                write!(f, "{}", item)?;
+            }
+        }
+
+        Ok(())
     }
 }

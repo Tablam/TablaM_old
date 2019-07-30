@@ -1,33 +1,60 @@
-use std::io;
 use std::fs::File;
-use std::io::Read;
-use std::path::Path;
-use std::path::PathBuf;
+use std::io::prelude::*;
+use std::io::BufReader;
 
-use super::super::types::{Rows, Scalar, Col};
+use crate::types::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FileRead {
-    All, Lines, Bytes,
+    All,
+    Lines,
+    Bytes,
 }
 
-pub struct ioFile {
-    pub file: File,
-    pub read: FileRead,
-    pos: u64,
+pub struct IoFile {
+    pub file: BufReader<File>,
+    pos: usize,
+    line: Option<Scalar>,
 }
 
-//impl Rows for ioFile
-//{
-//    fn next (&mut self) -> Option<&Scalar> {
-//        let mut contents = String::new();
-//
-//        self.file.read_to_string(&mut contents).unwrap();
-//        let data = contents.into();
-//        Some(&data)
-//    }
-//
-//    fn row_count(&self) -> usize {1}
-//    fn col_count(&self) -> usize {1}
-//    fn get_row(&self, pos:usize) -> Option<Col> { Some([].to_vec())}
-//}
+impl IoFile {
+    pub fn new(file: File) -> Self {
+        let file = BufReader::new(file);
+        IoFile {
+            file,
+            line: None,
+            pos: 0,
+        }
+    }
+}
+
+impl RelIter for IoFile {
+    fn pos(&self) -> usize {
+        self.pos
+    }
+
+    fn advance(&mut self) -> bool {
+        let mut buf = String::new();
+        match self.file.read_line(&mut buf) {
+            Ok(0) => {
+                self.line = None;
+                false
+            }
+            Ok(_n) => {
+                if buf.ends_with("\n") {
+                    buf.pop();
+                    if buf.ends_with("\r") {
+                        buf.pop();
+                    }
+                }
+                self.line = Some(buf.into());
+                true
+            }
+            Err(e) => false,
+        }
+    }
+
+    fn row(&mut self) -> Col {
+        vec![self.line.clone().unwrap()]
+    }
+}
