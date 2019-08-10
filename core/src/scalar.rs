@@ -37,15 +37,35 @@ impl Relation for Scalar {
     fn union(&self, other: &Rel) -> Rel {
         match other {
             Rel::One(b) => Vector::new_scalars(&[self.clone(), b.clone()]).into(),
+            Rel::Vector(b) => b.append(self).into(),
+            Rel::Table(_) => Table::single(schema_it(self.kind()), self.clone()).union(other),
             _ => unimplemented!(),
         }
     }
 
     fn diff(&self, other: &Rel) -> Rel {
-        unimplemented!()
+        match other {
+            Rel::One(b) => {
+                if self == b {
+                    Vector::empty(self.kind()).into()
+                } else {
+                    self.clone().into()
+                }
+            }
+            _ => unimplemented!(),
+        }
     }
     fn intersect(&self, other: &Rel) -> Rel {
-        unimplemented!()
+        match other {
+            Rel::One(b) => {
+                if self != b {
+                    self.clone().into()
+                } else {
+                    Vector::empty(self.kind()).into()
+                }
+            }
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -124,7 +144,7 @@ impl fmt::Display for Scalar {
             Scalar::Decimal(x) => write!(f, "{}", x),
             Scalar::DateTime(x) => write!(f, "{}", x),
             Scalar::UTF8(x) => write!(f, "{}", x),
-            _ => unimplemented!(),
+            Scalar::Rel(x) => write!(f, "{}", x),
         }
     }
 }

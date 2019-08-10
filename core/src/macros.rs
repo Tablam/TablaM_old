@@ -79,6 +79,5 @@ macro_rules! convert_rel {
 
 convert_rel!(Scalar, Rel::One);
 convert_rel!(Vector, Rel::Vector);
-convert_rel!(Range, Rel::Range);
 convert_rel!(Seq, Rel::Seq);
 convert_rel!(Table, Rel::Table);

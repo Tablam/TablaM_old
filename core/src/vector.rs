@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt;
 
 use crate::dsl::*;
 use crate::types::*;
@@ -28,12 +29,7 @@ impl Relation for Vector {
 
     fn union(&self, other: &Rel) -> Rel {
         match other {
-            Rel::One(b) => {
-                let mut data = self.data.clone();
-                data.push(b.clone());
-
-                Self::new(self.schema.clone(), data).into()
-            }
+            Rel::One(b) => self.append(b).into(),
             Rel::Vector(b) => {
                 let data = self.data.iter().chain(b.data.iter()).cloned();
                 Self::new(self.schema.clone(), data.collect()).into()
@@ -94,6 +90,13 @@ impl Vector {
         }
     }
 
+    pub fn append(&self, value: &Scalar) -> Self {
+        let mut data = self.data.clone();
+        data.push(value.clone());
+
+        Self::new(self.schema.clone(), data)
+    }
+
     fn as_set(&self) -> HashSet<Scalar> {
         self.data.iter().cloned().collect()
     }
@@ -113,5 +116,11 @@ impl RelIter for RowsIter<Vector> {
     fn row(&mut self) -> Col {
         let pos = self.pos - 1;
         vec![self.rel.data[pos].clone()]
+    }
+}
+
+impl fmt::Display for Vector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.schema, self.data)
     }
 }

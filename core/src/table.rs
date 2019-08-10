@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt;
 
 use crate::dsl::*;
 use crate::types::*;
@@ -73,6 +74,12 @@ impl Table {
     pub fn new(schema: Schema, data: Vec<Col>) -> Self {
         Table { schema, data }
     }
+    pub fn single(schema: Schema, data: Scalar) -> Self {
+        Table {
+            schema,
+            data: vec![vec![data]],
+        }
+    }
 
     pub fn new_cols(schema: Schema, columns: Vec<Col>) -> Self {
         let cols = columns.len();
@@ -125,5 +132,11 @@ impl RelIter for RowsIter<Table> {
     fn row(&mut self) -> Col {
         let pos = self.pos - 1;
         self.rel.data[pos].clone()
+    }
+}
+
+impl fmt::Display for Table {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.schema, self.data)
     }
 }

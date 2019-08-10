@@ -5,62 +5,6 @@ use std::ops::Range as SRange;
 use crate::dsl::*;
 use crate::types::*;
 
-impl Relation for Range {
-    fn shape(&self) -> Shape {
-        Shape::Table(1, self.end - self.start)
-    }
-
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized,
-    {
-        RowsIter::new(self.clone())
-    }
-
-    fn as_seq(&self) -> Seq {
-        Seq::new(self.schema.clone(), &self.shape(), ref_cell(self.rows()))
-    }
-
-    fn filter(&self, cmp: CmOp) -> Rel {
-        let apply = cmp.get_fn();
-        let mut data = Vec::new();
-
-        let range = SRange {
-            start: self.start,
-            end: self.end,
-        };
-
-        for x in range.step_by(self.step) {
-            let value = Scalar::ISize(x as isize);
-
-            if apply(&value, &cmp.rhs) {
-                data.push(value);
-            }
-        }
-
-        Vector::new(self.schema.clone(), data).into()
-    }
-
-    fn union(&self, other: &Rel) -> Rel {
-        match other {
-            Rel::Range(b) => Self::new(
-                cmp::min(self.start, b.start),
-                cmp::max(self.end, b.end),
-                cmp::min(self.step, b.step),
-            )
-            .into(),
-            _ => unimplemented!(),
-        }
-    }
-
-    fn diff(&self, other: &Rel) -> Rel {
-        unimplemented!()
-    }
-    fn intersect(&self, other: &Rel) -> Rel {
-        unimplemented!()
-    }
-}
-
 impl Range {
     pub fn new(start: usize, end: usize, step: usize) -> Self {
         let schema = schema_it(DataType::ISize);
@@ -70,6 +14,18 @@ impl Range {
             end,
             step,
         }
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::Table(1, self.end - self.start)
+    }
+
+    fn rows(&self) -> RowsIter<Self> {
+        RowsIter::new(self.clone())
+    }
+
+    fn as_seq(&self) -> Seq {
+        Seq::new(self.schema.clone(), &self.shape(), ref_cell(self.rows()))
     }
 
     fn get(&mut self, pos: usize) -> Option<usize> {

@@ -159,7 +159,7 @@ pub enum Scalar {
 pub enum Rel {
     One(Scalar),
     Vector(Vector),
-    Range(Range),
+    //Range(Range),
     Table(Table),
     Seq(Seq),
 }
