@@ -142,6 +142,8 @@ where
 
     let rel = rel.query(&[query]);
 
+    println!("Result {}", rel.printer());
+
     if let Rel::Seq(mut x) = rel {
         assert_eq!(x.materialize(), result);
     } else {

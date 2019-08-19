@@ -149,6 +149,7 @@ pub enum Scalar {
     I64(i64),
     F64(R64),
     Decimal(Decimal),
+    //Date
     DateTime(TimeStamp),
     UTF8(String),
     //Complex
@@ -159,7 +160,6 @@ pub enum Scalar {
 pub enum Rel {
     One(Scalar),
     Vector(Vector),
-    //Range(Range),
     Table(Table),
     Seq(Seq),
 }
@@ -359,6 +359,16 @@ pub struct Seq {
     pub iter: Rc<RefCell<dyn RelIter>>,
 }
 
+pub struct RelPrinter<'a, T> {
+    pub rel: &'a T,
+}
+
+impl<'a, T> RelPrinter<'a, T> {
+    pub fn new(rel: &'a T) -> Self {
+        RelPrinter { rel }
+    }
+}
+
 pub trait Relation: Debug {
     //fn schema(&self) -> Rc<Schema>;
 
@@ -371,6 +381,10 @@ pub trait Relation: Debug {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized;
 
     fn rows(&self) -> RowsIter<Self>
     where
@@ -389,4 +403,16 @@ pub trait Relation: Debug {
     //fn project(&self, cmp: CmOp) -> Self;
     //fn extend(&self, cmp: CmOp) -> Self;
     //fn rename(&self, cmp: CmOp) -> Self;
+}
+
+/// Pretty printers..
+pub fn _print_rows(of: &[Scalar], f: &mut fmt::Formatter) -> fmt::Result {
+    for (i, value) in of.iter().enumerate() {
+        if i == of.len() - 1 {
+            write!(f, "{}", value)?;
+        } else {
+            write!(f, "{}, ", value)?;
+        }
+    }
+    Ok(())
 }

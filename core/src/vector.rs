@@ -9,6 +9,13 @@ impl Relation for Vector {
         Shape::Vector(self.data.len())
     }
 
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized,
+    {
+        RelPrinter::new(self)
+    }
+
     fn rows(&self) -> RowsIter<Self>
     where
         Self: Sized,
@@ -34,12 +41,20 @@ impl Relation for Vector {
                 let data = self.data.iter().chain(b.data.iter()).cloned();
                 Self::new(self.schema.clone(), data.collect()).into()
             }
-            _ => unimplemented!(),
+            Rel::Table(_) => self.to_table().union(other),
+            Rel::Seq(_) => self.as_seq().union(other),
         }
     }
 
     fn diff(&self, other: &Rel) -> Rel {
         match other {
+            Rel::One(b) => {
+                if self.data.contains(b) {
+                    Self::empty(self.schema[0].kind).into()
+                } else {
+                    b.clone().into()
+                }
+            }
             Rel::Vector(b) => {
                 let a = self.as_set();
                 let b = b.as_set();
@@ -47,12 +62,20 @@ impl Relation for Vector {
                 let result = a.difference(&b);
                 Self::new(self.schema.clone(), result.cloned().collect()).into()
             }
-            _ => unimplemented!(),
+            Rel::Table(_) => self.to_table().diff(other),
+            Rel::Seq(_) => self.as_seq().diff(other),
         }
     }
 
     fn intersect(&self, other: &Rel) -> Rel {
         match other {
+            Rel::One(b) => {
+                if self.data.contains(b) {
+                    b.clone().into()
+                } else {
+                    Self::empty(self.schema[0].kind).into()
+                }
+            }
             Rel::Vector(b) => {
                 let a = self.as_set();
                 let b = b.as_set();
@@ -60,7 +83,8 @@ impl Relation for Vector {
                 let result = a.intersection(&b);
                 Self::new(self.schema.clone(), result.cloned().collect()).into()
             }
-            _ => unimplemented!(),
+            Rel::Table(_) => self.to_table().intersect(other),
+            Rel::Seq(_) => self.as_seq().intersect(other),
         }
     }
 }
@@ -88,6 +112,14 @@ impl Vector {
             schema,
             data: data.to_vec(),
         }
+    }
+
+    pub fn to_table(&self) -> Table {
+        let mut data = Vec::with_capacity(self.data.len());
+        for row in &self.data {
+            data.push(vec![row.clone()]);
+        }
+        Table::new(self.schema.clone(), data)
     }
 
     pub fn append(&self, value: &Scalar) -> Self {
@@ -122,5 +154,13 @@ impl RelIter for RowsIter<Vector> {
 impl fmt::Display for Vector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{:?}", self.schema, self.data)
+    }
+}
+
+impl fmt::Display for RelPrinter<'_, Vector> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{};", self.rel.schema)?;
+        _print_rows(&self.rel.data, f)?;
+        write!(f, "]")
     }
 }

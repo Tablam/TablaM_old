@@ -10,11 +10,3 @@ pub mod stdlib;
 pub mod table;
 pub mod types;
 pub mod vector;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

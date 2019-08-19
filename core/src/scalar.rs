@@ -14,6 +14,13 @@ impl Relation for Scalar {
         Shape::Scalar
     }
 
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized,
+    {
+        RelPrinter::new(self)
+    }
+
     fn rows(&self) -> RowsIter<Self>
     where
         Self: Sized,
@@ -38,8 +45,8 @@ impl Relation for Scalar {
         match other {
             Rel::One(b) => Vector::new_scalars(&[self.clone(), b.clone()]).into(),
             Rel::Vector(b) => b.append(self).into(),
-            Rel::Table(_) => Table::single(schema_it(self.kind()), self.clone()).union(other),
-            _ => unimplemented!(),
+            Rel::Table(_) => self.to_table().union(other),
+            Rel::Seq(_) => self.as_seq().union(other),
         }
     }
 
@@ -52,9 +59,12 @@ impl Relation for Scalar {
                     self.clone().into()
                 }
             }
-            _ => unimplemented!(),
+            Rel::Vector(_) => self.to_vector().diff(other),
+            Rel::Table(_) => self.to_table().diff(other),
+            Rel::Seq(_) => self.as_seq().diff(other),
         }
     }
+
     fn intersect(&self, other: &Rel) -> Rel {
         match other {
             Rel::One(b) => {
@@ -64,7 +74,9 @@ impl Relation for Scalar {
                     Vector::empty(self.kind()).into()
                 }
             }
-            _ => unimplemented!(),
+            Rel::Vector(_) => self.to_vector().intersect(other),
+            Rel::Table(_) => self.to_table().intersect(other),
+            Rel::Seq(_) => self.as_seq().intersect(other),
         }
     }
 }
@@ -76,6 +88,10 @@ impl Scalar {
 
     pub fn to_vector(&self) -> Vector {
         Vector::new_scalars(&[self.clone()])
+    }
+
+    pub fn to_table(&self) -> Table {
+        Table::single(schema_it(self.kind()), self.clone())
     }
 
     pub fn repeat(of: &Scalar, times: usize) -> Vec<Scalar> {
@@ -146,5 +162,12 @@ impl fmt::Display for Scalar {
             Scalar::UTF8(x) => write!(f, "{}", x),
             Scalar::Rel(x) => write!(f, "{}", x),
         }
+    }
+}
+
+impl fmt::Display for RelPrinter<'_, Scalar> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[it:{};", self.rel.kind());
+        write!(f, "{}]", self.rel)
     }
 }

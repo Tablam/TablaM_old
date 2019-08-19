@@ -11,6 +11,13 @@ impl Relation for Seq {
         self.shape
     }
 
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized,
+    {
+        RelPrinter::new(self)
+    }
+
     fn rows(&self) -> RowsIter<Self>
     where
         Self: Sized,
@@ -221,5 +228,13 @@ impl Ord for Seq {
 impl Clone for Seq {
     fn clone(&self) -> Self {
         Seq::new(self.schema.clone(), &self.shape, self.iter.clone())
+    }
+}
+
+impl fmt::Display for RelPrinter<'_, Seq> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{};", self.rel.schema);
+        write!(f, "{};", self.rel);
+        write!(f, "]")
     }
 }

@@ -1,6 +1,4 @@
-use std::cmp;
 use std::fmt;
-use std::ops::Range as SRange;
 
 use crate::dsl::*;
 use crate::types::*;

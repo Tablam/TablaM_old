@@ -7,9 +7,16 @@ impl Relation for Rel {
         match self {
             Rel::One(x) => x.shape(),
             Rel::Vector(x) => x.shape(),
-            //Rel::Table(x) => x.shape(),
-            _ => unimplemented!(),
+            Rel::Table(x) => x.shape(),
+            Rel::Seq(x) => x.shape(),
         }
+    }
+
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized,
+    {
+        RelPrinter::new(self)
     }
 
     fn rows(&self) -> RowsIter<Self>
@@ -95,6 +102,17 @@ impl fmt::Display for Rel {
             Rel::Seq(x) => write!(f, "{}", x),
             Rel::Vector(x) => write!(f, "{}", x),
             Rel::Table(x) => write!(f, "{}", x),
+        }
+    }
+}
+
+impl fmt::Display for RelPrinter<'_, Rel> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.rel {
+            Rel::One(x) => write!(f, "{}", x.printer()),
+            Rel::Seq(x) => write!(f, "{}", x.printer()),
+            Rel::Vector(x) => write!(f, "{}", x.printer()),
+            Rel::Table(x) => write!(f, "{}", x.printer()),
         }
     }
 }

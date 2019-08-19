@@ -11,6 +11,13 @@ impl Relation for Table {
         Shape::Table(cols, rows)
     }
 
+    fn printer(&self) -> RelPrinter<Self>
+    where
+        Self: Sized,
+    {
+        RelPrinter::new(self)
+    }
+
     fn rows(&self) -> RowsIter<Self>
     where
         Self: Sized,
@@ -138,5 +145,16 @@ impl RelIter for RowsIter<Table> {
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{:?}", self.schema, self.data)
+    }
+}
+
+impl fmt::Display for RelPrinter<'_, Table> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[<{}", self.rel.schema)?;
+        for row in &self.rel.data {
+            writeln!(f, ";")?;
+            _print_rows(row, f)?;
+        }
+        write!(f, ">]")
     }
 }
