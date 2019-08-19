@@ -186,3 +186,7 @@ pub fn table_rows(schema: Schema, of: Vec<Col>) -> Table {
 pub fn table_cols(schema: Schema, of: &Vec<Col>) -> Table {
     Table::new_cols(schema, of.clone())
 }
+
+pub fn table_empty(schema: Schema) -> Table {
+    Table::new(schema, vec![])
+}
