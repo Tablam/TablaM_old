@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::types::*;
+use std::collections::HashSet;
 
 impl Relation for Seq {
     fn shape(&self) -> Shape {
@@ -43,15 +44,27 @@ impl Relation for Seq {
             Rel::Seq(b) => {
                 Self::of_union(&self.schema, &self.shape, self.iter.clone(), b.iter.clone()).into()
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("union"),
         }
     }
 
     fn diff(&self, other: &Rel) -> Rel {
-        unimplemented!()
+        match other {
+            Rel::Seq(b) => {
+                Self::of_diff(&self.schema, &self.shape, self.iter.clone(), b.iter.clone()).into()
+            }
+            _ => unimplemented!("union"),
+        }
     }
+
     fn intersect(&self, other: &Rel) -> Rel {
-        unimplemented!()
+        match other {
+            Rel::Seq(b) => {
+                Self::of_intersection(&self.schema, &self.shape, self.iter.clone(), b.iter.clone())
+                    .into()
+            }
+            _ => unimplemented!("intersect"),
+        }
     }
 }
 
@@ -75,6 +88,26 @@ impl Seq {
             rhs,
             first: true,
         };
+        Self::new(schema.clone(), shape, ref_cell(iter))
+    }
+
+    pub fn of_intersection(
+        schema: &Schema,
+        shape: &Shape,
+        lhs: Rc<RefCell<dyn RelIter>>,
+        rhs: Rc<RefCell<dyn RelIter>>,
+    ) -> Self {
+        let iter = InterIter::new(lhs, rhs);
+        Self::new(schema.clone(), shape, ref_cell(iter))
+    }
+
+    pub fn of_diff(
+        schema: &Schema,
+        shape: &Shape,
+        lhs: Rc<RefCell<dyn RelIter>>,
+        rhs: Rc<RefCell<dyn RelIter>>,
+    ) -> Self {
+        let iter = DiffIter::new(lhs, rhs);
         Self::new(schema.clone(), shape, ref_cell(iter))
     }
 
@@ -109,6 +142,86 @@ impl RelIter for RowsIter<Seq> {
     fn row(&mut self) -> Col {
         let mut iter = self.rel.iter.borrow_mut();
         iter.row()
+    }
+}
+
+struct DiffIter {
+    pub hash: HashSet<Col>,
+    pub rhs: Rc<RefCell<dyn RelIter>>,
+}
+
+impl DiffIter {
+    pub fn new(lhs: Rc<RefCell<dyn RelIter>>, rhs: Rc<RefCell<dyn RelIter>>) -> Self {
+        let mut hash = HashSet::new();
+        let mut rows = lhs.borrow_mut();
+
+        while rows.advance() {
+            hash.insert(rows.row());
+        }
+
+        DiffIter { hash, rhs }
+    }
+}
+
+impl RelIter for DiffIter {
+    fn pos(&self) -> usize {
+        self.rhs.borrow().pos()
+    }
+
+    fn advance(&mut self) -> bool {
+        let mut b = self.rhs.borrow_mut();
+        while b.advance() {
+            let row = b.row();
+            if !self.hash.contains(&row) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn row(&mut self) -> Col {
+        let mut b = self.rhs.borrow_mut();
+        b.row()
+    }
+}
+
+struct InterIter {
+    pub hash: HashSet<Col>,
+    pub rhs: Rc<RefCell<dyn RelIter>>,
+}
+
+impl InterIter {
+    pub fn new(lhs: Rc<RefCell<dyn RelIter>>, rhs: Rc<RefCell<dyn RelIter>>) -> Self {
+        let mut hash = HashSet::new();
+        let mut rows = lhs.borrow_mut();
+
+        while rows.advance() {
+            hash.insert(rows.row());
+        }
+
+        InterIter { hash, rhs }
+    }
+}
+
+impl RelIter for InterIter {
+    fn pos(&self) -> usize {
+        self.rhs.borrow().pos()
+    }
+
+    fn advance(&mut self) -> bool {
+        let mut b = self.rhs.borrow_mut();
+        while b.advance() {
+            let row = b.row();
+            if self.hash.contains(&row) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn row(&mut self) -> Col {
+        let mut b = self.rhs.borrow_mut();
+        b.row()
     }
 }
 

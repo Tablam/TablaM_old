@@ -68,7 +68,7 @@ impl Relation for Scalar {
     fn intersect(&self, other: &Rel) -> Rel {
         match other {
             Rel::One(b) => {
-                if self != b {
+                if self == b {
                     self.clone().into()
                 } else {
                     Vector::empty(self.kind()).into()

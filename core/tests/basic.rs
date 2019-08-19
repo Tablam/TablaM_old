@@ -2,7 +2,7 @@ use tablam_core::dsl::*;
 use tablam_core::types::DataType::*;
 use tablam_core::types::*;
 
-mod common;
+pub mod common;
 use crate::common::*;
 
 #[test]
