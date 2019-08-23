@@ -8,14 +8,14 @@ use crate::common::*;
 fn scalar() {
     let s1 = int64(1);
     check_query(s1.clone(), find_1(), int64(1));
-    check_query(s1, find_1000(), empty_I64());
+    check_query(s1, find_1000(), empty_i64());
 }
 
 #[test]
 fn vector() {
     let v1 = rel_nums1();
     check_query(v1.clone(), find_1(), array(&[1i64]));
-    check_query(v1, find_1000(), empty_I64());
+    check_query(v1, find_1000(), empty_i64());
 }
 
 #[test]
@@ -35,5 +35,5 @@ fn table() {
 fn seq() {
     let v1 = rel_nums1().as_seq();
     check_query(v1.clone(), find_1(), array(&[1i64]));
-    check_query(v1, find_1000(), empty_I64());
+    check_query(v1, find_1000(), empty_i64());
 }

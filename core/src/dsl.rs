@@ -41,15 +41,6 @@ pub fn schema_it(kind: DataType) -> Schema {
     schema_single("it", kind)
 }
 
-pub fn schema_build(names: &[(&str, DataType)]) -> Schema {
-    let fields = names
-        .iter()
-        .map(|(name, kind)| Field::new(name, *kind))
-        .collect();
-
-    Schema::new(fields)
-}
-
 pub fn schema_kv(types: [DataType; 2]) -> Schema {
     let key = field("key", types[0]);
     let value = field("value", types[1]);

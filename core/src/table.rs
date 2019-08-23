@@ -75,12 +75,52 @@ impl Relation for Table {
             _ => unimplemented!(),
         }
     }
+
+    fn cross(&self, other: &Rel) -> Rel {
+        match other {
+            Rel::One(b) => {
+                let mut a = self.clone();
+                a.schema = self.schema.extend(&schema_it(b.kind()));
+                let b = Scalar::repeat(b, self.data.len());
+                a.append_column(b);
+                a.into()
+            }
+            Rel::Vector(b) => {
+                let schema = self.schema.extend(&schema_it(b.kind()));
+                let mut rows = Vec::with_capacity(self.data.len() * b.data.len());
+
+                for a in &self.data {
+                    for b in &b.data {
+                        let mut row = a.clone();
+                        row.push(b.clone());
+                        rows.push(row);
+                    }
+                }
+                table_rows(schema, rows).into()
+            }
+            Rel::Table(b) => {
+                let schema = self.schema.extend(&b.schema);
+                let mut rows = Vec::with_capacity(self.data.len() * b.data.len());
+
+                for a in &self.data {
+                    for b in &b.data {
+                        let mut row = a.clone();
+                        row.extend_from_slice(&b);
+                        rows.push(row);
+                    }
+                }
+                table_rows(schema, rows).into()
+            }
+            Rel::Seq(_) => self.as_seq().intersect(other),
+        }
+    }
 }
 
 impl Table {
     pub fn new(schema: Schema, data: Vec<Col>) -> Self {
         Table { schema, data }
     }
+
     pub fn single(schema: Schema, data: Scalar) -> Self {
         Table {
             schema,
@@ -122,6 +162,12 @@ impl Table {
 
     fn as_set(&self) -> HashSet<Col> {
         self.data.iter().cloned().collect()
+    }
+
+    pub fn append_column(&mut self, col: Col) {
+        for (i, row) in self.data.iter_mut().enumerate() {
+            row.push(col[i].clone());
+        }
     }
 }
 

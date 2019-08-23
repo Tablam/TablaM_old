@@ -70,6 +70,15 @@ impl Relation for Rel {
             Rel::Table(x) => x.intersect(other),
         }
     }
+
+    fn cross(&self, other: &Rel) -> Rel {
+        match self {
+            Rel::One(x) => x.cross(other),
+            Rel::Vector(x) => x.cross(other),
+            Rel::Seq(x) => x.cross(other),
+            Rel::Table(x) => x.cross(other),
+        }
+    }
 }
 
 impl Rel {
@@ -87,6 +96,10 @@ impl Rel {
                         SetQuery::Intersection => next.intersect(&other),
                     },
                     //Query::Sort(asc, pos) => next.sorted(*asc, *pos),
+                    Query::Join(join, other) => match join {
+                        Join::Cross => next.cross(&other),
+                        _ => unimplemented!(),
+                    },
                     _ => unimplemented!(),
                 };
             }

@@ -116,7 +116,7 @@ pub fn find_1000() -> Query {
     Query::eq(0, int64(1000))
 }
 
-pub fn empty_I64() -> Vector {
+pub fn empty_i64() -> Vector {
     array_empty(DataType::I64)
 }
 

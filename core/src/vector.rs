@@ -87,6 +87,31 @@ impl Relation for Vector {
             Rel::Seq(_) => self.as_seq().intersect(other),
         }
     }
+
+    fn cross(&self, other: &Rel) -> Rel {
+        match other {
+            Rel::One(b) => {
+                let schema = schema(&[("col0", self.kind()), ("col1", b.kind())]);
+
+                let a = self.data.clone();
+                let b = Scalar::repeat(b, self.data.len());
+                table_cols(schema, &vec![a, b]).into()
+            }
+            Rel::Vector(b) => {
+                let schema = schema(&[("col0", self.kind()), ("col1", b.kind())]);
+                let mut rows = Vec::with_capacity(self.data.len() * b.data.len());
+
+                for a in &self.data {
+                    for b in &b.data {
+                        rows.push(vec![a.clone(), b.clone()]);
+                    }
+                }
+                table_rows(schema, rows).into()
+            }
+            Rel::Table(_) => self.to_table().intersect(other),
+            Rel::Seq(_) => self.as_seq().intersect(other),
+        }
+    }
 }
 
 impl Vector {
@@ -112,6 +137,10 @@ impl Vector {
             schema,
             data: data.to_vec(),
         }
+    }
+
+    pub fn kind(&self) -> DataType {
+        self.schema.columns[0].kind
     }
 
     pub fn to_table(&self) -> Table {

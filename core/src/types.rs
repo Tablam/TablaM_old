@@ -21,10 +21,11 @@ use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Join {
+    Cross,
     Left,
     Right,
     Inner,
-    Full, //, Natural, Cross
+    Full, //, Natural,
 }
 
 impl Join {
@@ -33,6 +34,7 @@ impl Join {
             Join::Left => !is_left,
             Join::Right => is_left,
             Join::Inner => false,
+            Join::Cross => false,
             Join::Full => true,
         }
     }
@@ -272,7 +274,7 @@ pub enum Query {
     //Project(Col, String),
     //    Project(Box<UnaryExpr>),
     //Group(Pos),
-    //Join(Join),
+    Join(Join, Rc<Rel>),
     Set(SetQuery, Rc<Rel>),
 }
 
@@ -311,6 +313,10 @@ impl Query {
 
     pub fn intersection(rhs: Rel) -> Self {
         Query::Set(SetQuery::Intersection, Rc::new(rhs))
+    }
+
+    pub fn cross(rhs: Rel) -> Self {
+        Query::Join(Join::Cross, Rc::new(rhs))
     }
 }
 
@@ -398,6 +404,7 @@ pub trait Relation: Debug {
     fn diff(&self, other: &Rel) -> Rel;
     fn intersect(&self, other: &Rel) -> Rel;
 
+    fn cross(&self, other: &Rel) -> Rel;
     //fn join(&self, cmp: CmOp) -> Self;
 
     //fn project(&self, cmp: CmOp) -> Self;

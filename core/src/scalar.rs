@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::dsl::schema_it;
+use crate::dsl::{schema, schema_it, table_cols};
 use crate::types::*;
 
 impl Default for Scalar {
@@ -77,6 +77,20 @@ impl Relation for Scalar {
             Rel::Vector(_) => self.to_vector().intersect(other),
             Rel::Table(_) => self.to_table().intersect(other),
             Rel::Seq(_) => self.as_seq().intersect(other),
+        }
+    }
+
+    fn cross(&self, other: &Rel) -> Rel {
+        match other {
+            Rel::One(b) => {
+                let schema = schema(&[("col0", self.kind()), ("col1", b.kind())]);
+                let a = vec![self.clone()];
+                let b = vec![b.clone()];
+                table_cols(schema, &vec![a, b]).into()
+            }
+            Rel::Vector(_) => self.to_vector().cross(other),
+            Rel::Table(_) => self.to_table().cross(other),
+            Rel::Seq(_) => self.as_seq().cross(other),
         }
     }
 }

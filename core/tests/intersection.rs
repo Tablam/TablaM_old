@@ -12,7 +12,7 @@ fn scalar() {
     let s2 = int64(2);
 
     let cmp = Query::intersection(s2.into());
-    check_query(s1.clone(), cmp.clone(), empty_I64());
+    check_query(s1.clone(), cmp.clone(), empty_i64());
 
     let cmp = Query::intersection(s1.clone().into());
     check_query(s1.clone(), cmp.clone(), s1);
@@ -24,7 +24,7 @@ fn vector() {
     let r2 = array(&[2i64]);
 
     let cmp = Query::intersection(r2.clone().into());
-    check_query(r1.clone(), cmp.clone(), empty_I64());
+    check_query(r1.clone(), cmp.clone(), empty_i64());
 
     let cmp = Query::intersection(r1.clone().into());
     check_query(r1.clone(), cmp.clone(), r1);
@@ -48,7 +48,7 @@ fn seq() {
     let r2 = int64(2).as_seq();
 
     let cmp = Query::intersection(r2.into());
-    check_query(r1.clone(), cmp.clone(), empty_I64());
+    check_query(r1.clone(), cmp.clone(), empty_i64());
 
     let cmp = Query::intersection(r1.clone().into());
     let result = r1.materialize();

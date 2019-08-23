@@ -15,7 +15,7 @@ fn scalar() {
     check_query(s1.clone(), cmp.clone(), s1.clone());
 
     let cmp = Query::diff(s1.clone().into());
-    check_query(s1.clone(), cmp.clone(), empty_I64());
+    check_query(s1.clone(), cmp.clone(), empty_i64());
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn vector() {
     check_query(r1.clone(), cmp.clone(), r1.clone());
 
     let cmp = Query::diff(r1.clone().into());
-    check_query(r1.clone(), cmp.clone(), empty_I64());
+    check_query(r1.clone(), cmp.clone(), empty_i64());
 }
 
 #[test]
@@ -54,5 +54,5 @@ fn seq() {
     check_query(r1.materialize(), cmp.clone(), result2.clone());
 
     let cmp = Query::diff(r1.clone().into());
-    check_query(r1.materialize(), cmp.clone(), empty_I64());
+    check_query(r1.materialize(), cmp.clone(), empty_i64());
 }

@@ -66,6 +66,15 @@ impl Relation for Seq {
             _ => unimplemented!("intersect"),
         }
     }
+
+    fn cross(&self, other: &Rel) -> Rel {
+        match other {
+            Rel::Seq(b) => {
+                Self::of_cross(&self.schema, &self.shape, self.iter.clone(), b.iter.clone()).into()
+            }
+            _ => unimplemented!("cross"),
+        }
+    }
 }
 
 impl Seq {
@@ -111,20 +120,34 @@ impl Seq {
         Self::new(schema.clone(), shape, ref_cell(iter))
     }
 
+    pub fn of_cross(
+        schema: &Schema,
+        shape: &Shape,
+        lhs: Rc<RefCell<dyn RelIter>>,
+        rhs: Rc<RefCell<dyn RelIter>>,
+    ) -> Self {
+        let iter = CrossIter::new(lhs, rhs);
+        Self::new(schema.clone(), shape, ref_cell(iter))
+    }
+
     pub fn materialize(&mut self) -> Rel {
-        let mut b = self.iter.borrow_mut();
+        _materialize(&self.iter, &self.schema, &self.shape)
+    }
+}
 
-        match self.shape {
-            Shape::Vector(rows) => {
-                let mut rows = Vec::with_capacity(rows);
-                while let Some(row) = b.next() {
-                    rows.push(row[0].clone());
-                }
+fn _materialize(of: &Rc<RefCell<dyn RelIter>>, schema: &Schema, shape: &Shape) -> Rel {
+    let mut b = of.borrow_mut();
 
-                Vector::new(self.schema.clone(), rows).into()
+    match shape {
+        Shape::Vector(rows) => {
+            let mut rows = Vec::with_capacity(*rows);
+            while let Some(row) = b.next() {
+                rows.push(row[0].clone());
             }
-            _ => unimplemented!(),
+
+            Vector::new(schema.clone(), rows).into()
         }
+        _ => unimplemented!(),
     }
 }
 
@@ -142,6 +165,78 @@ impl RelIter for RowsIter<Seq> {
     fn row(&mut self) -> Col {
         let mut iter = self.rel.iter.borrow_mut();
         iter.row()
+    }
+}
+
+struct CrossIter {
+    pub pos_a: usize,
+    pub pos_b: usize,
+    pub consumed: bool,
+    pub lhs_out: Vec<Col>,
+    pub rhs_out: Vec<Col>,
+    pub lhs: Rc<RefCell<dyn RelIter>>,
+    pub rhs: Rc<RefCell<dyn RelIter>>,
+}
+
+impl CrossIter {
+    pub fn new(lhs: Rc<RefCell<dyn RelIter>>, rhs: Rc<RefCell<dyn RelIter>>) -> Self {
+        CrossIter {
+            pos_a: 0,
+            pos_b: 0,
+            consumed: false,
+            lhs_out: vec![],
+            rhs_out: vec![],
+            lhs,
+            rhs,
+        }
+    }
+}
+
+impl RelIter for CrossIter {
+    fn pos(&self) -> usize {
+        self.pos_a + self.pos_b
+    }
+
+    fn advance(&mut self) -> bool {
+        dbg!(self.pos_a, self.pos_b);
+
+        if self.consumed {
+            if self.pos_b < self.rhs_out.len() {
+                self.pos_b += 1;
+            } else {
+                self.pos_b = 1;
+            }
+
+            if self.pos_a < self.lhs_out.len() {
+                self.pos_a += 1;
+                return true;
+            }
+        } else {
+            let mut a = self.lhs.borrow_mut();
+            let mut b = self.rhs.borrow_mut();
+
+            while a.advance() {
+                self.pos_a += 1;
+                while b.advance() {
+                    self.pos_b += 1;
+
+                    self.lhs_out.push(a.row());
+                    self.rhs_out.push(b.row());
+
+                    return true;
+                }
+            }
+            self.consumed = true;
+        }
+
+        false
+    }
+
+    fn row(&mut self) -> Col {
+        let mut a = self.lhs_out[self.pos_a - 1].clone();
+        a.extend_from_slice(&self.rhs_out[self.pos_b - 1]);
+
+        a
     }
 }
 
@@ -346,8 +441,8 @@ impl Clone for Seq {
 
 impl fmt::Display for RelPrinter<'_, Seq> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{};", self.rel.schema);
-        write!(f, "{};", self.rel);
+        write!(f, "[{};", self.rel.schema)?;
+        write!(f, "{};", self.rel)?;
         write!(f, "]")
     }
 }
