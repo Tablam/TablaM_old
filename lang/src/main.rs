@@ -2,6 +2,7 @@ use tablam_core;
 
 mod ast;
 mod interpreter;
+mod lexer;
 
 #[cfg(test)]
 mod tests;
@@ -11,4 +12,3 @@ fn main() {
 
     println!("Please input your guess.");
 }
-
