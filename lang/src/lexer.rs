@@ -44,21 +44,43 @@ enum Token {
     #[token = "*"]
     Star,
 
+    #[token = "=="]
+    Equal,
+
+    #[token = "="]
+    Set,
+
+    #[token = ">"]
+    Greater,
+
+    #[token = ">="]
+    GreaterEqual,
+
+    #[token = "<"]
+    Less,
+
+    #[token = "<="]
+    LessEqual,
+
     // Or regular expressions.
-    #[regex = "[a-zA-Z]+"]
+    #[regex = r"\w+"]
     Text,
 
     //For integer only
-    #[regex = r"[0-9]+"]
+    #[regex = r"\d+"]
     IntegerNumber,
 
     //For Float64
-    #[regex = r"[0-9]+\.[0-9]+f"]
+    #[regex = r"\d+\.\d+f"]
     FloatNumber,
 
     //For Dec64
-    #[regex = r"[0-9]+\.[0-9]+"]
+    #[regex = r"\d+\.\d+"]
     DecimalNumber,
+
+    //For percents
+    #[regex = r"\d+(?:\.\d+)%"]
+    PercentNumber,
 }
 
 #[cfg(test)]
@@ -198,7 +220,17 @@ mod tests {
         assert_eq!(lexer.token, Token::End);
     }
 
-    //(0) {1,2} 4+5 9-2 7/7 8*8 .
+    #[test]
+    fn test_two_characters() {
+        let mut lexer = Token::lexer("(0) ");
+
+        assert_eq!(lexer.token, Token::LeftParen);
+        assert_eq!(lexer.slice(), "(");
+        assert_eq!(lexer.range(), 0..1);
+
+        lexer.advance();
+    }
+
     #[test]
     fn it_works() {
         let mut lexer = Token::lexer("Create ridiculously fast Lexers.");
