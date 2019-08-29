@@ -38,9 +38,6 @@ enum Token {
     #[token = "+"]
     Plus,
 
-    #[token = ";"]
-    Semicolon,
-
     #[token = "/"]
     Slash,
 
@@ -50,6 +47,18 @@ enum Token {
     // Or regular expressions.
     #[regex = "[a-zA-Z]+"]
     Text,
+
+    //For integer only
+    #[regex = r"[0-9]+"]
+    IntegerNumber,
+
+    //For Float64
+    #[regex = r"[0-9]+\.[0-9]+f"]
+    FloatNumber,
+
+    //For Dec64
+    #[regex = r"[0-9]+\.[0-9]+"]
+    DecimalNumber,
 }
 
 #[cfg(test)]
@@ -58,11 +67,17 @@ mod tests {
 
     #[test]
     fn test_single_characters() {
-        let mut lexer = Token::lexer("(0) {1,2} 4+5=9-2=7/7=1 and semicolon ; isn't necessary.");
+        let mut lexer = Token::lexer("(0) {1,2} 4+5 9-2 7/7 8*8 .");
 
         assert_eq!(lexer.token, Token::LeftParen);
         assert_eq!(lexer.slice(), "(");
         assert_eq!(lexer.range(), 0..1);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "0");
+        assert_eq!(lexer.range(), 1..2);
 
         lexer.advance();
 
@@ -78,22 +93,115 @@ mod tests {
 
         lexer.advance();
 
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "1");
+        assert_eq!(lexer.range(), 5..6);
+
+        lexer.advance();
+
         assert_eq!(lexer.token, Token::Comma);
         assert_eq!(lexer.slice(), ",");
+        assert_eq!(lexer.range(), 6..7);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "2");
         assert_eq!(lexer.range(), 7..8);
 
         lexer.advance();
 
         assert_eq!(lexer.token, Token::RightBrace);
         assert_eq!(lexer.slice(), "}");
-        assert_eq!(lexer.range(), 9..10);
+        assert_eq!(lexer.range(), 8..9);
 
         lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "4");
+        assert_eq!(lexer.range(), 10..11);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::Plus);
+        assert_eq!(lexer.slice(), "+");
+        assert_eq!(lexer.range(), 11..12);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "5");
+        assert_eq!(lexer.range(), 12..13);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "9");
+        assert_eq!(lexer.range(), 14..15);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::Minus);
+        assert_eq!(lexer.slice(), "-");
+        assert_eq!(lexer.range(), 15..16);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "2");
+        assert_eq!(lexer.range(), 16..17);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "7");
+        assert_eq!(lexer.range(), 18..19);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::Slash);
+        assert_eq!(lexer.slice(), "/");
+        assert_eq!(lexer.range(), 19..20);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "7");
+        assert_eq!(lexer.range(), 20..21);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "8");
+        assert_eq!(lexer.range(), 22..23);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::Star);
+        assert_eq!(lexer.slice(), "*");
+        assert_eq!(lexer.range(), 23..24);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::IntegerNumber);
+        assert_eq!(lexer.slice(), "8");
+        assert_eq!(lexer.range(), 24..25);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::Dot);
+        assert_eq!(lexer.slice(), ".");
+        assert_eq!(lexer.range(), 26..27);
+
+        lexer.advance();
+
+        assert_eq!(lexer.token, Token::End);
     }
 
+    //(0) {1,2} 4+5 9-2 7/7 8*8 .
     #[test]
     fn it_works() {
-        let mut lexer = Token::lexer("Create 0 ridiculously fast Lexers.");
+        let mut lexer = Token::lexer("Create ridiculously fast Lexers.");
 
         assert_eq!(lexer.token, Token::Text);
         assert_eq!(lexer.slice(), "Create");
