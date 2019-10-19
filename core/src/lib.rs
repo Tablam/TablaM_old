@@ -6,6 +6,7 @@ pub mod relational;
 pub mod scalar;
 pub mod schema;
 pub mod sequence;
+pub mod sequence2;
 pub mod stdlib;
 pub mod table;
 pub mod types;

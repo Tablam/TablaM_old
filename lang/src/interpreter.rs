@@ -94,7 +94,7 @@ impl Program {
                     continue;
                 }
             }
-            self.eval_expr(env, line);
+            self.eval_expr(env, line)?;
         }
 
         Ok(Expr::Pass)
@@ -118,7 +118,7 @@ impl Program {
                     }
                 }
 
-                self.eval_expr(env, line);
+                self.eval_expr(env, line)?;
             }
         }
         Ok(Expr::Pass)

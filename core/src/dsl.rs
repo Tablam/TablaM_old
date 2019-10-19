@@ -83,6 +83,10 @@ where
     Rc::new(Scalar::from(x))
 }
 
+pub fn rc(x: Scalar) -> Rc<Scalar> {
+    Rc::new(x)
+}
+
 pub fn int(x: i32) -> Scalar {
     value::<i32>(x)
 }

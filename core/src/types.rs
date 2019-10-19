@@ -19,7 +19,7 @@ use chrono::prelude::*;
 extern crate rust_decimal;
 use rust_decimal::Decimal;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum Join {
     Cross,
     Left,
@@ -61,7 +61,7 @@ impl Shape {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum BinOp {
     Add,
     Minus,
@@ -69,14 +69,14 @@ pub enum BinOp {
     Div,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum LogicOp {
     And,
     Or,
     Not,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum CompareOp {
     Eq,
     NotEq,
@@ -104,7 +104,7 @@ pub enum KeyValue {
     Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum SetQuery {
     Union,
     Diff,
@@ -158,12 +158,14 @@ pub enum Scalar {
     Rel(Rc<Rel>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//Clone,
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rel {
     One(Scalar),
     Vector(Vector),
     Table(Table),
     Seq(Seq),
+    Query(QueryIter),
 }
 
 //Type Alias...
@@ -220,7 +222,7 @@ pub struct Table {
     pub data: Vec<Col>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct CmOp {
     pub op: CompareOp,
     pub lhs: usize,
@@ -263,7 +265,7 @@ impl CmOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum Query {
     //  To ask for all the rows, send a empty query
     //    Distinct,
@@ -311,8 +313,8 @@ impl Query {
         Query::Set(SetQuery::Diff, Rc::new(rhs))
     }
 
-    pub fn intersection(rhs: Rel) -> Self {
-        Query::Set(SetQuery::Intersection, Rc::new(rhs))
+    pub fn intersection(rhs: Rc<Rel>) -> Self {
+        Query::Set(SetQuery::Intersection, rhs)
     }
 
     pub fn cross(rhs: Rel) -> Self {
@@ -359,10 +361,16 @@ where
     Rc::new(RefCell::new(of))
 }
 
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct QueryIter {
+    pub rel: Rc<Rel>,
+    pub query: Vec<Query>,
+}
+
 pub struct Seq {
     pub schema: Schema,
     pub shape: Shape,
-    pub iter: Rc<RefCell<dyn RelIter>>,
+    pub iter: Box<dyn Iterator<Item = Col>>,
 }
 
 pub struct RelPrinter<'a, T> {
@@ -374,6 +382,9 @@ impl<'a, T> RelPrinter<'a, T> {
         RelPrinter { rel }
     }
 }
+
+pub trait RelOps: Iterator {}
+impl<I, T> RelOps for I where I: Iterator<Item = T> {}
 
 pub trait Relation: Debug {
     //fn schema(&self) -> Rc<Schema>;
@@ -391,12 +402,6 @@ pub trait Relation: Debug {
     fn printer(&self) -> RelPrinter<Self>
     where
         Self: Sized;
-
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized;
-
-    fn as_seq(&self) -> Seq;
 
     fn filter(&self, cmp: CmOp) -> Rel;
 

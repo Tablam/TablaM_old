@@ -18,40 +18,36 @@ impl Range {
         Shape::Table(1, self.end - self.start)
     }
 
-    fn rows(&self) -> RowsIter<Self> {
-        RowsIter::new(self.clone())
-    }
-
     fn as_seq(&self) -> Seq {
-        Seq::new(self.schema.clone(), &self.shape(), ref_cell(self.rows()))
-    }
-
-    fn get(&mut self, pos: usize) -> Option<usize> {
-        if pos >= self.start && pos <= self.end {
-            Some(pos)
-        } else {
-            None
-        }
+        unimplemented!()
+        //        Seq::new(
+        //            self.schema.clone(),
+        //            &self.shape(),
+        //            Box::new(self.into_iter()),
+        //        )
     }
 }
 
-impl RelIter for RowsIter<Range> {
-    fn pos(&self) -> usize {
-        self.pos
-    }
+impl IntoIterator for Range {
+    type Item = Col;
+    type IntoIter = RowsIter<Range>;
 
-    fn advance(&mut self) -> bool {
-        if self.pos < self.rel.start {
-            self.pos = self.rel.start;
+    fn into_iter(self) -> Self::IntoIter {
+        RowsIter::new(self)
+    }
+}
+
+impl Iterator for RowsIter<Range> {
+    type Item = Col;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.rel.start && self.pos <= self.rel.end {
+            let pos = Scalar::ISize(self.pos as isize);
+            self.pos += self.rel.step;
+            Some(vec![pos])
+        } else {
+            None
         }
-
-        let ok = self.pos < self.rel.end;
-        self.pos += self.rel.step;
-        ok
-    }
-
-    fn row(&mut self) -> Col {
-        vec![Scalar::ISize(self.pos as isize)]
     }
 }
 

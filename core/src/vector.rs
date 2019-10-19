@@ -16,17 +16,6 @@ impl Relation for Vector {
         RelPrinter::new(self)
     }
 
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized,
-    {
-        RowsIter::new(self.clone())
-    }
-
-    fn as_seq(&self) -> Seq {
-        Seq::new(self.schema.clone(), &self.shape(), ref_cell(self.rows()))
-    }
-
     fn filter(&self, cmp: CmOp) -> Rel {
         let apply = cmp.get_fn();
         let data = self.data.iter().filter(|x| apply(x, &cmp.rhs)).cloned();
@@ -43,6 +32,7 @@ impl Relation for Vector {
             }
             Rel::Table(_) => self.to_table().union(other),
             Rel::Seq(_) => self.as_seq().union(other),
+            Rel::Query(_) => self.as_seq().union(other),
         }
     }
 
@@ -64,6 +54,7 @@ impl Relation for Vector {
             }
             Rel::Table(_) => self.to_table().diff(other),
             Rel::Seq(_) => self.as_seq().diff(other),
+            Rel::Query(_) => self.as_seq().diff(other),
         }
     }
 
@@ -85,6 +76,7 @@ impl Relation for Vector {
             }
             Rel::Table(_) => self.to_table().intersect(other),
             Rel::Seq(_) => self.as_seq().intersect(other),
+            Rel::Query(_) => self.as_seq().intersect(other),
         }
     }
 
@@ -108,8 +100,9 @@ impl Relation for Vector {
                 }
                 table_rows(schema, rows).into()
             }
-            Rel::Table(_) => self.to_table().intersect(other),
-            Rel::Seq(_) => self.as_seq().intersect(other),
+            Rel::Table(_) => self.to_table().cross(other),
+            Rel::Seq(_) => self.as_seq().cross(other),
+            Rel::Query(_) => self.as_seq().cross(other),
         }
     }
 }
@@ -158,25 +151,39 @@ impl Vector {
         Self::new(self.schema.clone(), data)
     }
 
+    pub fn as_seq(&self) -> Seq {
+        //        Seq::new(
+        //            self.schema.clone(),
+        //            &self.shape(),
+        //            Box::new(self.into_iter()),
+        //        )
+        unimplemented!()
+    }
+
     fn as_set(&self) -> HashSet<Scalar> {
         self.data.iter().cloned().collect()
     }
 }
 
-impl RelIter for RowsIter<Vector> {
-    fn pos(&self) -> usize {
-        self.pos
-    }
+impl Iterator for RowsIter<Vector> {
+    type Item = Col;
 
-    fn advance(&mut self) -> bool {
-        let ok = self.pos < self.rel.data.len();
-        self.pos += 1;
-        ok
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < 1 {
+            self.pos += 1;
+            Some(vec![self.rel.data[self.pos].clone()])
+        } else {
+            None
+        }
     }
+}
 
-    fn row(&mut self) -> Col {
-        let pos = self.pos - 1;
-        vec![self.rel.data[pos].clone()]
+impl IntoIterator for Vector {
+    type Item = Col;
+    type IntoIter = RowsIter<Vector>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RowsIter::new(self)
     }
 }
 

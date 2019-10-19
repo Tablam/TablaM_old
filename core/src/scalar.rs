@@ -21,17 +21,6 @@ impl Relation for Scalar {
         RelPrinter::new(self)
     }
 
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized,
-    {
-        RowsIter::new(self.clone())
-    }
-
-    fn as_seq(&self) -> Seq {
-        Seq::new(schema_it(self.kind()), &self.shape(), ref_cell(self.rows()))
-    }
-
     fn filter(&self, cmp: CmOp) -> Rel {
         let apply = cmp.get_fn();
         if apply(self, &cmp.rhs) {
@@ -47,6 +36,7 @@ impl Relation for Scalar {
             Rel::Vector(b) => b.append(self).into(),
             Rel::Table(_) => self.to_table().union(other),
             Rel::Seq(_) => self.as_seq().union(other),
+            Rel::Query(_) => self.as_seq().union(other),
         }
     }
 
@@ -62,6 +52,7 @@ impl Relation for Scalar {
             Rel::Vector(_) => self.to_vector().diff(other),
             Rel::Table(_) => self.to_table().diff(other),
             Rel::Seq(_) => self.as_seq().diff(other),
+            Rel::Query(_) => self.as_seq().diff(other),
         }
     }
 
@@ -77,6 +68,7 @@ impl Relation for Scalar {
             Rel::Vector(_) => self.to_vector().intersect(other),
             Rel::Table(_) => self.to_table().intersect(other),
             Rel::Seq(_) => self.as_seq().intersect(other),
+            Rel::Query(_) => self.as_seq().diff(other),
         }
     }
 
@@ -91,6 +83,7 @@ impl Relation for Scalar {
             Rel::Vector(_) => self.to_vector().cross(other),
             Rel::Table(_) => self.to_table().cross(other),
             Rel::Seq(_) => self.as_seq().cross(other),
+            Rel::Query(_) => self.as_seq().cross(other),
         }
     }
 }
@@ -125,6 +118,37 @@ impl Scalar {
             Scalar::UTF8(_) => DataType::UTF8,
             Scalar::Rel(_) => DataType::Rel,
         }
+    }
+
+    pub fn as_seq(&self) -> Seq {
+        //        Seq::new(
+        //            schema_it(self.kind()),
+        //            &self.shape(),
+        //            Box::new(self.into_iter()),
+        //        )
+        unimplemented!()
+    }
+}
+
+impl Iterator for RowsIter<Scalar> {
+    type Item = Col;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < 1 {
+            self.pos += 1;
+            Some(vec![self.rel.clone()])
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Scalar {
+    type Item = Col;
+    type IntoIter = RowsIter<Scalar>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RowsIter::new(self)
     }
 }
 
@@ -181,7 +205,7 @@ impl fmt::Display for Scalar {
 
 impl fmt::Display for RelPrinter<'_, Scalar> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[it:{};", self.rel.kind());
+        write!(f, "[it:{};", self.rel.kind())?;
         write!(f, "{}]", self.rel)
     }
 }

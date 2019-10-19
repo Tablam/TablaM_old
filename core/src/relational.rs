@@ -9,6 +9,7 @@ impl Relation for Rel {
             Rel::Vector(x) => x.shape(),
             Rel::Table(x) => x.shape(),
             Rel::Seq(x) => x.shape(),
+            Rel::Query(x) => x.shape(),
         }
     }
 
@@ -19,28 +20,13 @@ impl Relation for Rel {
         RelPrinter::new(self)
     }
 
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized,
-    {
-        RowsIter::new(self.clone())
-    }
-
-    fn as_seq(&self) -> Seq {
-        match self {
-            Rel::One(x) => x.as_seq(),
-            Rel::Vector(x) => x.as_seq(),
-            Rel::Seq(x) => x.as_seq(),
-            Rel::Table(x) => x.as_seq(),
-        }
-    }
-
     fn filter(&self, cmp: CmOp) -> Rel {
         match self {
             Rel::One(x) => x.filter(cmp),
             Rel::Vector(x) => x.filter(cmp),
             Rel::Seq(x) => x.filter(cmp),
             Rel::Table(x) => x.filter(cmp),
+            Rel::Query(x) => x.filter(cmp),
         }
     }
 
@@ -50,6 +36,7 @@ impl Relation for Rel {
             Rel::Vector(x) => x.union(other),
             Rel::Seq(x) => x.union(other),
             Rel::Table(x) => x.union(other),
+            Rel::Query(x) => x.union(other),
         }
     }
 
@@ -59,6 +46,7 @@ impl Relation for Rel {
             Rel::Vector(x) => x.diff(other),
             Rel::Seq(x) => x.diff(other),
             Rel::Table(x) => x.diff(other),
+            Rel::Query(x) => x.diff(other),
         }
     }
 
@@ -68,6 +56,7 @@ impl Relation for Rel {
             Rel::Vector(x) => x.intersect(other),
             Rel::Seq(x) => x.intersect(other),
             Rel::Table(x) => x.intersect(other),
+            Rel::Query(x) => x.intersect(other),
         }
     }
 
@@ -77,14 +66,25 @@ impl Relation for Rel {
             Rel::Vector(x) => x.cross(other),
             Rel::Seq(x) => x.cross(other),
             Rel::Table(x) => x.cross(other),
+            Rel::Query(x) => x.cross(other),
         }
     }
 }
 
 impl Rel {
+    fn as_seq(&self) -> Seq {
+        match self {
+            Rel::One(x) => x.as_seq(),
+            Rel::Vector(x) => x.as_seq(),
+            Rel::Seq(x) => unreachable!(),
+            Rel::Table(x) => x.as_seq(),
+            Rel::Query(x) => x.as_seq(),
+        }
+    }
+
     pub fn query(self, query: &[Query]) -> Rel {
         if query.is_empty() {
-            self.clone()
+            self
         } else {
             let mut next = self;
             for q in query {
@@ -115,6 +115,7 @@ impl fmt::Display for Rel {
             Rel::Seq(x) => write!(f, "{}", x),
             Rel::Vector(x) => write!(f, "{}", x),
             Rel::Table(x) => write!(f, "{}", x),
+            Rel::Query(x) => write!(f, "{}", x),
         }
     }
 }
@@ -126,6 +127,7 @@ impl fmt::Display for RelPrinter<'_, Rel> {
             Rel::Seq(x) => write!(f, "{}", x.printer()),
             Rel::Vector(x) => write!(f, "{}", x.printer()),
             Rel::Table(x) => write!(f, "{}", x.printer()),
+            Rel::Query(x) => write!(f, "{}", x.printer()),
         }
     }
 }

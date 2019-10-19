@@ -63,11 +63,11 @@ convert!(String, Scalar::UTF8);
 
 macro_rules! convert_rel {
     ($kind:ident, $bound:path) => {
-        impl<'a> From<&'a $kind> for Rel {
-            fn from(i: &'a $kind) -> Self {
-                $bound(i.clone())
-            }
-        }
+        //        impl<'a> From<&'a $kind> for Rel {
+        //            fn from(i: &'a $kind) -> Self {
+        //                $bound(i.clone())
+        //            }
+        //        }
 
         impl From<$kind> for Rel {
             fn from(i: $kind) -> Self {
@@ -81,3 +81,4 @@ convert_rel!(Scalar, Rel::One);
 convert_rel!(Vector, Rel::Vector);
 convert_rel!(Seq, Rel::Seq);
 convert_rel!(Table, Rel::Table);
+convert_rel!(QueryIter, Rel::Query);

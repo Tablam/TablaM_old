@@ -18,17 +18,6 @@ impl Relation for Table {
         RelPrinter::new(self)
     }
 
-    fn rows(&self) -> RowsIter<Self>
-    where
-        Self: Sized,
-    {
-        RowsIter::new(self.clone())
-    }
-
-    fn as_seq(&self) -> Seq {
-        Seq::new(self.schema.clone(), &self.shape(), ref_cell(self.rows()))
-    }
-
     fn filter(&self, cmp: CmOp) -> Rel {
         let apply = cmp.get_fn();
         let data = self
@@ -112,6 +101,7 @@ impl Relation for Table {
                 table_rows(schema, rows).into()
             }
             Rel::Seq(_) => self.as_seq().intersect(other),
+            Rel::Query(_) => self.as_seq().intersect(other),
         }
     }
 }
@@ -164,10 +154,41 @@ impl Table {
         self.data.iter().cloned().collect()
     }
 
+    pub fn as_seq(&self) -> Seq {
+        //        Seq::new(
+        //            self.schema.clone(),
+        //            &self.shape(),
+        //            Box::new(self.into_iter()),
+        //        )
+        unimplemented!()
+    }
+
     pub fn append_column(&mut self, col: Col) {
         for (i, row) in self.data.iter_mut().enumerate() {
             row.push(col[i].clone());
         }
+    }
+}
+
+impl Iterator for RowsIter<Table> {
+    type Item = Col;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < 1 {
+            self.pos += 1;
+            Some(self.rel.data[self.pos].clone())
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Table {
+    type Item = Col;
+    type IntoIter = RowsIter<Table>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RowsIter::new(self)
     }
 }
 
