@@ -4,7 +4,7 @@
 
 ### Code ###
 
-https://github.com/Tablam/TablaM/
+[https://github.com/Tablam/TablaM/](https://github.com/Tablam/TablaM/)
 
 ### Long term goals ###
 
@@ -23,4 +23,4 @@ https://github.com/Tablam/TablaM/
 
 ### Who do I talk to? ###
 
-* http://www.elmalabarista.com
+[http://www.elmalabarista.com](http://www.elmalabarista.com)
